@@ -1,0 +1,2 @@
+# cogs
+Cogs for redbot
