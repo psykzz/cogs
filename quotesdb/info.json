@@ -1,0 +1,11 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Quotes DB",
+    "short": "Storage for user generated quotes",
+    "description": "Allow uses to specify quotes paired with a trigger.",
+    "permissions" : ["Send Messages"],
+    "tags": [
+        "Quotes",
+        "Fun"
+    ]
+}
