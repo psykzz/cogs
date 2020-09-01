@@ -1,0 +1,12 @@
+{
+    "author": ["PsyKzz"],
+    "name": "React Roles",
+    "short": "React to messages for roles",
+    "description": "Specific specific messages to track reactions on them and apply roles to users automatically.",
+    "permissions" : ["Send Messages"],
+    "tags": [
+        "Roles",
+        "Reactions",
+        "Administration"
+    ]
+}
