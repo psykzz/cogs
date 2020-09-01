@@ -1,0 +1,12 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Misc",
+    "short": "Misc things for your server",
+    "description": "Misc things for your server.",
+    "permissions" : ["Send Messages"],
+    "tags": [
+        "Roles",
+        "Reactions",
+        "Administration"
+    ]
+}
