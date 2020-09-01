@@ -86,7 +86,7 @@ class QuoteDB(commands.Cog):
         await ctx.send(f"{ctx.author.mention}, deleted quote #{qid}.")
 
     @commands.guild_only()
-    @commands.command(name="qinfo")
+    @commands.command(name="qid")
     async def quote_info(self, ctx, *, qid: str):
         'Show details about a quote'
         guild_group = self.config.guild(ctx.guild)
