@@ -76,7 +76,7 @@ class QuoteDB(commands.Cog):
                 return
             data = quotes[qid]
             member = discord.utils.find(lambda m: m.id == data['user'], ctx.channel.guild.members)
-            if ctx.author != member:
+            if ctx.author != member and not bot.is_admin(ctx.author):
                 await ctx.send(f"{ctx.author.mention}, only the creator (or admins) can delete that.")
                 return
             trigger = data['trigger']
