@@ -179,3 +179,50 @@ class TGMC(commands.Cog):
         )
 
         await ctx.send(embed=winrates)
+
+    @winrates.command()
+    async def hunt(self, ctx, delta="14"):
+        "Get the current winrates on bug hunt"
+
+        raw_data = await http_get(
+            f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}"
+        )
+        if not raw_data:
+            return await ctx.send(
+                "Unable to query data - check http://statbus.psykzz.com:8080 is online."
+            )
+        data = raw_data.get("by_gamemode", {}).get("Hunt", {})
+
+        winrates = discord.Embed()
+        winrates.type = "rich"
+
+        winrates.set_author(
+            name="TGMC Statbus", url=f"http://statbus.psykzz.com:8080",
+        )
+
+        result_type = [
+            "Marine Major Victory",
+            "Xenomorph Major Victory",
+            "Marine Minor Victory",
+            "Xenomorph Minor Victory",
+        ]
+        total_wins = 0
+        for res in result_type:
+            wins = data.get(res, 0)
+            total_wins += wins
+
+        xeno_wins = data.get("Xenomorph Major Victory", 0) + data.get(
+            "Xenomorph Minor Victory", 0
+        )
+        calc_winrates = round((xeno_wins / total_wins) * 100, 2)
+
+        winrates.add_field(
+            name="Winrate (Xenomorph to Marine)", value=f"{calc_winrates}%"
+        )
+        winrates.add_field(
+            name="View Raw",
+            value=f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}",
+            inline=False,
+        )
+
+        await ctx.send(embed=winrates)
