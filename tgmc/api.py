@@ -87,25 +87,25 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def all(self, ctx, delta="14"):
         "Get the current winrates"
-        return await self.get_winrate(None) # None should get all winrates together
+        return await self.get_winrate(self, ctx, delta, None) # None should get all winrates together
 
     @winrates.command()
     async def distress(self, ctx, delta="14"):
         "Get the current winrates on distress"
-        return await self.get_winrate("Distress Signal")
+        return await self.get_winrate(self, ctx, delta, "Distress Signal")
         
 
     @winrates.command()
     async def crash(self, ctx, delta="14"):
         "Get the current winrates on crash"
-        return await self.get_winrate("Crash")
+        return await self.get_winrate(self, ctx, delta, "Crash")
 
     @winrates.command()
     async def bughunt(self, ctx, delta="14"):
         "Get the current winrates on bug hunt"
-        return await self.get_winrate("Bug Hunt")
+        return await self.get_winrate(self, ctx, delta, "Bug Hunt")
 
     @winrates.command()
     async def huntparty(self, ctx, delta="14"):
         "Get the current winrates on bug hunt"
-        return await self.get_winrate("Hunt party")
+        return await self.get_winrate(self, ctx, delta, "Hunt party")
