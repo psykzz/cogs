@@ -87,7 +87,7 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def all(self, ctx, delta="14"):
         "Get the current winrates"
-        return await self.get_winrate(self, ctx, delta, None) # None should get all winrates together
+        return await self.get_winrate(ctx, delta, None) # None should get all winrates together
 
     @winrates.command()
     async def distress(self, ctx, delta="14"):
