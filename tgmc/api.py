@@ -43,7 +43,7 @@ class TGMC(commands.Cog):
                 "Unable to query data - check http://statbus.psykzz.com:8080 is online."
             )
 
-        data = raw_data.get("by_gamemode", {}).get(gamemode, {}) if gamemode else data = raw_data.get("winrates", {})
+        data = raw_data.get("by_gamemode", {}).get(gamemode, {}) if gamemode else raw_data.get("winrates", {})
 
         winrates = discord.Embed()
         winrates.type = "rich"
