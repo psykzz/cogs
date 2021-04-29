@@ -191,7 +191,7 @@ class TGMC(commands.Cog):
             return await ctx.send(
                 "Unable to query data - check http://statbus.psykzz.com:8080 is online."
             )
-        data = raw_data.get("by_gamemode", {}).get("Hunt", {})
+        data = raw_data.get("by_gamemode", {}).get("Bug Hunt", {})
 
         winrates = discord.Embed()
         winrates.type = "rich"
