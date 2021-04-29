@@ -34,7 +34,7 @@ class TGMC(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def get_winrate(gamemode=None):
+    async def get_winrate(self, ctx, delta="14", gamemode=None):
         raw_data = await http_get(
             f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}"
         )
