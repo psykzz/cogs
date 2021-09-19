@@ -8,6 +8,10 @@ import httpx
 import discord
 from redbot.core import Config, commands
 
+MARINE_MAJOR_VICTORY = "Marine Major Victory"
+XENOMORPH_MAJOR_VICTORY = "Xenomorph Major Victory"
+MARINE_MINOR_VICTORY = "Marine Minor Victory"
+XENOMORPH_MINOR_VICTORY = "Xenomorph Minor Victory"
 
 async def http_get(url):
     max_attempts = 3
@@ -53,24 +57,28 @@ class TGMC(commands.Cog):
         )
 
         result_type = [
-            "Marine Major Victory",
-            "Xenomorph Major Victory",
-            "Marine Minor Victory",
-            "Xenomorph Minor Victory",
+            MARINE_MAJOR_VICTORY,
+            XENOMORPH_MAJOR_VICTORY,
+            MARINE_MINOR_VICTORY,
+            XENOMORPH_MINOR_VICTORY
         ]
         total_wins = 0
         for res in result_type:
             wins = data.get(res, 0)
             total_wins += wins
 
-        xeno_wins = data.get("Xenomorph Major Victory", 0) + data.get(
-            "Xenomorph Minor Victory", 0
+        xeno_wins = data.get(XENOMORPH_MAJOR_VICTORY, 0) + data.get(
+            XENOMORPH_MINOR_VICTORY, 0
         )
-        calc_winrates = round((xeno_wins / total_wins) * 100, 2)
-
-        winrates.add_field(
-            name="Winrate (Xenomorph to Marine)", value=f"{calc_winrates}%"
-        )
+        if total_wins > 0:
+            calc_winrates = round((xeno_wins / total_wins) * 100, 2)
+            winrates.add_field(
+                name="Winrate (Xenomorph to Marine)", value=f"{calc_winrates}%"
+            )
+        else
+            winrates.add_field(
+                name="Winrate (Xenomorph to Marine)", value=f"`Not enough data`"
+            )
         winrates.add_field(
             name="View Raw",
             value=f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}",
