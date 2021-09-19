@@ -75,7 +75,7 @@ class TGMC(commands.Cog):
             winrates.add_field(
                 name="Winrate (Xenomorph to Marine)", value=f"{calc_winrates}%"
             )
-        else
+        else:
             winrates.add_field(
                 name="Winrate (Xenomorph to Marine)", value=f"`Not enough data`"
             )
