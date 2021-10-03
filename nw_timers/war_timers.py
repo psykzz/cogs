@@ -44,15 +44,44 @@ class WarTimers(commands.Cog):
         "Manage war timers"
         pass
 
+    
+    @war.command()
+    async def next(
+        self,
+        ctx,
+        zone: str,
+        *,
+        relative_time: str
+    ):
+        "Get the next upcoming war"
+
+
+
+        # iterate through VALID_ZONE and get the next upcoming war
+        upcoming_war = (None, None)
+        for zone in VALID_ZONES:
+            timer = await get_timer_for_zone(ctx, zone)
+            if timer < upcoming_war[1] or upcoming_war[1] is None:
+                upcoming_war = (zone, timer)
+
+        if not upcoming_war:
+            await ctx.send(f"There are no upcoming wars.")
+            return
+        zone, timer = upcoming_war
+        await ctx.send(f"Next war, {zone} in {timer}")
+
     @war.command()
     async def add(
         self,
         ctx,
         zone: str,
         *,
-        relative_time: commands.RelativedeltaConverter
+        relative_time: str
     ):
         "Add a war timer for a zone"
+
+        relative_delta = commands.parse_relativedelta(relative_time) 
+        war_time = datetime.datetime.now() + relative_delta
 
         proper_zone = self.get_proper_zone(zone)
         if not proper_zone:
@@ -63,10 +92,10 @@ class WarTimers(commands.Cog):
         if timer:
             await ctx.send(f"found timer for zone: {timer}")
         await ctx.send(f"zone: {proper_zone}")
-        await ctx.send(f"time: {datetime.datetime.now() + relative_time}")
+        await ctx.send(f"time: {war_time}")
 
-        await self.add_timer_for_zone(ctx, proper_zone, relative_time)
-        await ctx.send(f"War timer created\n{proper_zone} in {relative_time}")
+        await self.add_timer_for_zone(ctx, proper_zone, war_time)
+        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(relative_time, 'minutes')}")
 
     @war.command()
     async def remove(
@@ -74,18 +103,17 @@ class WarTimers(commands.Cog):
     ):
         "Removes a war timer for a zone"
 
-        guild_config = self.config.guild(ctx.guild)
-        timer = await guild_config.timers()
+        proper_zone = self.get_proper_zone(zone)
+        if not proper_zone:
+            await ctx.send(f"{zone} is not a valid zone")
+            return
+
+        timer = await self.get_timer_for_zone(ctx, proper_zone)
         if not timer:
             await ctx.send(f"There are no active wars set for {zone} to remove.")
             return
 
-        timer_str = ', '.join([f"{index+1}: {timer[zone]}" for index, timer in enumerate(timers)])
-        await ctx.send(f"Timers\n{timer_str}\n\nWhich timer would you like to remove?")
-
-        pred = MessagePredicate.valid_int(ctx)
-        await self.bot.wait_for("message", check=pred)
-        await ctx.send(f"War timer {pred.result} removed.")
+        await ctx.send(f"War timer for {zone} removed.")
 
     async def get_timer_for_zone(self, ctx, zone):
         guild_config = self.config.guild(ctx.guild)
@@ -105,3 +133,48 @@ class WarTimers(commands.Cog):
         if zone.lower() not in lower_zones:
             return None
         return VALID_ZONES[lower_zones.index(zone.lower())]
+
+
+def humanize_delta(delta: relativedelta, precision: str = "seconds", max_units: int = 6) -> str:
+    """
+    Returns a human-readable version of the relativedelta.
+
+    precision specifies the smallest unit of time to include (e.g. "seconds", "minutes").
+    max_units specifies the maximum number of units of time to include (e.g. 1 may include days but not hours).
+    """
+    if max_units <= 0:
+        raise ValueError("max_units must be positive")
+
+    units = (
+        ("years", delta.years),
+        ("months", delta.months),
+        ("days", delta.days),
+        ("hours", delta.hours),
+        ("minutes", delta.minutes),
+        ("seconds", delta.seconds),
+    )
+
+    # Add the time units that are >0, but stop at accuracy or max_units.
+    time_strings = []
+    unit_count = 0
+    for unit, value in units:
+        if value:
+            time_strings.append(_stringify_time_unit(value, unit))
+            unit_count += 1
+
+        if unit == precision or unit_count >= max_units:
+            break
+
+    # Add the 'and' between the last two units, if necessary
+    if len(time_strings) > 1:
+        time_strings[-1] = f"{time_strings[-2]} and {time_strings[-1]}"
+        del time_strings[-2]
+
+    # If nothing has been found, just make the value 0 precision, e.g. `0 days`.
+    if not time_strings:
+        humanized = _stringify_time_unit(0, precision)
+    else:
+        humanized = ", ".join(time_strings)
+
+    return humanized
+
