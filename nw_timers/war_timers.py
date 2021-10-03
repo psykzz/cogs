@@ -52,18 +52,12 @@ class WarTimers(commands.Cog):
     async def next(
         self,
         ctx,
-        zone: str,
-        *,
-        relative_time: str
     ):
         "Get the next upcoming war"
-
-
-
         # iterate through VALID_ZONE and get the next upcoming war
         upcoming_war = (None, None)
         for zone in VALID_ZONES:
-            timer = await get_timer_for_zone(ctx, zone)
+            timer = await self.get_timer_for_zone(ctx, zone)
             if timer < upcoming_war[1] or upcoming_war[1] is None:
                 upcoming_war = (zone, timer)
 
@@ -98,7 +92,7 @@ class WarTimers(commands.Cog):
         await ctx.send(f"time: {war_time}")
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
-        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(relative_time, 'minutes')}")
+        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(war_time, 'minutes')}")
 
     @war.command()
     async def remove(
