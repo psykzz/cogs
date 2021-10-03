@@ -60,8 +60,8 @@ class WarTimers(commands.Cog):
         print(f"zone: {zone}")
         print(f"time: {time_str}")
 
-        guild_config = self.config.guild(ctx.guild)
-        timers = await guild_config.timers()
+        # guild_config = self.config.guild(ctx.guild)
+        # timers = await guild_config.timers()
 
         await ctx.send("War timer created.")
 
