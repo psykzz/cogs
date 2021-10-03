@@ -57,6 +57,7 @@ class WarTimers(commands.Cog):
         # iterate through VALID_ZONE and get the next upcoming war
         timer, zone = None, None
         if specific_zone is not None:
+            zone = specific_zone
             proper_zone = self.get_proper_zone(specific_zone)
             timer = await self.get_timer_for_zone(ctx, proper_zone)
             if not timer:
@@ -102,7 +103,7 @@ class WarTimers(commands.Cog):
 
         timer = await self.get_timer_for_zone(ctx, proper_zone)
         if timer:
-            await ctx.send(f"found timer for zone: {timer}")
+            await ctx.send(f"Replacing existing timer for zone: {timer}")
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
         await ctx.send(f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}")
