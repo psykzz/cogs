@@ -42,7 +42,6 @@ class WarTimers(commands.Cog):
 
     @commands.group()
     @commands.guild_only()
-    @commands.mod_or_permissions(manage_channels=True)
     async def war(self, ctx):
         "Manage war timers"
         pass
@@ -71,9 +70,10 @@ class WarTimers(commands.Cog):
             await ctx.send(f"There are no upcoming wars.")
             return
         relative_time = relativedelta(timer, datetime.datetime.now())
-        await ctx.send(f"Next war, {zone} in {humanize_delta(relative_time, 'minutes')}")
+        await ctx.send(f"The next war is for {zone}, in {humanize_delta(relative_time, 'minutes')}.")
 
     @war.command()
+    @commands.mod_or_permissions(manage_channels=True)
     async def add(
         self,
         ctx,
@@ -94,13 +94,12 @@ class WarTimers(commands.Cog):
         timer = await self.get_timer_for_zone(ctx, proper_zone)
         if timer:
             await ctx.send(f"found timer for zone: {timer}")
-        await ctx.send(f"zone: {proper_zone}")
-        await ctx.send(f"time: {war_time}")
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
-        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(relative_delta, 'minutes')}")
+        await ctx.send(f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}")
 
     @war.command()
+    @commands.mod_or_permissions(manage_channels=True)
     async def remove(
         self, ctx, zone: str
     ):
@@ -117,8 +116,7 @@ class WarTimers(commands.Cog):
             return
 
         await self.add_timer_for_zone(ctx, proper_zone, datetime.datetime.now()) # Now will just instantly invalidate the timer
-
-        await ctx.send(f"War timer for {zone} removed.")
+        await ctx.send(f"War timer for {zone} was removed.")
 
     async def get_timer_for_zone(self, ctx, zone):
         guild_config = self.config.guild(ctx.guild)
