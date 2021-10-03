@@ -42,6 +42,7 @@ class WarTimers(commands.Cog):
         self.config.register_guild(**default_guild)
 
     @commands.group()
+    # @commands.guild_only()
     @commands.mod_or_permissions(manage_channels=True)
     async def war(self, ctx):
         "Manage war timers"
@@ -52,7 +53,7 @@ class WarTimers(commands.Cog):
         self,
         ctx,
         zone: str,
-        time_str: converter.RelativedeltaConverter
+        time_str: str
     ):
         "Add a war timer for a zone"
 
