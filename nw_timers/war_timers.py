@@ -124,13 +124,13 @@ class WarTimers(commands.Cog):
         timer = timers.get(zone)
         if not timer:
             return None
-        return datetime.datetime.strptime(timer, '%Y-%m-%d %H:%M:%S.%f')
+        return datetime.datetime.fromisoformat(timer)
     
-    async def add_timer_for_zone(self, ctx, zone, relative_time):
+    async def add_timer_for_zone(self, ctx, zone, timestamp):
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
         async with guild_config.timers() as timers:
-            timers[zone] = relative_time.utcnow()
+            timers[zone] = timestamp.isoformat()
 
     def get_proper_zone(self, zone):
         # Check if the zone is valid
