@@ -123,7 +123,10 @@ class WarTimers(commands.Cog):
         timer = timers.get(zone)
         if not timer:
             return None
-        return datetime.datetime.fromisoformat(timer)
+        datetime_instance = datetime.datetime.fromisoformat(timer)
+        if datetime.datetime.now() > datetime_instance:
+            return None
+        return datetime_instance
     
     async def add_timer_for_zone(self, ctx, zone, timestamp):
         guild_config = self.config.guild(ctx.guild)
