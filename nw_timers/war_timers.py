@@ -70,7 +70,8 @@ class WarTimers(commands.Cog):
             await ctx.send(f"There are no upcoming wars.")
             return
         zone, timer = upcoming_war
-        await ctx.send(f"Next war, {zone} in {timer}")
+        relative_time = relativedelta(timer - datetime.datetime.now())
+        await ctx.send(f"Next war, {zone} in {humanize_delta(relative_time, 'minutes')}")
 
     @war.command()
     async def add(
@@ -114,6 +115,8 @@ class WarTimers(commands.Cog):
         if not timer:
             await ctx.send(f"There are no active wars set for {zone} to remove.")
             return
+
+        await self.add_timer_for_zone(ctx, proper_zone, datetime.datetime.now()) # Now will just instantly invalidate the timer
 
         await ctx.send(f"War timer for {zone} removed.")
 
