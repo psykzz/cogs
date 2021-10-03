@@ -57,8 +57,8 @@ class WarTimers(commands.Cog):
     ):
         "Add a war timer for a zone"
 
-        print(f"zone: {zone}")
-        print(f"time: {time_str}")
+        await ctx.send(f"zone: {zone}")
+        await ctx.send(f"time: {time_str}")
 
         # guild_config = self.config.guild(ctx.guild)
         # timers = await guild_config.timers()
