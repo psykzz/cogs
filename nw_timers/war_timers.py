@@ -1,5 +1,6 @@
 import datetime
 from redbot.core import Config, commands
+from redbot.core.utils.predicates import MessagePredicate
 
 IDENTIFIER = 4175987634259872345 # Random to this cog
 
@@ -58,8 +59,10 @@ class WarTimers(commands.Cog):
         if zone.lower() not in lower_zones:
             await ctx.send(f"{zone} is not a valid zone")
             return
-
         proper_zone = VALID_ZONES[lower_zones.index(zone.lower())]
+
+        timers = get_timers_for_zone(ctx, proper_zone)
+
         await ctx.send(f"zone: {proper_zone}")
         await ctx.send(f"time: {datetime.datetime.now() + time_str}")
 
@@ -77,6 +80,17 @@ class WarTimers(commands.Cog):
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
 
-        await ctx.send("War timer removed.")
+        timer_str = ', '.join([f"{index+1}: {timer['zone']}" for index, timer in enumerate(timers)])
+        await ctx.send("Timers\n{timer_str}\n\nWhich timer would you like to remove?")
+
+        pred = MessagePredicate.valid_int(ctx)
+        await self.bot.wait_for("message", check=pred)
+        await ctx.send("War timer {pred.result} removed.")
+
+    async def get_timers_for_zone(self, ctx, zone):
+        guild_config = self.config.guild(ctx.guild)
+        timers = await guild_config.timers()
+
+        return timers[zone]
         
 
