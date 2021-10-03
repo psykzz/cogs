@@ -3,7 +3,8 @@ import datetime
 from dateutil.relativedelta import relativedelta
 
 from redbot.core import Config, commands
-from redbot.core.utils.predicates import MessagePredicate
+from redbot.core.utils.predicates import ReactionPredicate
+from redbot.core.utils.menus import start_adding_reactions
 
 IDENTIFIER = 4175987634259872345 # Random to this cog
 
@@ -120,6 +121,24 @@ class WarTimers(commands.Cog):
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
         await ctx.send(f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}")
+        defenders = self.ask_question(ctx, "Who are the defenders?", {"❌": None, "C": "Covenant", "S": "Syndicate", "M": "Marauders"})
+        attackers = self.ask_question(ctx, "Who are the attackers?", {"❌": None, "C": "Covenant", "S": "Syndicate", "M": "Marauders"})
+        await ctx.send(f"Def: {defenders}, Attk: {attackers}")
+        # msg = await ctx.send("Who are the defenders?")
+        # emojis = ["❌", "C", "S", "M" ]
+        # start_adding_reactions(msg, emojis)
+        # pred = ReactionPredicate.with_emojis(emojis, msg)
+        # await ctx.bot.wait_for("reaction_add", check=pred)
+        # if pred.result == 0:
+        #     return
+        # # Add this to database
+
+    async def ask_question(self, ctx, question, options, timeout=60.0):
+        msg = await ctx.send(question)
+        pred = ReactionPredicate.with_emojis(options.keys(), msg, timeout=timeout)
+        await ctx.bot.wait_for("reaction_add", check=pred)
+        await msg.delete()
+        return options[options.keys()[pred.result]] # Oh such a hack
 
     @war.command()
     @commands.mod_or_permissions(manage_channels=True)
