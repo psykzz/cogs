@@ -102,6 +102,6 @@ class WarTimers(commands.Cog):
     def get_proper_zone(self, zone):
         # Check if the zone is valid
         lower_zones = [z.lower() for z in VALID_ZONES]
-        if zone.lower not in lower_zones:
+        if zone.lower() not in lower_zones:
             return None
         return VALID_ZONES[lower_zones.index(zone.lower())]
