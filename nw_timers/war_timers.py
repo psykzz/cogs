@@ -97,7 +97,7 @@ class WarTimers(commands.Cog):
         await ctx.send(f"time: {war_time}")
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
-        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(war_time, 'minutes')}")
+        await ctx.send(f"War timer created\n{proper_zone} in {humanize_delta(relative_delta, 'minutes')}")
 
     @war.command()
     async def remove(
