@@ -54,24 +54,19 @@ class WarTimers(commands.Cog):
     ):
         "Add a war timer for a zone"
 
-        # Check if the zone is valid
-        lower_zones = [z.lower() for z in VALID_ZONES]
-        if zone.lower() not in lower_zones:
+        proper_zone = get_proper_zone(zone)
+        if not proper_zone:
             await ctx.send(f"{zone} is not a valid zone")
             return
-        proper_zone = VALID_ZONES[lower_zones.index(zone.lower())]
 
-        timers = await self.get_timers_for_zone(ctx, proper_zone)
-
+        timer = await self.get_timer_for_zone(ctx, proper_zone)
+        if timer:
+            await ctx.send(f"found timer for zone: {timer}")
         await ctx.send(f"zone: {proper_zone}")
         await ctx.send(f"time: {datetime.datetime.now() + relative_time}")
 
         await self.add_timer_for_zone(ctx, proper_zone, relative_time)
-
-        # guild_config = self.config.guild(ctx.guild)
-        # timers = await guild_config.timers()
-
-        await ctx.send("War timer created.")
+        await ctx.send(f"War timer created\n{proper_zone} in {relative_time}")
 
     @war.command()
     async def remove(
@@ -80,7 +75,10 @@ class WarTimers(commands.Cog):
         "Removes a war timer for a zone"
 
         guild_config = self.config.guild(ctx.guild)
-        timers = await guild_config.timers()
+        timer = await guild_config.timers()
+        if not timer:
+            await ctx.send(f"There are no active wars set for {zone} to remove.")
+            return
 
         timer_str = ', '.join([f"{index+1}: {timer[zone]}" for index, timer in enumerate(timers)])
         await ctx.send(f"Timers\n{timer_str}\n\nWhich timer would you like to remove?")
@@ -89,16 +87,21 @@ class WarTimers(commands.Cog):
         await self.bot.wait_for("message", check=pred)
         await ctx.send(f"War timer {pred.result} removed.")
 
-    async def get_timers_for_zone(self, ctx, zone):
+    async def get_timer_for_zone(self, ctx, zone):
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
 
-        return timers[zone]
+        return timers.get(zone)
     
     async def add_timer_for_zone(self, ctx, zone, relative_time):
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
         async with guild_config.timers() as timers:
-            if zone not in timers:
-                timers[zone] = []
-            timers[zone].append(relative_time)
+            timers[zone] = relative_time
+
+    def get_proper_zone(self, zone):
+        # Check if the zone is valid
+        lower_zones = [z.lower() for z in VALID_ZONES]
+        if zone.lower not in lower_zones:
+            return None
+        return VALID_ZONES[lower_zones.index(zone.lower())]
