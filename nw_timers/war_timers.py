@@ -58,7 +58,12 @@ class WarTimers(commands.Cog):
         upcoming_war = (None, None)
         for zone in VALID_ZONES:
             timer = await self.get_timer_for_zone(ctx, zone)
-            if timer and (upcoming_war[1] is None or timer < upcoming_war[1]):
+            if not timer:
+                continue
+            if upcoming_war[1] is None: 
+                upcoming_war = (zone, timer)
+                continue
+            if timer < upcoming_war[1]:
                 upcoming_war = (zone, timer)
 
         if not upcoming_war:
