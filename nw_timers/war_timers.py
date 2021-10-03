@@ -1,4 +1,4 @@
-
+import datetime
 from redbot.core import Config, commands
 
 IDENTIFIER = 4175987634259872345 # Random to this cog
@@ -54,7 +54,7 @@ class WarTimers(commands.Cog):
         "Add a war timer for a zone"
 
         await ctx.send(f"zone: {zone}")
-        await ctx.send(f"time: {time_str}")
+        await ctx.send(f"time: {datetime.now() + time_str}")
 
         # guild_config = self.config.guild(ctx.guild)
         # timers = await guild_config.timers()
