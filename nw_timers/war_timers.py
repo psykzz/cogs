@@ -135,7 +135,7 @@ class WarTimers(commands.Cog):
         return VALID_ZONES[lower_zones.index(zone.lower())]
 
 
-def humanize_delta(delta: relativedelta, precision: str = "seconds", max_units: int = 6) -> str:
+def humanize_delta(delta, precision: str = "seconds", max_units: int = 6) -> str:
     """
     Returns a human-readable version of the relativedelta.
 
