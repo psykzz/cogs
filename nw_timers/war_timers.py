@@ -1,4 +1,7 @@
 import datetime
+
+from dateutil.relativedelta import relativedelta
+
 from redbot.core import Config, commands
 from redbot.core.utils.predicates import MessagePredicate
 
@@ -135,7 +138,32 @@ class WarTimers(commands.Cog):
         return VALID_ZONES[lower_zones.index(zone.lower())]
 
 
-def humanize_delta(delta, precision: str = "seconds", max_units: int = 6) -> str:
+
+
+RFC1123_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
+INFRACTION_FORMAT = "%Y-%m-%d %H:%M"
+
+
+def _stringify_time_unit(value: int, unit: str) -> str:
+    """
+    Returns a string to represent a value and time unit, ensuring that it uses the right plural form of the unit.
+
+    >>> _stringify_time_unit(1, "seconds")
+    "1 second"
+    >>> _stringify_time_unit(24, "hours")
+    "24 hours"
+    >>> _stringify_time_unit(0, "minutes")
+    "less than a minute"
+    """
+    if value == 1:
+        return f"{value} {unit[:-1]}"
+    elif value == 0:
+        return f"less than a {unit[:-1]}"
+    else:
+        return f"{value} {unit}"
+
+
+def humanize_delta(delta: relativedelta, precision: str = "seconds", max_units: int = 6) -> str:
     """
     Returns a human-readable version of the relativedelta.
 
@@ -177,4 +205,3 @@ def humanize_delta(delta, precision: str = "seconds", max_units: int = 6) -> str
         humanized = ", ".join(time_strings)
 
     return humanized
-
