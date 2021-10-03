@@ -70,7 +70,7 @@ class WarTimers(commands.Cog):
                 return
 
             relative_time = relativedelta(timer, datetime.datetime.now())
-            await ctx.send(f"The next war for {zone}, is in {humanize_delta(relative_time, 'minutes')}.")
+            await ctx.send(f"The next war for {proper_zone}, is in {humanize_delta(relative_time, 'minutes')}.")
             return
         
         # We didn't have a specific zone so we should just find the earlist one
