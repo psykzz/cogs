@@ -61,12 +61,12 @@ class WarTimers(commands.Cog):
             return
         proper_zone = VALID_ZONES[lower_zones.index(zone.lower())]
 
-        timers = self.get_timers_for_zone(ctx, proper_zone)
+        timers = await self.get_timers_for_zone(ctx, proper_zone)
 
         await ctx.send(f"zone: {proper_zone}")
         await ctx.send(f"time: {datetime.datetime.now() + relative_time}")
 
-        self.add_timer_for_zone(ctx, proper_zone, relative_time)
+        await self.add_timer_for_zone(ctx, proper_zone, relative_time)
 
         # guild_config = self.config.guild(ctx.guild)
         # timers = await guild_config.timers()
