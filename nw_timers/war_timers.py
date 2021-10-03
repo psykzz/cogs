@@ -66,10 +66,10 @@ class WarTimers(commands.Cog):
             if timer < upcoming_war[1]:
                 upcoming_war = (zone, timer)
 
-        if not upcoming_war:
+        zone, timer = upcoming_war
+        if not zone:
             await ctx.send(f"There are no upcoming wars.")
             return
-        zone, timer = upcoming_war
         relative_time = relativedelta(timer, datetime.datetime.now())
         await ctx.send(f"Next war, {zone} in {humanize_delta(relative_time, 'minutes')}")
 
