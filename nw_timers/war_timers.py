@@ -54,7 +54,7 @@ class WarTimers(commands.Cog):
     ):
         "Add a war timer for a zone"
 
-        proper_zone = get_proper_zone(zone)
+        proper_zone = self.get_proper_zone(zone)
         if not proper_zone:
             await ctx.send(f"{zone} is not a valid zone")
             return
