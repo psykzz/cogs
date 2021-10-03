@@ -83,11 +83,11 @@ class WarTimers(commands.Cog):
         timers = await guild_config.timers()
 
         timer_str = ', '.join([f"{index+1}: {timer[zone]}" for index, timer in enumerate(timers)])
-        await ctx.send("Timers\n{timer_str}\n\nWhich timer would you like to remove?")
+        await ctx.send(f"Timers\n{timer_str}\n\nWhich timer would you like to remove?")
 
         pred = MessagePredicate.valid_int(ctx)
         await self.bot.wait_for("message", check=pred)
-        await ctx.send("War timer {pred.result} removed.")
+        await ctx.send(f"War timer {pred.result} removed.")
 
     async def get_timers_for_zone(self, ctx, zone):
         guild_config = self.config.guild(ctx.guild)
