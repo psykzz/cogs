@@ -121,8 +121,8 @@ class WarTimers(commands.Cog):
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
         await ctx.send(f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}")
-        defenders = await self.ask_question(ctx, "Who are the defenders?", {"❌": None, "C": "Covenant", "S": "Syndicate", "M": "Marauders"})
-        attackers = await self.ask_question(ctx, "Who are the attackers?", {"❌": None, "C": "Covenant", "S": "Syndicate", "M": "Marauders"})
+        defenders = await self.ask_question(ctx, "Who are the defenders?", {":x:": None, ":regional_indicator_c:": "Covenant", ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"})
+        attackers = await self.ask_question(ctx, "Who are the attackers?", {":x:": None, ":regional_indicator_c:": "Covenant", ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"})
         await ctx.send(f"Def: {defenders}, Attk: {attackers}")
         # msg = await ctx.send("Who are the defenders?")
         # emojis = ["❌", "C", "S", "M" ]
