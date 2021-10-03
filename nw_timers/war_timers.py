@@ -133,9 +133,9 @@ class WarTimers(commands.Cog):
         #     return
         # # Add this to database
 
-    async def ask_question(self, ctx, question, options, timeout=60.0):
+    async def ask_question(self, ctx, question, options):
         msg = await ctx.send(question)
-        pred = ReactionPredicate.with_emojis(options.keys(), msg, timeout=timeout)
+        pred = ReactionPredicate.with_emojis(options.keys(), msg)
         await ctx.bot.wait_for("reaction_add", check=pred)
         await msg.delete()
         return options[options.keys()[pred.result]] # Oh such a hack
