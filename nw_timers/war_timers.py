@@ -55,7 +55,7 @@ class WarTimers(commands.Cog):
     ):
         "Get the next upcoming war"
         # iterate through VALID_ZONE and get the next upcoming war
-        timer = None
+        timer, zone = None, None
         if specific_zone is not None:
             proper_zone = self.get_proper_zone(specific_zone)
             timer = await self.get_timer_for_zone(ctx, proper_zone)
@@ -63,7 +63,7 @@ class WarTimers(commands.Cog):
                 await ctx.send(f"There are no upcoming wars for {proper_zone}.")
                 return
         else:
-            upcoming_war = (None, None)
+            upcoming_war = (zone, timer) # (none, none)
             for zone in VALID_ZONES:
                 timer = await self.get_timer_for_zone(ctx, zone)
                 if not timer:
