@@ -42,12 +42,12 @@ class WarTimers(commands.Cog):
         self.config.register_guild(**default_guild)
 
     @commands.group()
+    @commands.mod_or_permissions(manage_channels=True)
     async def war(self, ctx):
         "Manage war timers"
         pass
 
-    @commands.command()
-    @commands.admin_or_permissions(manage_channels=True)
+    @war.command()
     async def add(
         self,
         ctx,
@@ -64,8 +64,7 @@ class WarTimers(commands.Cog):
 
         await ctx.send("War timer created.")
 
-    @commands.command()
-    @commands.has_permissions(manage_roles=True)
+    @war.command()
     async def remove(
         self, ctx, zone: str
     ):
