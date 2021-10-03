@@ -69,21 +69,26 @@ class WarTimers(commands.Cog):
                 await ctx.send(f"There are no upcoming wars for {proper_zone}.")
                 return
 
-            zone = proper_zone # Ensure zone is set
-        else:
-            upcoming_war = (zone, timer) # (none, none)
-            # iterate through VALID_ZONE and get the next upcoming war
-            for zone in VALID_ZONES:
-                timer = await self.get_timer_for_zone(ctx, zone)
-                if not timer:
-                    continue
-                if upcoming_war[1] is None: 
-                    upcoming_war = (zone, timer)
-                    continue
-                if timer < upcoming_war[1]:
-                    upcoming_war = (zone, timer)
+            relative_time = relativedelta(timer, datetime.datetime.now())
+            await ctx.send(f"The next war for {zone}, is in {humanize_delta(relative_time, 'minutes')}.")
+            return
+        
+        # We didn't have a specific zone so we should just find the earlist one
 
-            zone, timer = upcoming_war
+        upcoming_war = (zone, timer) # (none, none)
+
+        # iterate through VALID_ZONE and get the next upcoming war
+        for zone in VALID_ZONES:
+            timer = await self.get_timer_for_zone(ctx, zone)
+            if not timer:
+                continue
+            if upcoming_war[1] is None: 
+                upcoming_war = (zone, timer)
+                continue
+            if timer < upcoming_war[1]:
+                upcoming_war = (zone, timer)
+
+        zone, timer = upcoming_war
         if not zone:
             await ctx.send(f"There are no upcoming wars.")
             return
