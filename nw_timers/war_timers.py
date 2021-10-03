@@ -50,7 +50,7 @@ class WarTimers(commands.Cog):
         ctx,
         zone: str,
         *,
-        time_str: commands.RelativedeltaConverter
+        relative_time: commands.RelativedeltaConverter
     ):
         "Add a war timer for a zone"
 
@@ -64,7 +64,9 @@ class WarTimers(commands.Cog):
         timers = get_timers_for_zone(ctx, proper_zone)
 
         await ctx.send(f"zone: {proper_zone}")
-        await ctx.send(f"time: {datetime.datetime.now() + time_str}")
+        await ctx.send(f"time: {datetime.datetime.now() + relative_time}")
+
+        add_timer_for_zone(ctx, proper_zone, relative_time)
 
         # guild_config = self.config.guild(ctx.guild)
         # timers = await guild_config.timers()
@@ -92,5 +94,11 @@ class WarTimers(commands.Cog):
         timers = await guild_config.timers()
 
         return timers[zone]
-        
-
+    
+    async def add_timer_for_zone(self, ctx, zone, relative_time):
+        guild_config = self.config.guild(ctx.guild)
+        timers = await guild_config.timers()
+        async with guild_config.timers() as timers:
+            if zone not in timers:
+                timers[zone] = []
+            timers[zone].append(relative_time)
