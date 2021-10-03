@@ -4,6 +4,7 @@ import random
 
 import discord
 from redbot.core import Config, commands
+from redbot.core.commands import convert
 
 IDENTIFIER = 4175987634259872345 # Random to this cog
 
@@ -46,14 +47,18 @@ class WarTimers(commands.Cog):
         pass
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @commands.admin_or_permissions(manage_channels=True)
     async def add(
         self,
         ctx,
         zone: str,
-        time_str: str
+        time_str: convert.RelativedeltaConverter
     ):
         "Add a war timer for a zone"
+
+        print(f"zone: {zone}")
+        print(f"time: {time_str}")
+
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
 
