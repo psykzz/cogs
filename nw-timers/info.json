@@ -1,0 +1,10 @@
+{
+    "author": ["PsyKzz"],
+    "name": "NewWorld War timers",
+    "short": "Create war timers for new world.",
+    "description": "War timers continue to update channels with their timers and provide on demand queries via commands.",
+    "permissions" : ["Send Messages"],
+    "tags": [
+        "Timers"
+    ]
+}
