@@ -53,7 +53,7 @@ class WarTimers(commands.Cog):
         self,
         ctx,
         zone: str,
-        time_str: str
+        *time_str: converter.RelativedeltaConverter
     ):
         "Add a war timer for a zone"
 
