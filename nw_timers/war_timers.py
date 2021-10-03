@@ -108,6 +108,10 @@ class WarTimers(commands.Cog):
         "Add a war timer for a zone"
 
         relative_delta = commands.parse_relativedelta(relative_time) 
+        if not relative_delta:
+            await ctx.send(f"Unable to parse timestamp, try 24h3m or something else.")
+            return
+            
         war_time = datetime.datetime.now() + relative_delta
 
         proper_zone = self.get_proper_zone(zone)
