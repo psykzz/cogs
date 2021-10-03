@@ -1,10 +1,5 @@
-import datetime
-import logging
-import random
 
-import discord
 from redbot.core import Config, commands
-from redbot.core.commands import converter
 
 IDENTIFIER = 4175987634259872345 # Random to this cog
 
@@ -53,7 +48,7 @@ class WarTimers(commands.Cog):
         self,
         ctx,
         zone: str,
-        *time_str: converter.RelativedeltaConverter
+        time_str: commands.RelativedeltaConverter
     ):
         "Add a war timer for a zone"
 
