@@ -6,7 +6,7 @@ from redbot.core import Config, commands
 from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.menus import start_adding_reactions
 
-IDENTIFIER = 4175987634259872345 # Random to this cog
+IDENTIFIER = 4175987634259872345  # Random to this cog
 
 default_guild = {
     "timers": {},
@@ -30,6 +30,7 @@ VALID_ZONES = [
     "Shattered Mountain",
 ]
 
+
 class WarTimers(commands.Cog):
     "Adds roles to people who react to a message"
 
@@ -47,13 +48,8 @@ class WarTimers(commands.Cog):
         "Manage war timers"
         pass
 
-    
     @war.command()
-    async def next(
-        self,
-        ctx,
-        specific_zone: str = None
-    ):
+    async def next(self, ctx, specific_zone: str = None):
         "Get the next upcoming war"
         timer, zone = None, None
         if specific_zone is not None:
@@ -71,19 +67,21 @@ class WarTimers(commands.Cog):
                 return
 
             relative_time = relativedelta(timer, datetime.datetime.now())
-            await ctx.send(f"The next war for {proper_zone}, is in {humanize_delta(relative_time, 'minutes')}.")
+            await ctx.send(
+                f"The next war for {proper_zone}, is in {humanize_delta(relative_time, 'minutes')}."
+            )
             return
-        
+
         # We didn't have a specific zone so we should just find the earlist one
 
-        upcoming_war = (zone, timer) # (none, none)
+        upcoming_war = (zone, timer)  # (none, none)
 
         # iterate through VALID_ZONE and get the next upcoming war
         for zone in VALID_ZONES:
             timer = await self.get_timer_for_zone(ctx, zone)
             if not timer:
                 continue
-            if upcoming_war[1] is None: 
+            if upcoming_war[1] is None:
                 upcoming_war = (zone, timer)
                 continue
             if timer < upcoming_war[1]:
@@ -94,20 +92,16 @@ class WarTimers(commands.Cog):
             await ctx.send(f"There are no upcoming wars.")
             return
         relative_time = relativedelta(timer, datetime.datetime.now())
-        await ctx.send(f"The next war is for {zone}, in {humanize_delta(relative_time, 'minutes')}.")
+        await ctx.send(
+            f"The next war is for {zone}, in {humanize_delta(relative_time, 'minutes')}."
+        )
 
     @war.command()
     @commands.mod_or_permissions(manage_channels=True)
-    async def add(
-        self,
-        ctx,
-        zone: str,
-        *,
-        relative_time: str
-    ):
+    async def add(self, ctx, zone: str, *, relative_time: str):
         "Add a war timer for a zone"
 
-        relative_delta = commands.parse_relativedelta(relative_time) 
+        relative_delta = commands.parse_relativedelta(relative_time)
         if not relative_delta:
             await ctx.send(f"Unable to parse timestamp, try 24h3m or something else.")
             return
@@ -116,22 +110,21 @@ class WarTimers(commands.Cog):
 
         proper_zone = self.get_proper_zone(zone)
         if not proper_zone:
-            await ctx.send(f"{zone} is not a valid zone")
+            await ctx.send(f"{zone} is not a valid zone.")
             return
 
         timer = await self.get_timer_for_zone(ctx, proper_zone)
         if timer:
-            await ctx.send(f"Replacing existing timer for zone: {timer}")
+            await ctx.send(f"Replacing existing timer for zone: {timer}.")
 
         await self.add_timer_for_zone(ctx, proper_zone, war_time)
-        await ctx.send(f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}")
-        
-        
+        await ctx.send(
+            f"War timer created for {proper_zone}, in {humanize_delta(relative_delta, 'minutes')}."
+        )
+
         # defenders = await self.ask_question(ctx, "Who are the defenders?", {":x:": None, ":regional_indicator_c:": "Covenant", ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"})
         # attackers = await self.ask_question(ctx, "Who are the attackers?", {":x:": None, ":regional_indicator_c:": "Covenant", ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"})
         # await ctx.send(f"Def: {defenders}, Attk: {attackers}")
-
-
 
         # msg = await ctx.send("Who are the defenders?")
         # emojis = ["❌", "C", "S", "M" ]
@@ -147,18 +140,16 @@ class WarTimers(commands.Cog):
         pred = ReactionPredicate.with_emojis(options.keys(), msg)
         await ctx.bot.wait_for("reaction_add", check=pred)
         await msg.delete()
-        return options[options.keys()[pred.result]] # Oh such a hack
+        return options[options.keys()[pred.result]]  # Oh such a hack
 
     @war.command()
     @commands.mod_or_permissions(manage_channels=True)
-    async def remove(
-        self, ctx, zone: str
-    ):
+    async def remove(self, ctx, zone: str):
         "Removes a war timer for a zone"
 
         proper_zone = self.get_proper_zone(zone)
         if not proper_zone:
-            await ctx.send(f"{zone} is not a valid zone")
+            await ctx.send(f"{zone} is not a valid zone.")
             return
 
         timer = await self.get_timer_for_zone(ctx, proper_zone)
@@ -166,7 +157,9 @@ class WarTimers(commands.Cog):
             await ctx.send(f"There are no active wars set for {zone} to remove.")
             return
 
-        await self.add_timer_for_zone(ctx, proper_zone, datetime.datetime.now()) # Now will just instantly invalidate the timer
+        await self.add_timer_for_zone(
+            ctx, proper_zone, datetime.datetime.now()
+        )  # Now will just instantly invalidate the timer
         await ctx.send(f"War timer for {zone} was removed.")
 
     async def get_timer_for_zone(self, ctx, zone):
@@ -179,7 +172,7 @@ class WarTimers(commands.Cog):
         if datetime.datetime.now() > datetime_instance:
             return None
         return datetime_instance
-    
+
     async def add_timer_for_zone(self, ctx, zone, timestamp):
         guild_config = self.config.guild(ctx.guild)
         timers = await guild_config.timers()
@@ -192,8 +185,6 @@ class WarTimers(commands.Cog):
         if zone.lower() not in lower_zones:
             return None
         return VALID_ZONES[lower_zones.index(zone.lower())]
-
-
 
 
 RFC1123_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
@@ -219,7 +210,9 @@ def _stringify_time_unit(value: int, unit: str) -> str:
         return f"{value} {unit}"
 
 
-def humanize_delta(delta: relativedelta, precision: str = "seconds", max_units: int = 6) -> str:
+def humanize_delta(
+    delta: relativedelta, precision: str = "seconds", max_units: int = 6
+) -> str:
     """
     Returns a human-readable version of the relativedelta.
 
