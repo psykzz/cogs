@@ -53,7 +53,14 @@ class WarTimers(commands.Cog):
     ):
         "Add a war timer for a zone"
 
-        await ctx.send(f"zone: {zone}")
+        # Check if the zone is valid
+        lower_zones = [z.lower() for z in VALID_ZONES]
+        if zone.lower() not in lower_zones:
+            await ctx.send(f"{zone} is not a valid zone")
+            return
+
+        proper_zone = VALID_ZONES[lower_zones.index(zone.lower())]
+        await ctx.send(f"zone: {proper_zone}")
         await ctx.send(f"time: {datetime.datetime.now() + time_str}")
 
         # guild_config = self.config.guild(ctx.guild)
