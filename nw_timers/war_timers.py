@@ -70,7 +70,7 @@ class WarTimers(commands.Cog):
             await ctx.send(f"There are no upcoming wars.")
             return
         zone, timer = upcoming_war
-        relative_time = relativedelta(timer - datetime.datetime.now())
+        relative_time = relativedelta(timer, datetime.datetime.now())
         await ctx.send(f"Next war, {zone} in {humanize_delta(relative_time, 'minutes')}")
 
     @war.command()
