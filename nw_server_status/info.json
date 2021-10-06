@@ -1,0 +1,10 @@
+{
+    "author": ["PsyKzz"],
+    "name": "NewWorld Server Status",
+    "short": "Update channel info based on server status.",
+    "description": "Select a channel to keep updated with server information, additional posts to the same channel withs erver status updates.",
+    "permissions" : ["Send Messages", "Manange channels"],
+    "tags": [
+        "Server", "Status"
+    ]
+}
