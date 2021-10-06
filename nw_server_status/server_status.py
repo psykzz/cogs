@@ -48,11 +48,13 @@ class ServerStatus(commands.Cog):
     async def update_server_channel(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
+            logging.info(f"Updating guild {guild}...")
             guild_config = self.config.guild(guild)
             channel_id = await guild_config.server_channel()
             realm_name = await guild_config.default_realm()
 
             if not channel_id or channel_id == '0':
+                logging.info(f"Skipping {guild}...")
                 return
 
             channel = self.bot.get_channel(channel_id)
