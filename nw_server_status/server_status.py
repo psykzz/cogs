@@ -55,17 +55,17 @@ class ServerStatus(commands.Cog):
 
             if not channel_id or channel_id == '0':
                 logging.info(f"Skipping {guild}...")
-                return
+                continue
 
             channel = self.bot.get_channel(channel_id)
 
             server_status = (await self.get_server_status(realm_name))
             if not server_status:
-                return
+                continue
 
             new_channel_name = server_status.split('-')[1]
             if channel.name == new_channel_name:
-                return
+                continue
             await channel.edit(name=new_channel_name)
 
     async def get_server_status(self, server_name):
