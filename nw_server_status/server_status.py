@@ -56,7 +56,7 @@ class ServerStatus(commands.Cog):
             new_channel_name = self.get_server_status(realm_name)
             if not new_channel_name:
                 return
-                
+
             channel.edit(name=new_channel_name)
 
     async def get_server_status(self, server_name):
@@ -82,6 +82,8 @@ class ServerStatus(commands.Cog):
         await ctx.send(msg)
     
     @commands.command()
+    @commands.guild_only()
+    @commands.admin()
     async def monitor(self, ctx, channel: discord.TextChannel, server: str = None):
         "Start updating a channel wth the current realm status"
 
