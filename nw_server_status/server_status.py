@@ -1,7 +1,8 @@
 import httpx
 import asyncio
 
-from redbot.core import commands, tasks
+from discord.ext import tasks
+from redbot.core import commands
 
 IDENTIFIER = 4175987634255572345  # Random to this cog
 
