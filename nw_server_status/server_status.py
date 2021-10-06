@@ -1,19 +1,31 @@
 import httpx
 import asyncio
 
+import discord
 from discord.ext import tasks
-from redbot.core import commands
+from redbot.core import Config, commands
 
 IDENTIFIER = 4175987634255572345  # Random to this cog
 
 default_server = "Ishtakar"
 realm_data_url = "https://nwdb.info/server-status/data.json"
 
+
+default_guild = {
+    "default_realm": "Ishtakar",
+    "server_channel": None,
+}
 class ServerStatus(commands.Cog):
     "Provider server status"
 
     def __init__(self, bot):
         self.bot = bot
+
+        self.config = Config.get_conf(
+            self, identifier=IDENTIFIER, force_registration=True
+        )
+        self.config.register_guild(**default_guild)
+
         self.update_queue_data.start()
         
     def cog_unload(self):
@@ -27,25 +39,79 @@ class ServerStatus(commands.Cog):
         servers = response.get('data', {}).get('servers', [])
         self.queue_data = {server.get('worldName'): server for server in servers}
 
-    @commands.command()
-    async def queue(self, ctx, server: str = None):
-        "Get current queue information"
+        await self.update_server_channel()
 
-        if server is None:
-            server = default_server
+    async def update_server_channel(self):
+        # iterate through bot discords and get the guild config
+        for guild in self.bot.guilds:
+            guild_config = self.config.guild(guild)
+            channel_id = await guild_config.server_channel()
+            realm_name = await guild_config.default_realm()
 
-        server_data = self.queue_data.get(server)
+            if not channel_id or channel_id == '0':
+                return
+
+            channel = self.bot.get_channel(channel_id)
+
+            new_channel_name = self.get_server_status(realm_name)
+            if not new_channel_name:
+                return
+                
+            channel.edit(name=new_channel_name)
+
+    async def get_server_status(self, server_name):
+        server_data = self.queue_data.get(server_name)
         if not server_data:
-            await ctx.send(f"Can't find '{server}' in the server list.")
             return
 
         online = server_data.get("connectionCount", -1)
         max_online = server_data.get("connectionCountMax", -1)
         in_queue = server_data.get("queueCount", -1)
         status = server_data.get("status", -1)
-        await ctx.send(f"{server}: {online}/{max_online} Online - {in_queue} in queue.")
+        return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
+    @commands.command()
+    async def queue(self, ctx, server: str = None):
+        "Get current queue information"
 
+        if server is None:
+            guild_config = self.config.guild(ctx.guild)
+            server = await guild_config.default_realm()
+
+        msg = await self.get_server_status(server)
+        await ctx.send(msg)
+    
+    @commands.command()
+    async def monitor(self, ctx, channel: discord.TextChannel, server: str = None):
+        "Start updating a channel wth the current realm status"
+
+        guild_config = self.config.guild(ctx.guild)
+        if server is None:
+            server = await guild_config.default_realm()
+        await guild_config.server_channel.set(channel.id)
+            
+
+    @commands.command()
+    @commands.guild_only()
+    @commands.admin()
+    async def queueset(self, ctx, server: str = None):
+        "Set the default server for this discord server"
+        guild_config = self.config.guild(ctx.guild)
+
+        if server is None:
+            realm = guild_config.default_realm()
+            await ctx.send(f"Current server: '{realm}'.")
+            return
+
+        server_data = self.queue_data.get(server)
+        if not server_data:
+            await ctx.send(f"Can't find '{server}' in the server list.")
+            return
+
+        async with guild_config.default_realm() as realm:
+            realm = server
+
+        await ctx.send(f"Server updated to '{realm}'.")
 
 async def http_get(url):
     max_attempts = 3
