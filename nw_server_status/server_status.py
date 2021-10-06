@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import logging
 
 import discord
 from discord.ext import tasks
@@ -33,6 +34,7 @@ class ServerStatus(commands.Cog):
 
     @tasks.loop(seconds=30.0)
     async def update_queue_data(self):
+        logging.info("Starting queue task")
         response = await http_get("https://nwdb.info/server-status/data.json")
         if not response.get('success'):
             return
@@ -40,6 +42,8 @@ class ServerStatus(commands.Cog):
         self.queue_data = {server.get('worldName'): server for server in servers}
 
         await self.update_server_channel()
+        logging.info("Finished queue task")
+
 
     async def update_server_channel(self):
         # iterate through bot discords and get the guild config
@@ -70,6 +74,7 @@ class ServerStatus(commands.Cog):
         status = server_data.get("status", -1)
         return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
+
     @commands.command()
     async def queue(self, ctx, server: str = None):
         "Get current queue information"
@@ -80,18 +85,18 @@ class ServerStatus(commands.Cog):
 
         msg = await self.get_server_status(server)
         await ctx.send(msg)
-    
+
+
     @commands.command()
     @commands.guild_only()
     @commands.admin()
-    async def monitor(self, ctx, channel: discord.TextChannel, server: str = None):
+    async def monitor(self, ctx, channel: discord.TextChannel):
         "Start updating a channel wth the current realm status"
 
         guild_config = self.config.guild(ctx.guild)
-        if server is None:
-            server = await guild_config.default_realm()
         await guild_config.server_channel.set(channel.id)
-            
+        await ctx.send(f"Setup {channel} as the monitor channel.")
+
 
     @commands.command()
     @commands.guild_only()
@@ -101,7 +106,7 @@ class ServerStatus(commands.Cog):
         guild_config = self.config.guild(ctx.guild)
 
         if server is None:
-            realm = guild_config.default_realm()
+            realm = await guild_config.default_realm()
             await ctx.send(f"Current server: '{realm}'.")
             return
 
@@ -110,10 +115,8 @@ class ServerStatus(commands.Cog):
             await ctx.send(f"Can't find '{server}' in the server list.")
             return
 
-        async with guild_config.default_realm() as realm:
-            realm = server
-
-        await ctx.send(f"Server updated to '{realm}'.")
+        await guild_config.default_realm.set(server)
+        await ctx.send(f"Server updated to '{server}'.")
 
 async def http_get(url):
     max_attempts = 3
