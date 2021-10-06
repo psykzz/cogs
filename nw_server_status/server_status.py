@@ -59,10 +59,13 @@ class ServerStatus(commands.Cog):
 
             channel = self.bot.get_channel(channel_id)
 
-            new_channel_name = await self.get_server_status(realm_name)
-            if not new_channel_name or channel.name == new_channel_name:
+            server_status = (await self.get_server_status(realm_name))
+            if not server_status:
                 return
 
+            new_channel_name = server_status.split('-')[1]
+            if channel.name == new_channel_name:
+                return
             await channel.edit(name=new_channel_name)
 
     async def get_server_status(self, server_name):
@@ -74,7 +77,7 @@ class ServerStatus(commands.Cog):
         max_online = server_data.get("connectionCountMax", -1)
         in_queue = server_data.get("queueCount", -1)
         status = server_data.get("status", -1)
-        return f"{online}/{max_online} - {in_queue} in queue."
+        return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
 
     @commands.command()
