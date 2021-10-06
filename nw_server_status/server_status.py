@@ -43,7 +43,7 @@ class ServerStatus(commands.Cog):
         max_online = server_data.get("connectionCountMax", -1)
         in_queue = server_data.get("queueCount", -1)
         status = server_data.get("status", -1)
-        await ctx.send(f"{server}: {online}/{max_online} ~{in_queue}")
+        await ctx.send(f"{server}: {online}/{max_online} Online - {in_queue} in queue.")
 
 
 
