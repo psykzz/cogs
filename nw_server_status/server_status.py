@@ -60,7 +60,7 @@ class ServerStatus(commands.Cog):
             channel = self.bot.get_channel(channel_id)
 
             new_channel_name = await self.get_server_status(realm_name)
-            if not new_channel_name:
+            if not new_channel_name or channel.name == new_channel_name:
                 return
 
             await channel.edit(name=new_channel_name)
