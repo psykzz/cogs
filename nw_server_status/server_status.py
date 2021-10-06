@@ -92,7 +92,7 @@ class ServerStatus(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.admin()
-    async def monitor(self, ctx, channel: discord.TextChannel):
+    async def monitor(self, ctx, channel: discord.VoiceChannel):
         "Start updating a channel wth the current realm status"
 
         guild_config = self.config.guild(ctx.guild)
