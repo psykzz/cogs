@@ -53,13 +53,18 @@ class ServerStatus(commands.Cog):
             channel_id = await guild_config.server_channel()
             realm_name = await guild_config.default_realm()
 
+            # Check if the channel is valid
             if not channel_id or channel_id == '0':
                 logging.info(f"Skipping {guild}...")
                 continue
 
+            # If the channel doesn't exist, skip
             channel = self.bot.get_channel(channel_id)
+            if not channel: 
+                await guild_config.server_channel.set(None)
+                continue
 
-            server_status = (await self.get_server_status(realm_name))
+            server_status = await self.get_server_status(realm_name)
             if not server_status:
                 continue
 
