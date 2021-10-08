@@ -18,7 +18,7 @@ class AssignRoles(commands.Cog):
     ASSIGN_NO_EVERYONE = ERROR + "You cannot give someone the Everyone role!"
     AUTHORISE_EXISTS = ERROR + "The role you want to authorised is already authorised to give this role."
     AUTHORISE_EMPTY = ERROR + "`{}` is not authorised to be assigned by any other roles."
-    AUTHORISE_MISMATCH = ERROR + "{} is not currently authorised to give the `{}` role."
+    AUTHORISE_MISMATCH = ERROR + "`{}` is not currently authorised to give the `{}` role."
     AUTHORISE_NO_EVERYONE = ERROR + "You cannot authorise everyone to give a role!"
     AUTHORISE_NO_HIGHER = ERROR + "You cannot authorise a role that is not below your highest role!"
     AUTHORISE_NOT_DEFAULT = ERROR + "The Everyone role cannot be given out!"
@@ -137,7 +137,7 @@ class AssignRoles(commands.Cog):
         for role_id, auth_list in server_dict.items():
             role = discord.utils.get(gld.roles, id=int(role_id))
             if role is not None:
-                auth_roles = (discord.utils.get(gld.roles, id=i) for i in auth_list)
+                auth_roles = (discord.utils.get(gld.roles, id=int(i)) for i in auth_list)
                 mentions_str = ", ".join(r.mention for r in auth_roles if r is not None)
                 if len(mentions_str) > 0:  # Prevent empty fields from being sent.
                     embed.add_field(name=role.name, value=mentions_str)
