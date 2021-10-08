@@ -135,7 +135,7 @@ class AssignRoles(commands.Cog):
         embed = discord.Embed(colour=0x00D8FF, title="Assign authorisations")
 
         for role_id, auth_list in server_dict.items():
-            role = discord.utils.get(gld.roles, id=role_id)
+            role = discord.utils.get(gld.roles, id=int(role_id))
             if role is not None:
                 auth_roles = (discord.utils.get(gld.roles, id=i) for i in auth_list)
                 mentions_str = ", ".join(r.mention for r in auth_roles if r is not None)
