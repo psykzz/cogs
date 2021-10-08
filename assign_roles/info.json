@@ -1,0 +1,12 @@
+{
+  "author": [
+    "psykzz (originally from HashCogs)"
+  ],
+  "description": "The cog functions like the Manage Roles permission, but for specific to pairs of roles.\nFor example, one could allow role A to give role B to anyone else, but without allowing role A to give role C, D, etc.",
+  "install_msg": "Hey there, thanks for installing my cog! I hope it will be useful. If you have any questions, do not hesitate to reach out!",
+  "short": "Allow users with specific roles to give specified roles to other users",
+  "name": "AssignRoles",
+  "disabled": false,
+  "requirements": [],
+  "tags": ["role", "permissions", "assign"]
+}
