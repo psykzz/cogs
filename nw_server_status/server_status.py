@@ -35,13 +35,17 @@ class ServerStatus(commands.Cog):
     @tasks.loop(seconds=30.0)
     async def update_queue_data(self):
         logging.info("Starting queue task")
-        response = await http_get("https://nwdb.info/server-status/data.json")
-        if not response.get('success'):
-            return
-        servers = response.get('data', {}).get('servers', [])
-        self.queue_data = {server.get('worldName'): server for server in servers}
+        try:
+            response = await http_get("https://nwdb.info/server-status/data.json")
+            if not response.get('success'):
+                return
+            servers = response.get('data', {}).get('servers', [])
+            self.queue_data = {server.get('worldName'): server for server in servers}
 
-        await self.update_server_channel()
+            await self.update_server_channel()
+        except Exception as e:
+            logging.exception("Error in task", e)
+            pass
         logging.info("Finished queue task")
 
 
