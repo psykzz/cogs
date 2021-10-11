@@ -43,8 +43,8 @@ class ServerStatus(commands.Cog):
             self.queue_data = {server.get('worldName'): server for server in servers}
 
             await self.update_server_channel()
-        except Exception as e:
-            logging.exception("Error in task", e)
+        except Exception:
+            logging.exception("Error in task")
             pass
         logging.info("Finished queue task")
 
