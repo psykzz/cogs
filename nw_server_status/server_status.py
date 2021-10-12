@@ -113,9 +113,11 @@ class ServerStatus(commands.Cog):
         "Start updating a channel wth the current realm status"
 
         guild_config = self.config.guild(ctx.guild)
-        await guild_config.server_channel.set(channel.id)
-        await ctx.send(f"Setup {channel} as the monitor channel.")
-
+        await guild_config.server_channel.set(channel.id if channel else None)
+        if channel:
+            await ctx.send(f"Setup {channel} as the monitor channel.")
+        else:
+            await ctx.send(f"Disabled monitor channel.")
 
     @commands.command()
     @commands.guild_only()
