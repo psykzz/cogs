@@ -19,7 +19,6 @@ default_guild = {
 
 logger = logging.getLogger("red.psykzz.cogs")
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
 
 class ServerStatus(commands.Cog):
     "Provider server status"
