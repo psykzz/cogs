@@ -16,6 +16,11 @@ default_guild = {
     "default_realm": "Ishtakar",
     "server_channel": None,
 }
+
+logger = logging.getLogger("red.psykzz.cogs")
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
+
 class ServerStatus(commands.Cog):
     "Provider server status"
 
@@ -34,25 +39,26 @@ class ServerStatus(commands.Cog):
 
     @tasks.loop(seconds=30.0)
     async def update_queue_data(self):
-        logging.info("Starting queue task")
+        logger.info("Starting queue task")
         try:
             response = await http_get("https://nwdb.info/server-status/data.json")
             if not response.get('success'):
+                logger.error("Failed to get server status data")
                 return
             servers = response.get('data', {}).get('servers', [])
             self.queue_data = {server.get('worldName'): server for server in servers}
 
             await self.update_server_channel()
         except Exception:
-            logging.exception("Error in task")
+            logger.exception("Error in task")
             pass
-        logging.info("Finished queue task")
+        logger.info("Finished queue task")
 
 
     async def update_server_channel(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
-            logging.info(f"Updating guild {guild}...")
+            logger.info(f"Updating guild {guild}...")
             guild_config = self.config.guild(guild)
             channel_id = await guild_config.server_channel()
             realm_name = await guild_config.default_realm()
