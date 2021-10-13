@@ -114,6 +114,8 @@ class ServerStatus(commands.Cog):
         max_online = server_data.get("connectionCountMax", -1)
         in_queue = server_data.get("queueCount", -1)
         status = server_data.get("status", -1)
+        if status == 4:
+            return "{server_name}: {online}/{max_online} Offline - Server maintenance"
         return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
     async def get_world_id(self, server_name):
