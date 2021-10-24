@@ -88,7 +88,7 @@ class ServerStatus(commands.Cog):
                 logging.warn(f"Skipping {guild}...")
                 continue
 
-            # If the channel doesn't exist, skip
+            # If the channel doesn't exist, reset configuration and continue
             channel = self.bot.get_channel(channel_id)
             if not channel: 
                 await guild_config.server_channel.set(None)
@@ -99,6 +99,8 @@ class ServerStatus(commands.Cog):
                 continue
 
             new_channel_name = server_status.split('-')[1]
+            
+            # Avoid updates if the name matches 
             if channel.name == new_channel_name:
                 continue
             await channel.edit(name=new_channel_name)
@@ -112,7 +114,8 @@ class ServerStatus(commands.Cog):
 
         online = server_data.get("connectionCount", -1)
         max_online = server_data.get("connectionCountMax", -1)
-        in_queue = server_data.get("queueCount", -1)
+        in_queue_raw = int(server_data.get("queueCount", -1))
+        in_queue = in_queue_raw if in_queue_raw > 1 else 0 
         status = server_data.get("status", -1)
         if status == 4:
             return f"{server_name}: {online}/{max_online} Offline - Server maintenance"
