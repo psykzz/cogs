@@ -21,6 +21,7 @@ default_guild = {
 logger = logging.getLogger("red.psykzz.cogs")
 logger.setLevel(logging.DEBUG)
 
+
 class ServerStatus(commands.Cog):
     "Provider server status"
 
@@ -33,7 +34,7 @@ class ServerStatus(commands.Cog):
         self.config.register_guild(**default_guild)
 
         self.refresh_queue_data.start()
-        
+
     def cog_unload(self):
         self.refresh_queue_data.cancel()
 
@@ -51,17 +52,35 @@ class ServerStatus(commands.Cog):
         """Refresh data from remote data"""
         try:
             extra_qs = f"worldId={worldId}" if worldId else ""
-            response = await http_get(f"https://nwdb.info/server-status/servers.json?{extra_qs}")
-            if not response.get('success'):
+            response = await http_get(
+                f"https://nwdb.info/server-status/servers.json?{extra_qs}"
+            )
+            if not response.get("success"):
                 logger.error("Failed to get server status data")
                 return
-            servers = response.get('data', {}).get('servers', [])
-            return {self.parse_server(server).get('worldName'): self.parse_server(server) for server in servers}
+            servers = response.get("data", {}).get("servers", [])
+            return {
+                self.parse_server(server).get("worldName"): self.parse_server(server)
+                for server in servers
+            }
         except Exception:
             logger.exception("Exception while downloading new data")
 
     def parse_server(self, server):
-        connectionCountMax, connectionCount, queueCount, queueTime, worldName, worldSetName, region, status, active, worldId = server
+        (
+            connectionCountMax,
+            connectionCount,
+            queueCount,
+            queueTime,
+            worldName,
+            worldSetName,
+            region,
+            status,
+            active,
+            worldId,
+            a,
+            b,
+        ) = server
         return {
             "connectionCountMax": connectionCountMax,
             "connectionCount": connectionCount,
@@ -72,7 +91,9 @@ class ServerStatus(commands.Cog):
             "region": region,
             "status": status,
             "active": active,
-            "worldId": worldId
+            "worldId": worldId,
+            "a-val": a,
+            "b-val": b,
         }
 
     async def update_server_channel(self):
@@ -84,13 +105,13 @@ class ServerStatus(commands.Cog):
             realm_name = await guild_config.default_realm()
 
             # Check if the channel is valid
-            if not channel_id or channel_id == '0':
+            if not channel_id or channel_id == "0":
                 logging.warn(f"Skipping {guild}...")
                 continue
 
             # If the channel doesn't exist, reset configuration and continue
             channel = self.bot.get_channel(channel_id)
-            if not channel: 
+            if not channel:
                 await guild_config.server_channel.set(None)
                 continue
 
@@ -98,9 +119,9 @@ class ServerStatus(commands.Cog):
             if not server_status:
                 continue
 
-            new_channel_name = server_status.split('-')[1]
-            
-            # Avoid updates if the name matches 
+            new_channel_name = server_status.split("-")[1]
+
+            # Avoid updates if the name matches
             if channel.name == new_channel_name:
                 continue
             await channel.edit(name=new_channel_name)
@@ -115,13 +136,15 @@ class ServerStatus(commands.Cog):
         online = server_data.get("connectionCount", -1)
         max_online = server_data.get("connectionCountMax", -1)
         in_queue_raw = int(server_data.get("queueCount", -1))
-        in_queue = in_queue_raw if in_queue_raw > 1 else 0 
+        in_queue = in_queue_raw if in_queue_raw > 1 else 0
         status = server_data.get("status", -1)
         if status == 4:
             return f"{server_name}: {online}/{max_online} Offline - Server maintenance"
         return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
     async def get_world_id(self, server_name):
+        if not self.queue_data:
+            return
         server_data = self.queue_data.get(server_name)
         if not server_data:
             return
@@ -139,7 +162,6 @@ class ServerStatus(commands.Cog):
         data = await self.get_queue_data(worldId=worldId)
         msg = await self.get_server_status(server, data)
         await ctx.send(msg)
-
 
     @commands.command()
     @commands.guild_only()
@@ -174,6 +196,7 @@ class ServerStatus(commands.Cog):
         await guild_config.default_realm.set(server)
         await ctx.send(f"Server updated to '{server}'.")
 
+
 async def http_get(url):
     max_attempts = 3
     attempt = 0
@@ -182,7 +205,7 @@ async def http_get(url):
     ):  # httpx doesn't support retries, so we'll build our own basic loop for that
         try:
             async with httpx.AsyncClient() as client:
-                r = await client.get(url, headers={'user-agent': 'psykzz-cogs/1.0.0'})
+                r = await client.get(url, headers={"user-agent": "psykzz-cogs/1.0.0"})
             if r.status_code == 200:
                 return r.json()
             else:
