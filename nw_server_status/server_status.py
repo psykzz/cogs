@@ -179,10 +179,15 @@ class ServerStatus(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.bot_has_permissions(manage_channels=True)
     @commands.admin_or_permissions(manage_channels=True)
     async def monitor(self, ctx, voice_channel: discord.VoiceChannel = None):
         "Start updating a channel wth the current realm status"
+
+        # Check if the bot has permission to the channel
+        bot_perms = voice_channel.permissions_for(ctx.me)
+        if not bot_perms.manage_channels:
+            await ctx.send(f'I require the "Manage Channels" permission to execute that command.')
+            return
 
         guild_config = self.config.guild(ctx.guild)
         await guild_config.server_channel.set(voice_channel.id if voice_channel else None)
