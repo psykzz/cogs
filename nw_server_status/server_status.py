@@ -154,9 +154,13 @@ class ServerStatus(commands.Cog):
     async def queue(self, ctx, server: str = None):
         "Get current queue information"
 
-        if server is None:
+        if ctx.guild and server is None:
             guild_config = self.config.guild(ctx.guild)
             server = await guild_config.default_realm()
+
+        if not server:
+            await ctx.send("You must provide a server in DMs. `.queue <server>`")
+            return
 
         worldId = await self.get_world_id(server)
         data = await self.get_queue_data(worldId=worldId)
@@ -165,7 +169,8 @@ class ServerStatus(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.admin()
+    @commands.bot_has_permissions(manage_channels=True)
+    @commands.admin_or_permission(manage_channels=True)
     async def monitor(self, ctx, channel: discord.VoiceChannel):
         "Start updating a channel wth the current realm status"
 
@@ -178,7 +183,7 @@ class ServerStatus(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.admin()
+    @commands.admin_or_permission(manage_channels=True)
     async def queueset(self, ctx, server: str = None):
         "Set the default server for this discord server"
         guild_config = self.config.guild(ctx.guild)
