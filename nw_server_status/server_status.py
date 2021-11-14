@@ -196,11 +196,9 @@ class ServerStatus(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
     @commands.admin_or_permissions(manage_channels=True)
-    async def forcemonitor(self, ctx, voice_channel: discord.VoiceChannel = None):
+    async def forcemonitor(self, ctx):
         "Force an update of the monitor voice channel wth the current realm status"
 
-        guild_config = self.config.guild(ctx.guild)
-        await guild_config.server_channel.set(voice_channel.id if voice_channel else None)
         await self.update_guild_channel(ctx.guild)
 
 
