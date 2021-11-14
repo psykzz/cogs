@@ -131,7 +131,7 @@ class ServerStatus(commands.Cog):
             data = self.queue_data
         server_data = data.get(server_name)
         if not server_data:
-            return
+            return "No server data available - Loading data..."
 
         online = server_data.get("connectionCount", -1)
         max_online = server_data.get("connectionCountMax", -1)
