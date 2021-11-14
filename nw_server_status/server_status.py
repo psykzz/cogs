@@ -200,6 +200,7 @@ class ServerStatus(commands.Cog):
         "Force an update of the monitor voice channel wth the current realm status"
 
         await self.update_guild_channel(ctx.guild)
+        await ctx.send("Forced monitor channel update.")
 
 
     @commands.command()
