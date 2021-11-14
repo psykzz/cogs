@@ -43,7 +43,7 @@ class ServerStatus(commands.Cog):
         logger.info("Starting queue task")
         try:
             self.queue_data = await self.get_queue_data(worldId=None)
-            await self.update_server_channel()
+            await self.update_monitor_channels()
         except Exception:
             logger.exception("Error in task")
         logger.info("Finished queue task")
@@ -65,6 +65,7 @@ class ServerStatus(commands.Cog):
             }
         except Exception:
             logger.exception("Exception while downloading new data")
+
 
     def parse_server(self, server):
         (
@@ -95,36 +96,42 @@ class ServerStatus(commands.Cog):
             "a-val": a,
             "b-val": b,
         }
+        
 
-    async def update_server_channel(self):
+    async def update_guild_channel(self, guild):
+        logger.info(f"Updating guild {guild}...")
+        guild_config = self.config.guild(guild)
+        channel_id = await guild_config.server_channel()
+        realm_name = await guild_config.default_realm()
+
+        # Check if the channel is valid
+        if not channel_id or channel_id == "0":
+            logging.warn(f"Skipping {guild}...")
+            return
+
+        # If the channel doesn't exist, reset configuration and return
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            await guild_config.server_channel.set(None)
+            return
+
+        server_status = await self.get_server_status(realm_name)
+        if not server_status:
+            return
+
+        new_channel_name = server_status.split("-")[1]
+
+        # Avoid updates if the name matches
+        if channel.name == new_channel_name:
+            return
+        await channel.edit(name=new_channel_name)
+
+
+    async def update_monitor_channels(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
-            logger.info(f"Updating guild {guild}...")
-            guild_config = self.config.guild(guild)
-            channel_id = await guild_config.server_channel()
-            realm_name = await guild_config.default_realm()
+            self.update_guild_channel(guild)
 
-            # Check if the channel is valid
-            if not channel_id or channel_id == "0":
-                logging.warn(f"Skipping {guild}...")
-                continue
-
-            # If the channel doesn't exist, reset configuration and continue
-            channel = self.bot.get_channel(channel_id)
-            if not channel:
-                await guild_config.server_channel.set(None)
-                continue
-
-            server_status = await self.get_server_status(realm_name)
-            if not server_status:
-                continue
-
-            new_channel_name = server_status.split("-")[1]
-
-            # Avoid updates if the name matches
-            if channel.name == new_channel_name:
-                continue
-            await channel.edit(name=new_channel_name)
 
     async def get_server_status(self, server_name, data=None):
         if not data:
@@ -142,6 +149,7 @@ class ServerStatus(commands.Cog):
             return f"{server_name}: {online}/{max_online} Offline - Server maintenance"
         return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
+
     async def get_world_id(self, server_name):
         if not self.queue_data:
             return
@@ -149,6 +157,7 @@ class ServerStatus(commands.Cog):
         if not server_data:
             return
         return server_data.get("worldId")
+
 
     @commands.command()
     async def queue(self, ctx, server: str = None):
@@ -167,6 +176,7 @@ class ServerStatus(commands.Cog):
         msg = await self.get_server_status(server, data)
         await ctx.send(msg)
 
+
     @commands.command()
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
@@ -180,6 +190,19 @@ class ServerStatus(commands.Cog):
             await ctx.send(f"Setup {voice_channel} as the monitor channel.")
         else:
             await ctx.send(f"Disabled monitor channel.")
+
+    
+    @commands.command()
+    @commands.guild_only()
+    @commands.bot_has_permissions(manage_channels=True)
+    @commands.admin_or_permissions(manage_channels=True)
+    async def forcemonitor(self, ctx, voice_channel: discord.VoiceChannel = None):
+        "Force an update of the monitor voice channel wth the current realm status"
+
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.server_channel.set(voice_channel.id if voice_channel else None)
+        await self.update_guild_channel(ctx.guild)
+
 
     @commands.command()
     @commands.guild_only()
