@@ -96,10 +96,8 @@ class ServerStatus(commands.Cog):
             "a-val": a,
             "b-val": b,
         }
-        
 
-    async def update_guild_channel(self, guild):
-        logger.info(f"Updating guild {guild}...")
+    async def get_guild_monitor_channel(self, guild):
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.server_channel()
         realm_name = await guild_config.default_realm()
@@ -114,6 +112,12 @@ class ServerStatus(commands.Cog):
         if not channel:
             await guild_config.server_channel.set(None)
             return
+        return channel
+        
+
+    async def update_guild_channel(self, guild):
+        logger.info(f"Updating guild {guild}...")
+        channel = await self.get_guild_monitor_channel(guild)
 
         server_status = await self.get_server_status(realm_name)
         if not server_status:
@@ -203,6 +207,12 @@ class ServerStatus(commands.Cog):
     @commands.admin_or_permissions(manage_channels=True)
     async def forcemonitor(self, ctx):
         "Force an update of the monitor voice channel wth the current realm status"
+
+        voice_channel = await self.get_guild_monitor_channel(ctx.guild)
+        bot_perms = voice_channel.permissions_for(ctx.me)
+        if not bot_perms.manage_channels:
+            await ctx.send(f'I require the "Manage Channels" permission for {voice_channel.mention} to execute that command.')
+            return
 
         await self.update_guild_channel(ctx.guild)
         await ctx.send("Forced monitor channel update.")
