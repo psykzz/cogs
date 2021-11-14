@@ -170,7 +170,7 @@ class ServerStatus(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
-    @commands.admin_or_permission(manage_channels=True)
+    @commands.admin_or_permissions(manage_channels=True)
     async def monitor(self, ctx, channel: discord.VoiceChannel):
         "Start updating a channel wth the current realm status"
 
@@ -183,7 +183,7 @@ class ServerStatus(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.admin_or_permission(manage_channels=True)
+    @commands.admin_or_permissions(manage_channels=True)
     async def queueset(self, ctx, server: str = None):
         "Set the default server for this discord server"
         guild_config = self.config.guild(ctx.guild)
