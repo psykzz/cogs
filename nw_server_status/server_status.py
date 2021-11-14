@@ -171,13 +171,13 @@ class ServerStatus(commands.Cog):
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
     @commands.admin_or_permissions(manage_channels=True)
-    async def monitor(self, ctx, channel: discord.VoiceChannel = None):
+    async def monitor(self, ctx, voice_channel: discord.VoiceChannel = None):
         "Start updating a channel wth the current realm status"
 
         guild_config = self.config.guild(ctx.guild)
-        await guild_config.server_channel.set(channel.id if channel else None)
-        if channel:
-            await ctx.send(f"Setup {channel} as the monitor channel.")
+        await guild_config.server_channel.set(voice_channel.id if voice_channel else None)
+        if voice_channel:
+            await ctx.send(f"Setup {voice_channel} as the monitor channel.")
         else:
             await ctx.send(f"Disabled monitor channel.")
 
