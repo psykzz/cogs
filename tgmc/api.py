@@ -117,3 +117,8 @@ class TGMC(commands.Cog):
     async def huntparty(self, ctx, delta="14"):
         "Get the current winrates on hunt party"
         return await self.get_winrate(ctx, delta, "Hunt party")
+
+    @winrates.command()
+    async def nuclearwar(self, ctx, delta="14"):
+        "Get the current winrates on nuclear war"
+        return await self.get_winrate(ctx, delta, "Nuclear War")
