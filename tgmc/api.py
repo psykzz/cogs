@@ -40,7 +40,7 @@ class TGMC(commands.Cog):
 
     async def get_winrate(self, ctx, delta="14", gamemode=None):
         raw_data = await http_get(
-            f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}"
+            f"http://direct.psykzz.com:8080/api/winrate?delta={delta}"
         )
         if not raw_data:
             return await ctx.send(
@@ -81,7 +81,7 @@ class TGMC(commands.Cog):
             )
         winrates.add_field(
             name="View Raw",
-            value=f"http://statbus.psykzz.com:8080/api/winrate?delta={delta}",
+            value=f"http://direct.psykzz.com:8080/api/winrate?delta={delta}",
             inline=False,
         )
 
