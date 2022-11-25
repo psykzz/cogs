@@ -127,8 +127,18 @@ class TGMC(commands.Cog):
 
     @winrates.command(aliases=["combat", "patrol", "combat-patrol", "cp"])
     async def combatpatrol(self, ctx, delta="14"):
-        "Get the current winrates on hunt party"
+        "Get the current winrates on combat patrol"
         return await self.get_winrate(ctx, delta, "Combat Patrol", [
+            MARINE_MAJOR_VICTORY,
+            SOM_MAJOR_VICTORY,
+            MARINE_MINOR_VICTORY,
+            SOM_MINOR_VICTORY
+        ])
+
+    @winrates.command(aliases=["sensor", "capture", "sensor-capture", "sc"])
+    async def sensorcapture(self, ctx, delta="14"):
+        "Get the current winrates on sensor capture"
+        return await self.get_winrate(ctx, delta, "Sensor Capture", [
             MARINE_MAJOR_VICTORY,
             SOM_MAJOR_VICTORY,
             MARINE_MINOR_VICTORY,
