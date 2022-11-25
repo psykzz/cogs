@@ -110,12 +110,12 @@ class TGMC(commands.Cog):
         "Get the current winrates on crash"
         return await self.get_winrate(ctx, delta, "Crash")
 
-    @winrates.command(aliases=["buy", "hunt", "bug-hunt", "bh"])
+    @winrates.command(aliases=["buy", "bug-hunt", "bh"])
     async def bughunt(self, ctx, delta="14"):
         "Get the current winrates on bug hunt"
         return await self.get_winrate(ctx, delta, "Bug Hunt")
 
-    @winrates.command(aliases=["hunt", "party","hunt-party", "hp"])
+    @winrates.command(aliases=["party","hunt-party", "hp"])
     async def huntparty(self, ctx, delta="14"):
         "Get the current winrates on hunt party"
         return await self.get_winrate(ctx, delta, "Hunt party")
