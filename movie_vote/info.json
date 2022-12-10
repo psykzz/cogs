@@ -1,0 +1,9 @@
+{
+  "name": "MovieVote",
+  "author": ["psykzz"],
+  "short": "Handle votes for movies",
+  "description": "Adds upvote and downvote reactions to every message in a channel. Messages receiving excessive downvotes can be deleted automatically.\n\nDependencies: None",
+  "tags": ["reaction", "vote", "upvote", "downvote"],
+  "permissions": ["add_reactions"],
+  "end_user_data_statement": "This cog does not persistently store data or metadata about users."
+}
