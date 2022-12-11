@@ -146,7 +146,7 @@ class MovieVote(commands.Cog):
             await ctx.reply("No movies in the list.")
             return
         for movie in movies:
-            if movie["imdb_link"] == link:
+            if movie["imdb_id"] == link:
                 movie["watched"] = True
                 await ctx.send("Movie marked watched.")
                 break
@@ -171,7 +171,7 @@ class MovieVote(commands.Cog):
             await ctx.reply("No movies in the list.")
             return
         for movie in movies:
-            if movie["imdb_link"] == link:
+            if movie["imdb_id"] == link:
                 movie["watched"] = False
                 await ctx.send("Movie marked unwatched.")
                 break
