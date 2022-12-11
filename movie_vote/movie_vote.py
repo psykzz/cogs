@@ -35,8 +35,8 @@ class MovieVote(commands.Cog):
     @commands.group(autohelp=False)
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
-    async def movievote(self, ctx):
-        """Msgvote cog settings"""
+    async def movie(self, ctx):
+        """Movie cog settings"""
 
         if ctx.invoked_subcommand is not None:
             return
@@ -70,7 +70,7 @@ class MovieVote(commands.Cog):
             new_channel_list = [x for x in guild_data["channels_enabled"] if x not in bad_channels]
             await self.config.guild(ctx.guild).channels_enabled.set(new_channel_list)
 
-    @movievote.command(name="on")
+    @movie.command(name="on")
     async def _movievote_on(self, ctx):
         """Turn on MovieVote in the current channel"""
 
@@ -86,7 +86,7 @@ class MovieVote(commands.Cog):
             await self.config.guild(ctx.guild).channels_enabled.set(channels)
             await ctx.send("MovieVote is now on in this channel.")
 
-    @movievote.command(name="off")
+    @movie.command(name="off")
     async def _movievote_off(self, ctx):
         """Turn off MovieVote in the current channel"""
 
@@ -101,7 +101,7 @@ class MovieVote(commands.Cog):
             await self.config.guild(ctx.guild).channels_enabled.set(channels)
             await ctx.send("MovieVote is now off in this channel.")
 
-    @movievote.command(name="upemoji")
+    @movie.command(name="upemoji")
     async def _movievote_upemoji(self, ctx, emoji):
         """Set the upvote emoji"""
 
@@ -112,7 +112,7 @@ class MovieVote(commands.Cog):
         await self.config.guild(ctx.guild).up_emoji.set(str(emoji))
         await ctx.send("Upvote emoji set to: " + str(emoji))
 
-    @movievote.command(name="downemoji")
+    @movie.command(name="downemoji")
     async def _movievote_downemoji(self, ctx, emoji):
         """Set the downvote emoji"""
 
@@ -123,7 +123,7 @@ class MovieVote(commands.Cog):
         await self.config.guild(ctx.guild).dn_emoji.set(str(emoji))
         await ctx.send("Downvote emoji set to: " + str(emoji))
 
-    @movievote.command(name="duration")
+    @movie.command(name="duration")
     async def _movievote_duration(self, ctx, duration: int):
         """Set the duration in seconds for which votes will be monitored
         on each message."""
@@ -137,7 +137,7 @@ class MovieVote(commands.Cog):
         else:
             await ctx.send("Invalid duration. Must be a positive integer.")
 
-    @movievote.command(name="threshold")
+    @movie.command(name="threshold")
     async def _movievote_threshold(self, ctx, threshold: int):
         """Set the threshold of [downvotes - upvotes] for msg deletion.
         Must be a positive integer. Or, set to 0 to disable deletion."""
@@ -154,7 +154,7 @@ class MovieVote(commands.Cog):
                 "upvotes] reaches {}.".format(threshold)
             )
 
-    @movievote.command(name="next")
+    @movie.command(name="next")
     async def _movievote_next(self, ctx):
         """Get the next movie to watch.
         Looks at all movies (minus those marked watched) returns the one with the highest score."""
@@ -175,7 +175,7 @@ class MovieVote(commands.Cog):
             "Next movie to watch: **{}** (score: {})".format(movie["title"], movie["score"])
         )
 
-    @movievote.command(name="leaderboard")
+    @movie.command(name="leaderboard")
     async def _movievote_leaderboard(self, ctx):
         """
             Get the movie leaderboard.
