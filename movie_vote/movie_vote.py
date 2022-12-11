@@ -333,10 +333,10 @@ class MovieVote(commands.Cog):
         await self.config.guild(message.guild).movies.set(movies)
 
         # Update the loadboard message with new scores
-        loadboard = await self.config.guild(message.guild).loadboard()
-        if loadboard:
-            message = await message.channel.fetch_message(loadboard)
-            await self.update_leaderboard(message)
+        leaderboard_id = await self.config.guild(message.guild).leaderboard()
+        if leaderboard_id:
+            leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+            await self.update_leaderboard(leaderboard_msg)
         
 
     async def update_leaderboard(self, message: discord.Message):
