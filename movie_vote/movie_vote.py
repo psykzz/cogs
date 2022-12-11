@@ -131,6 +131,56 @@ class MovieVote(commands.Cog):
         await self.config.guild(ctx.guild).dn_emoji.set(str(emoji))
         await ctx.send("Downvote emoji set to: " + str(emoji))
 
+    @movie.command(name="watch")
+    async def _movievote_watch(self, ctx, *, imdb_link):
+        """Mark a movie as watched"""
+
+        link_group = RE_IMDB_LINK.search(imdb_link)
+        link = link_group.group(1) if link_group else None
+        if not link:
+            await ctx.reply("Add an IMDB link to the command.")
+            return
+
+        movies = await self.config.guild(ctx.guild).movies()
+        if not movies:
+            await ctx.reply("No movies in the list.")
+            return
+        for movie in movies:
+            if movie["imdb_link"] == link:
+                movie["watched"] = True
+                await ctx.send("Movie marked watched.")
+                break
+        else:
+            await ctx.reply("Couldn't find movie.")
+            return
+
+        await self.config.guild(ctx.guild).movies.set(movies)
+
+    @movie.command(name="rewatch")
+    async def _movievote_rewatch(self, ctx, *, imdb_link):
+        """Mark a movie as unwatched"""
+
+        link_group = RE_IMDB_LINK.search(imdb_link)
+        link = link_group.group(1) if link_group else None
+        if not link:
+            await ctx.reply("Add an IMDB link to the command.")
+            return
+
+        movies = await self.config.guild(ctx.guild).movies()
+        if not movies:
+            await ctx.reply("No movies in the list.")
+            return
+        for movie in movies:
+            if movie["imdb_link"] == link:
+                movie["watched"] = False
+                await ctx.send("Movie marked unwatched.")
+                break
+        else:
+            await ctx.reply("Couldn't find movie.")
+            return
+
+        await self.config.guild(ctx.guild).movies.set(movies)
+
     @movie.command(name="next")
     async def _movievote_next(self, ctx):
         """Get the next movie to watch.
