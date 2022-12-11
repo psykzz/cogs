@@ -249,11 +249,13 @@ class MovieVote(commands.Cog):
         # Remove movie from list if it was deleted
         if isinstance(message.channel, discord.abc.PrivateChannel):
             return
+
         # Find links in message
         link_group = RE_IMDB_LINK.search(message.content)
         link = link_group.group(1) if link_group else None
         if not link:
             return
+
         guild_data = await self.config.guild(message.guild).all()
         try:
             test = guild_data["channels_enabled"]
@@ -331,10 +333,10 @@ class MovieVote(commands.Cog):
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
-            await self.update_leaderboard(leaderboard_msg)
-        msg = await self.generate_leaderboard(message.guild) # type: ignore
-        embed = discord.Embed(description=msg)
-        await message.edit(embed=embed)
+            
+            msg = await self.generate_leaderboard(message.guild) # type: ignore
+            embed = discord.Embed(description=msg)
+            await leaderboard_msg.edit(embed=embed)
 
 
     async def generate_leaderboard(self, guild: discord.Guild):
