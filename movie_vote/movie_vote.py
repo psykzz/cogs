@@ -354,7 +354,9 @@ class MovieVote(commands.Cog):
         return embed
 
 
-    async def update_movie(self, movie):
+    async def update_movie(self, original_movie):
+        movie = original_movie
+        try:
             # Update old style movies
             if movie['title'].startswith('http'):
                 movie["link"] = movie["title"]
@@ -365,8 +367,11 @@ class MovieVote(commands.Cog):
             movie["title"] = imdb_movie.get("title") 
             movie["genres"] = imdb_movie.get("genres") 
             movie["year"] = imdb_movie.get("year") 
-            log.info("Updated movie: {}", movie["title"])
+            log.info("Updated movie: %s", movie["title"])
             return movie
+        except:
+            return original_movie
+
 
 
     async def update_movies(self, ctx):
