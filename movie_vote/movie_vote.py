@@ -148,9 +148,13 @@ class MovieVote(commands.Cog):
 
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
         movie = movies[0]
-        await ctx.reply(
-            "Next movie to watch: **{}** (score: {})".format(movie["title"], movie["score"])
-        )
+
+        imdb_data = imdb.get_movie(movie['imdb_id'])
+        embed =  discord.Embed(title=f"🎬 {movie['title']} ({movie['year']})", description=f"_{', '.join(movie['genres'])}_")
+        embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
+        embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
+
+        await ctx.reply(embed=embed)
 
     @movie.command(name="leaderboard")
     async def _movievote_leaderboard(self, ctx):
@@ -349,7 +353,7 @@ class MovieVote(commands.Cog):
         embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
         for position, movie in enumerate(movies[:5], start=1):
-            embed.add_field(name=f" - ", value=f" - ", inline=False)
+            embed.add_field(name=f"\u200B", value=f"\u200B", inline=False) # Empty field
             embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_", inline=True)
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         return embed
