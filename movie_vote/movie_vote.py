@@ -324,11 +324,13 @@ class MovieVote(commands.Cog):
         log.info(f"Handling {link}")
 
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
+            log.info(f"Wrong channel {message.channel.id}")
             return
 
         up_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).up_emoji())
         dn_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).dn_emoji())
         if emoji not in (up_emoji, dn_emoji):
+            log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
 
         # age = (datetime.utcnow() - message.created_at).total_seconds()
