@@ -327,6 +327,7 @@ class MovieVote(commands.Cog):
         
 
     async def update_leaderboard(self, message):
+        print("Updating leaderboard")
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
