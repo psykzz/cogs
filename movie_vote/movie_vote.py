@@ -1,8 +1,11 @@
 import asyncio
+import re
 from datetime import datetime
 
 import discord
 from redbot.core import Config, checks, commands
+
+RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
 
 class MovieVote(commands.Cog):
@@ -230,13 +233,13 @@ class MovieVote(commands.Cog):
         ):
             return
 
-        # # Delete messages that don't link to imdb 
-        if not message.content.startswith("https://www.imdb.com/title/"):
-            # await message.delete()
+        # Find links in message
+        link = RE_IMDB_LINK.search(message.content)
+        if not link:
             return
 
         # Add Imdb link to movie list
-        movie = {"title": message.content, "score": 0, "watched": False}
+        movie = {"title": link, "score": 0, "watched": False}
         movies = await self.config.guild(message.guild).movies()
         movies.append(movie)
         await self.config.guild(message.guild).movies.set(movies)
@@ -271,7 +274,9 @@ class MovieVote(commands.Cog):
             return
         if not reaction.me:
             return
-        if await self.config.guild(message.guild).threshold() == 0:
+        # Find links in message
+        link = RE_IMDB_LINK.search(message.content)
+        if not link:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
             return
@@ -296,7 +301,7 @@ class MovieVote(commands.Cog):
         # Update the movie with the new score
         movies = await self.config.guild(message.guild).movies()
         for movie in movies:
-            if movie["title"] == message.content:
+            if movie["title"] == link:
                 movie["score"] = upvotes - dnvotes 
         await self.config.guild(message.guild).movies.set(movies)
 
