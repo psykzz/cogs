@@ -348,8 +348,9 @@ class MovieVote(commands.Cog):
 
         embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
-        for position, movie in enumerate(movies[:5]):
-            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{movie['genres']}_", inline=True)
+        for position, movie in enumerate(movies[:5], start=1):
+            embed.add_field(name=f"", value=f"", inline=False)
+            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{movie['genres'].split(', ')}_", inline=True)
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         return embed
 
