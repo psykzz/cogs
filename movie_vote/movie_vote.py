@@ -155,6 +155,7 @@ class MovieVote(commands.Cog):
             return
 
         await self.config.guild(ctx.guild).movies.set(movies)
+        await self.update_leaderboard(ctx)
 
     @movie.command(name="rewatch")
     async def _movievote_rewatch(self, ctx, *, imdb_link):
@@ -180,6 +181,7 @@ class MovieVote(commands.Cog):
             return
 
         await self.config.guild(ctx.guild).movies.set(movies)
+        await self.update_leaderboard(ctx)
 
     @movie.command(name="next")
     async def _movievote_next(self, ctx):
@@ -414,6 +416,9 @@ class MovieVote(commands.Cog):
         movies = await self.config.guild(guild).movies()
         if not movies:
             return
+
+        # filter out movies that have been watched
+        movies = [movie for movie in movies if not movie["watched"]]
 
         embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
