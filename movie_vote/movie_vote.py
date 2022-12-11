@@ -245,8 +245,8 @@ class MovieVote(commands.Cog):
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
         try:
-            up_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).up_emoji())
-            dn_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).dn_emoji())
+            up_emoji = await self.config.guild(message.guild).up_emoji()
+            dn_emoji = await self.config.guild(message.guild).dn_emoji()
             await message.add_reaction(up_emoji)
             await asyncio.sleep(0.5)
             await message.add_reaction(dn_emoji)
@@ -327,12 +327,11 @@ class MovieVote(commands.Cog):
             log.info(f"Wrong channel {message.channel.id}")
             return
 
-        up_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).up_emoji())
-        dn_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).dn_emoji())
+        up_emoji = await self.config.guild(message.guild).up_emoji()
+        dn_emoji = await self.config.guild(message.guild).dn_emoji()
         if emoji not in (up_emoji, dn_emoji):
             log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
-
         # age = (datetime.utcnow() - message.created_at).total_seconds()
         # if age > await self.config.guild(message.guild).duration():
         #     return
