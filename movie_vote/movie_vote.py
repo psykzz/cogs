@@ -257,6 +257,8 @@ class MovieVote(commands.Cog):
             # Implement a non-spammy way to alert users in future
             pass
 
+        await self.update_leaderboard(message)
+
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         # Remove movie from list if it was deleted
@@ -281,6 +283,8 @@ class MovieVote(commands.Cog):
                 movies.remove(movie)
                 await self.config.guild(message.guild).movies.set(movies)
                 break
+
+        await self.update_leaderboard(message)
         
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
@@ -333,13 +337,14 @@ class MovieVote(commands.Cog):
         await self.config.guild(message.guild).movies.set(movies)
 
         # Update the loadboard message with new scores
+        await self.update_leaderboard(message)
+        
+
+    async def update_leaderboard(self, message):
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
             await self.update_leaderboard(leaderboard_msg)
-        
-
-    async def update_leaderboard(self, message: discord.Message):
         msg = await self.generate_leaderboard(message.guild) # type: ignore
         embed = discord.Embed(description=msg)
         await message.edit(embed=embed)
