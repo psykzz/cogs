@@ -15,6 +15,7 @@ class MovieVote(commands.Cog):
         default_guild = {
             "channels_enabled": [],
             "movies": [],
+            "leaderboard": 0,
             "bot_react": False,
             "duration": 300,
             "threshold": 3,
@@ -177,10 +178,31 @@ class MovieVote(commands.Cog):
 
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
         movie = movies[0]
-        await ctx.send(
+        await ctx.reply(
             "Next movie to watch: **{}** (score: {})".format(movie["title"], movie["score"])
         )
- 
+
+    @movievote.command(name="leaderboard")
+    async def _movievote_leaderboard(self, ctx):
+        """
+            Get the movie leaderboard.
+            The leaderboard will be updated each time a movie is added or removed from the list.
+        """
+        
+        movies = await self.config.guild(ctx.guild).movies()
+        if not movies:
+            await ctx.send("No movies in the list.")
+            return
+
+        movies = sorted(movies, key=lambda x: x["score"], reverse=True)
+        msg = "Movie Leaderboard:\n"
+        for movie in movies:
+            msg += "**{}** (score: {})\n".format(movie["title"], movie["score"])
+        embed = discord.Embed(description=msg)
+        leaderboard = await ctx.send(embed=embed)
+
+        # Save the leaderboard message ID so we can edit it later
+        await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
 
     def fix_custom_emoji(self, emoji):
         if emoji[:2] != "<:":
@@ -208,10 +230,10 @@ class MovieVote(commands.Cog):
         ):
             return
 
-        # Delete messages that don't link to imdb 
-        if not message.content.startswith("https://www.imdb.com/title/"):
-            await message.delete()
-            return
+        # # Delete messages that don't link to imdb 
+        # if not message.content.startswith("https://www.imdb.com/title/"):
+        #     await message.delete()
+        #     return
 
         # Add Imdb link to movie list
         movie = {"title": message.content, "score": 0, "watched": False}
@@ -277,4 +299,28 @@ class MovieVote(commands.Cog):
             if movie["title"] == message.content:
                 movie["score"] = upvotes - dnvotes 
         await self.config.guild(message.guild).movies.set(movies)
+
+        # Update the loadboard message with new scores
+        loadboard = await self.config.guild(message.guild).loadboard()
+        if loadboard:
+            message = await message.channel.fetch_message(loadboard)
+            await self.update_leaderboard(message)
         
+
+    async def update_leaderboard(self, message: discord.Message):
+        msg = self.generate_leaderboard(message.guild) # type: ignore
+        embed = discord.Embed(description=msg)
+        await message.edit(embed=embed)
+
+
+    async def generate_leaderboard(self, guild: discord.Guild):
+        # Save the leaderboard message ID so we can edit it later
+        movies = await self.config.guild(guild).movies()
+        if not movies:
+            return
+
+        movies = sorted(movies, key=lambda x: x["score"], reverse=True)
+        msg = "Movie Leaderboard:\n"
+        for movie in movies:
+            msg += "**{}** (score: {})\n".format(movie["title"], movie["score"])
+        return msg
