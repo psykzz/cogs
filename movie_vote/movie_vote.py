@@ -72,8 +72,8 @@ class MovieVote(commands.Cog):
     @movie.command(name="updatedb")
     async def _movievote_updatedb(self, ctx):
         'Loop through all the movies, update their imdb data'
-        _ = self.update_movies(ctx)
-        ctx.reply("Updating, this might take some time.")
+        await self.update_movies(ctx)
+        await ctx.reply("Updating, this might take some time.")
         
     
 
@@ -353,9 +353,8 @@ class MovieVote(commands.Cog):
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         return embed
 
-    async def update_movies(self, ctx):
-        movies = await self.config.guild(ctx.guild).movies()
-        for movie in movies:
+
+    async def update_movie(self, movie):
             # Update old style movies
             if movie['title'].startswith('http'):
                 movie["link"] = movie["title"]
@@ -367,6 +366,13 @@ class MovieVote(commands.Cog):
             movie["genres"] = imdb_movie.get("genres") 
             movie["year"] = imdb_movie.get("year") 
             log.info("Updated movie: {}", movie["title"])
+            return movie
+
+
+    async def update_movies(self, ctx):
+        movies = await self.config.guild(ctx.guild).movies()
+        for movie in movies:
+            movie = await self.update_movie(movie)
             
         await self.config.guild(ctx.guild).movies.set(movies)
 
