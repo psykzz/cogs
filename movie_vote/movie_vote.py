@@ -282,25 +282,34 @@ class MovieVote(commands.Cog):
         await self.update_leaderboard(message)
         
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        
+    async def on_raw_reaction_add(self, payload):
+        channel = await self.bot.fetch_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        user = await self.bot.fetch_user(payload.user_id)
+        emoji = payload.emoji
+
         if user.id == self.bot.user.id:
             return
+
         log.info("Reaction added")
-        await self.count_votes(reaction)
+        await self.count_votes(message, emoji)
 
     @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, user):
+    async def on_raw_reaction_remove(self, payload):
+        channel = await self.bot.fetch_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        user = await self.bot.fetch_user(payload.user_id)
+        emoji = payload.emoji
+
         if user.id == self.bot.user.id:
             return
+            
         log.info("Reaction removed")
-        await self.count_votes(reaction)
+        await self.count_votes(message, emoji)
 
-    async def count_votes(self, reaction):
-        message = reaction.message
+
+    async def count_votes(self, message, emoji):
         if not message.guild:
-            return
-        if not reaction.me:
             return
 
         # Find links in message
@@ -315,7 +324,7 @@ class MovieVote(commands.Cog):
 
         up_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).up_emoji())
         dn_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).dn_emoji())
-        if reaction.emoji not in (up_emoji, dn_emoji):
+        if emoji not in (up_emoji, dn_emoji):
             return
 
         # age = (datetime.utcnow() - message.created_at).total_seconds()
