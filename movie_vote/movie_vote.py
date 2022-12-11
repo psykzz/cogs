@@ -302,9 +302,9 @@ class MovieVote(commands.Cog):
         if reaction.emoji not in (up_emoji, dn_emoji):
             return
 
-        age = (datetime.utcnow() - message.created_at).total_seconds()
-        if age > await self.config.guild(message.guild).duration():
-            return
+        # age = (datetime.utcnow() - message.created_at).total_seconds()
+        # if age > await self.config.guild(message.guild).duration():
+        #     return
 
         # We have a valid vote so we can count the votes now
         upvotes, dnvotes = 0, 0
