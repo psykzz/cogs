@@ -340,7 +340,7 @@ class MovieVote(commands.Cog):
         
 
     async def update_leaderboard(self, message: discord.Message):
-        msg = self.generate_leaderboard(message.guild) # type: ignore
+        msg = await self.generate_leaderboard(message.guild) # type: ignore
         embed = discord.Embed(description=msg)
         await message.edit(embed=embed)
 
