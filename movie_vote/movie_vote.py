@@ -21,8 +21,6 @@ class MovieVote(commands.Cog):
             "channels_enabled": [],
             "movies": [],
             "leaderboard": 0,
-            "duration": 300,
-            "threshold": 3,
             "up_emoji": "👍",
             "dn_emoji": "👎",
         }
@@ -61,7 +59,7 @@ class MovieVote(commands.Cog):
             else:
                 msg += "\n".join(chan.name for chan in channel_list)
 
-        msg += f"\nListening duration: {guild_data['duration']}s\nVote threshold: {guild_data['threshold']} votes\nUp/down emojis: {guild_data['up_emoji']} / {guild_data['dn_emoji']}"
+        msg += f"\nUp/down emojis: {guild_data['up_emoji']} / {guild_data['dn_emoji']}"
 
         embed = discord.Embed(colour=await ctx.embed_colour(), description=msg)
         await ctx.send(embed=embed)
@@ -122,37 +120,6 @@ class MovieVote(commands.Cog):
             return
         await self.config.guild(ctx.guild).dn_emoji.set(str(emoji))
         await ctx.send("Downvote emoji set to: " + str(emoji))
-
-    @movie.command(name="duration")
-    async def _movievote_duration(self, ctx, duration: int):
-        """Set the duration in seconds for which votes will be monitored
-        on each message."""
-
-        if duration > 0:
-            await self.config.guild(ctx.guild).duration.set(duration)
-            await ctx.send(
-                "I will monitor each message's votes until it "
-                "is {} seconds old.".format(duration)
-            )
-        else:
-            await ctx.send("Invalid duration. Must be a positive integer.")
-
-    @movie.command(name="threshold")
-    async def _movievote_threshold(self, ctx, threshold: int):
-        """Set the threshold of [downvotes - upvotes] for msg deletion.
-        Must be a positive integer. Or, set to 0 to disable deletion."""
-
-        if threshold < 0:
-            await ctx.send("Invalid threshold. Must be a positive integer, or 0 to disable.")
-        elif threshold == 0:
-            await self.config.guild(ctx.guild).threshold.set(threshold)
-            await ctx.send("Message deletion disabled.")
-        else:
-            await self.config.guild(ctx.guild).threshold.set(threshold)
-            await ctx.send(
-                "Messages will be deleted if [downvotes - "
-                "upvotes] reaches {}.".format(threshold)
-            )
 
     @movie.command(name="next")
     async def _movievote_next(self, ctx):
@@ -332,9 +299,6 @@ class MovieVote(commands.Cog):
         if str(emoji) not in (up_emoji, dn_emoji):
             log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
-        # age = (datetime.utcnow() - message.created_at).total_seconds()
-        # if age > await self.config.guild(message.guild).duration():
-        #     return
 
         # We have a valid vote so we can count the votes now
         upvotes, dnvotes = 0, 0
@@ -362,8 +326,7 @@ class MovieVote(commands.Cog):
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
             
-            msg = await self.generate_leaderboard(message.guild) # type: ignore
-            embed = discord.Embed(description=msg)
+            embed = await self.generate_leaderboard(message.guild) # type: ignore
             await leaderboard_msg.edit(embed=embed)
 
 
@@ -373,8 +336,8 @@ class MovieVote(commands.Cog):
         if not movies:
             return
 
+        embed =  discord.Embed(title="Movie Leaderboard")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
-        msg = "Movie Leaderboard:\n"
         for movie in movies:
-            msg += "**{}** (score: {})\n".format(movie["title"], movie["score"])
-        return msg
+            embed.add_field(name=movie["title"], value=movie["score"])
+        return embed
