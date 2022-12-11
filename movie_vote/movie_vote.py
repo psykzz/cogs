@@ -227,10 +227,16 @@ class MovieVote(commands.Cog):
             return
 
         # Add Imdb link to movie list
-        movie = {"title": link, "score": 0, "watched": False}
         movies = await self.config.guild(message.guild).movies()
-        movies.append(movie)
-        await self.config.guild(message.guild).movies.set(movies)
+        movie = {"title": link, "score": 0, "watched": False}
+        exists = False
+        for m in movies:
+            if m["title"] == link:
+                exists = True
+                break
+        if not exists:
+            movies.append(movie)
+            await self.config.guild(message.guild).movies.set(movies)
         
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
@@ -277,14 +283,17 @@ class MovieVote(commands.Cog):
         
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
+        
         if user.id == self.bot.user.id:
             return
+        log.info("Reaction added")
         await self.count_votes(reaction)
 
     @commands.Cog.listener()
     async def on_reaction_remove(self, reaction, user):
         if user.id == self.bot.user.id:
             return
+        log.info("Reaction removed")
         await self.count_votes(reaction)
 
     async def count_votes(self, reaction):
