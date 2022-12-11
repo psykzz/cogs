@@ -257,6 +257,30 @@ class MovieVote(commands.Cog):
             pass
 
     @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        # Remove movie from list if it was deleted
+        if isinstance(message.channel, discord.abc.PrivateChannel):
+            return
+        # Find links in message
+        link = RE_IMDB_LINK.search(message.content)
+        if not link:
+            return
+        guild_data = await self.config.guild(message.guild).all()
+        try:
+            test = guild_data["channels_enabled"]
+        except KeyError:
+            return
+        if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
+            return
+
+        movies = await self.config.guild(message.guild).movies()
+        for movie in movies:
+            if movie["title"] == link:
+                movies.remove(movie)
+                await self.config.guild(message.guild).movies.set(movies)
+                break
+        
+    @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         if user.id == self.bot.user.id:
             return
