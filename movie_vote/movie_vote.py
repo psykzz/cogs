@@ -291,11 +291,14 @@ class MovieVote(commands.Cog):
             return
         if not reaction.me:
             return
+
         # Find links in message
         link_group = RE_IMDB_LINK.search(message.content)
         link = link_group.group(1) if link_group else None
         if not link:
             return
+        print(f"Handling {link}")
+
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
             return
 
