@@ -14,6 +14,7 @@ class MovieVote(commands.Cog):
 
         default_guild = {
             "channels_enabled": [],
+            "movies": [],
             "bot_react": False,
             "duration": 300,
             "threshold": 3,
@@ -159,6 +160,28 @@ class MovieVote(commands.Cog):
                 "upvotes] reaches {}.".format(threshold)
             )
 
+    @movievote.command(name="next")
+    async def _movievote_next(self, ctx):
+        """Get the next movie to watch.
+        Looks at all movies (minus those marked watched) returns the one with the highest score."""
+            
+        movies = await self.config.guild(ctx.guild).movies()
+        if not movies:
+            await ctx.send("No movies in the list.")
+            return
+
+        movies = [x for x in movies if not x["watched"]]
+        if not movies:
+            await ctx.send("All movies have been marked watched.")
+            return
+
+        movies = sorted(movies, key=lambda x: x["score"], reverse=True)
+        movie = movies[0]
+        await ctx.send(
+            "Next movie to watch: **{}** (score: {})".format(movie["title"], movie["score"])
+        )
+ 
+
     def fix_custom_emoji(self, emoji):
         if emoji[:2] != "<:":
             return emoji
@@ -184,6 +207,18 @@ class MovieVote(commands.Cog):
             and not await self.config.guild(message.guild).bot_react()
         ):
             return
+
+        # Delete messages that don't link to imdb 
+        if not message.content.startswith("https://www.imdb.com/title/"):
+            await message.delete()
+            return
+
+        # Add Imdb link to movie list
+        movie = {"title": message.content, "score": 0, "watched": False}
+        movies = await self.config.guild(message.guild).movies()
+        movies.append(movie)
+        await self.config.guild(message.guild).movies.set(movies)
+        
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
         try:
@@ -218,25 +253,28 @@ class MovieVote(commands.Cog):
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
             return
+
         up_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).up_emoji())
         dn_emoji = self.fix_custom_emoji(await self.config.guild(message.guild).dn_emoji())
         if reaction.emoji not in (up_emoji, dn_emoji):
             return
+
         age = (datetime.utcnow() - message.created_at).total_seconds()
         if age > await self.config.guild(message.guild).duration():
             return
+
         # We have a valid vote so we can count the votes now
-        upvotes = 0
-        dnvotes = 0
+        upvotes, dnvotes = 0, 0
         for react in message.reactions:
             if react.emoji == up_emoji:
                 upvotes = react.count
             elif react.emoji == dn_emoji:
                 dnvotes = react.count
-        if (dnvotes - upvotes) >= await self.config.guild(message.guild).threshold():
-            try:
-                await message.delete()
-            except discord.errors.Forbidden:
-                await message.channel.send(
-                    "I require the 'Manage Messages' permission to delete downvoted messages!"
-                )
+
+        # Update the movie with the new score
+        movies = await self.config.guild(message.guild).movies()
+        for movie in movies:
+            if movie["title"] == message.content:
+                movie["score"] = upvotes - dnvotes 
+        await self.config.guild(message.guild).movies.set(movies)
+        
