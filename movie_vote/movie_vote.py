@@ -19,7 +19,6 @@ class MovieVote(commands.Cog):
             "channels_enabled": [],
             "movies": [],
             "leaderboard": 0,
-            "bot_react": False,
             "duration": 300,
             "threshold": 3,
             "up_emoji": "👍",
@@ -60,7 +59,7 @@ class MovieVote(commands.Cog):
             else:
                 msg += "\n".join(chan.name for chan in channel_list)
 
-        msg += f"\nBot message reactions: {guild_data['bot_react']}\nListening duration: {guild_data['duration']}s\nVote threshold: {guild_data['threshold']} votes\nUp/down emojis: {guild_data['up_emoji']} / {guild_data['dn_emoji']}"
+        msg += f"\nListening duration: {guild_data['duration']}s\nVote threshold: {guild_data['threshold']} votes\nUp/down emojis: {guild_data['up_emoji']} / {guild_data['dn_emoji']}"
 
         embed = discord.Embed(colour=await ctx.embed_colour(), description=msg)
         await ctx.send(embed=embed)
@@ -99,17 +98,6 @@ class MovieVote(commands.Cog):
             channels.remove(channel_id)
             await self.config.guild(ctx.guild).channels_enabled.set(channels)
             await ctx.send("MovieVote is now off in this channel.")
-
-    @movievote.command(name="bot")
-    async def _movievote_bot(self, ctx):
-        """Turn on/off reactions to bot's own messages"""
-
-        if await self.config.guild(ctx.guild).bot_react():
-            await self.config.guild(ctx.guild).bot_react.set(False)
-            await ctx.send("Reactions to bot messages turned OFF.")
-        else:
-            await self.config.guild(ctx.guild).bot_react.set(True)
-            await ctx.send("Reactions to bot messages turned ON.")
 
     @movievote.command(name="upemoji")
     async def _movievote_upemoji(self, ctx, emoji):
@@ -227,10 +215,7 @@ class MovieVote(commands.Cog):
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
             return
-        if (
-            message.author.id == self.bot.user.id
-            and not await self.config.guild(message.guild).bot_react()
-        ):
+        if message.author.id == self.bot.user.id:
             return
 
         # Find links in message
@@ -331,6 +316,7 @@ class MovieVote(commands.Cog):
 
         # Update the movie with the new score
         movies = await self.config.guild(message.guild).movies()
+        print(f"Updating {link} with new score: {upvotes - dnvotes}")
         for movie in movies:
             if movie["title"] == link:
                 movie["score"] = upvotes - dnvotes 
