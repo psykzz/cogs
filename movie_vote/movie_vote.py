@@ -358,7 +358,7 @@ class MovieVote(commands.Cog):
 
     async def update_movie(self, movie):
         # Update old style movies
-        if movie('title').startswith('http'):
+        if movie['title'].startswith('http'):
             movie["link"] = movie["title"]
             movie['imdb_id'] = movie['link'].split('/tt')[-1]
 
