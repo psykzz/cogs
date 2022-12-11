@@ -1,11 +1,12 @@
 import asyncio
 import logging
 import re
-from datetime import datetime
 
 import discord
+from imdb import Cinemagoer
 from redbot.core import Config, checks, commands
 
+imdb = Cinemagoer()
 RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
 log = logging.getLogger("red.cog.movie_vote")
@@ -67,6 +68,18 @@ class MovieVote(commands.Cog):
         if bad_channels:
             new_channel_list = [x for x in guild_data["channels_enabled"] if x not in bad_channels]
             await self.config.guild(ctx.guild).channels_enabled.set(new_channel_list)
+
+    @movie.command(name="updatedb")
+    async def _movievote_updatedb(self, ctx):
+        'Loop through all the movies, update their imdb data'
+        movies = await self.config.guild(ctx.guild).movies()
+        for movie in movies:
+            await self.update_movie(movie)
+            
+        await self.config.guild(ctx.guild).movies.set(movies)
+        ctx.reply("Update completed.")
+    
+
 
     @movie.command(name="on")
     async def _movievote_on(self, ctx):
@@ -336,8 +349,22 @@ class MovieVote(commands.Cog):
         if not movies:
             return
 
-        embed =  discord.Embed(title="Movie Leaderboard")
+        embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
-        for movie in movies:
-            embed.add_field(name=movie["title"], value=f"Score: {movie['score']}", inline=False)
+        for position, movie in enumerate(movies[:5]):
+            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{movie['genres']}_", inline=True)
+            embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         return embed
+
+    async def update_movie(self, movie):
+        # Update old style movies
+        if movie('title').startswith('http'):
+            movie["link"] = movie["title"]
+            movie['imdb_id'] = movie['link'].split('/tt')[-1]
+
+        # Get movie info from IMDB
+        imdb_movie = imdb.get_movie(movie['imdb_id'])
+        movie["title"] = imdb_movie.get("title") 
+        movie["genres"] = imdb_movie.get("genres") 
+        movie["year"] = imdb_movie.get("year") 
+        return movie
