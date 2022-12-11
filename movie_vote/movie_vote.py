@@ -311,7 +311,7 @@ class MovieVote(commands.Cog):
 
         movies = await self.config.guild(message.guild).movies()
         for movie in movies:
-            if movie["title"] == link:
+            if movie["imdb_id"] == link:
                 movies.remove(movie)
                 await self.config.guild(message.guild).movies.set(movies)
                 break
