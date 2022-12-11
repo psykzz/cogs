@@ -329,7 +329,7 @@ class MovieVote(commands.Cog):
 
         up_emoji = await self.config.guild(message.guild).up_emoji()
         dn_emoji = await self.config.guild(message.guild).dn_emoji()
-        if emoji not in (up_emoji, dn_emoji):
+        if str(emoji) not in (up_emoji, dn_emoji):
             log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
         # age = (datetime.utcnow() - message.created_at).total_seconds()
