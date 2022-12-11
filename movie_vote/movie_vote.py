@@ -4,7 +4,7 @@ import re
 
 import discord
 from imdb import Cinemagoer
-from redbot.core import Config, checks, commands, tasks
+from redbot.core import Config, checks, commands
 
 imdb = Cinemagoer()
 RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
