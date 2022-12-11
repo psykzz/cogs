@@ -4,7 +4,7 @@ import re
 
 import discord
 from imdb import Cinemagoer
-from redbot.core import Config, checks, commands
+from redbot.core import Config, checks, commands, tasks
 
 imdb = Cinemagoer()
 RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
@@ -72,12 +72,9 @@ class MovieVote(commands.Cog):
     @movie.command(name="updatedb")
     async def _movievote_updatedb(self, ctx):
         'Loop through all the movies, update their imdb data'
-        movies = await self.config.guild(ctx.guild).movies()
-        for movie in movies:
-            await self.update_movie(movie)
-            
-        await self.config.guild(ctx.guild).movies.set(movies)
-        ctx.reply("Update completed.")
+        _ = self.update_movies(ctx)
+        ctx.reply("Updating, this might take some time.")
+        
     
 
 
@@ -356,15 +353,20 @@ class MovieVote(commands.Cog):
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         return embed
 
-    async def update_movie(self, movie):
-        # Update old style movies
-        if movie['title'].startswith('http'):
-            movie["link"] = movie["title"]
-            movie['imdb_id'] = movie['link'].split('/tt')[-1]
+    async def update_movies(self, ctx):
+        movies = await self.config.guild(ctx.guild).movies()
+        for movie in movies:
+            # Update old style movies
+            if movie['title'].startswith('http'):
+                movie["link"] = movie["title"]
+                movie['imdb_id'] = movie['link'].split('/tt')[-1]
 
-        # Get movie info from IMDB
-        imdb_movie = imdb.get_movie(movie['imdb_id'])
-        movie["title"] = imdb_movie.get("title") 
-        movie["genres"] = imdb_movie.get("genres") 
-        movie["year"] = imdb_movie.get("year") 
-        return movie
+            # Get movie info from IMDB
+            imdb_movie = imdb.get_movie(movie['imdb_id'])
+            movie["title"] = imdb_movie.get("title") 
+            movie["genres"] = imdb_movie.get("genres") 
+            movie["year"] = imdb_movie.get("year") 
+            log.info("Updated movie: {}", movie["title"])
+            
+        await self.config.guild(ctx.guild).movies.set(movies)
+
