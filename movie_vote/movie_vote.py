@@ -241,6 +241,8 @@ class MovieVote(commands.Cog):
     async def on_message(self, message):
         if isinstance(message.channel, discord.abc.PrivateChannel):
             return
+        if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):  # Ignore commands
+            return
         guild_data = await self.config.guild(message.guild).all()
         try:
             test = guild_data["channels_enabled"]
