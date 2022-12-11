@@ -261,10 +261,10 @@ class MovieVote(commands.Cog):
 
         # Add Imdb link to movie list
         movies = await self.config.guild(message.guild).movies()
-        movie = {"title": link, "score": 0, "watched": False}
+        movie = {"imdb_id": link, "score": 0, "watched": False}
         exists = False
         for m in movies:
-            if m["title"] == link:
+            if m["imdb_id"] == link:
                 exists = True
                 break
         if exists:
