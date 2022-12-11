@@ -231,9 +231,9 @@ class MovieVote(commands.Cog):
             return
 
         # # Delete messages that don't link to imdb 
-        # if not message.content.startswith("https://www.imdb.com/title/"):
-        #     await message.delete()
-        #     return
+        if not message.content.startswith("https://www.imdb.com/title/"):
+            # await message.delete()
+            return
 
         # Add Imdb link to movie list
         movie = {"title": message.content, "score": 0, "watched": False}
