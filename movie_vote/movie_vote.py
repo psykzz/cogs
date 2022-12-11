@@ -234,10 +234,14 @@ class MovieVote(commands.Cog):
             if m["title"] == link:
                 exists = True
                 break
-        if not exists:
-            movies.append(movie)
-            await self.config.guild(message.guild).movies.set(movies)
-        
+        if exists:
+            await message.reply(f"{link} is already in the list.")
+            await message.delete()
+            return
+
+        movies.append(movie)
+        await self.config.guild(message.guild).movies.set(movies)
+    
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
         try:
