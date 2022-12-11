@@ -146,7 +146,7 @@ class MovieVote(commands.Cog):
             await ctx.reply("No movies in the list.")
             return
         for movie in movies:
-            if movie["imdb_id"] == link:
+            if movie["link"] == link:
                 movie["watched"] = True
                 await ctx.send("Movie marked watched.")
                 break
@@ -171,7 +171,7 @@ class MovieVote(commands.Cog):
             await ctx.reply("No movies in the list.")
             return
         for movie in movies:
-            if movie["imdb_id"] == link:
+            if movie["link"] == link:
                 movie["watched"] = False
                 await ctx.send("Movie marked unwatched.")
                 break
@@ -258,13 +258,14 @@ class MovieVote(commands.Cog):
         link = link_group.group(1) if link_group else None
         if not link:
             return
+        imdb_id = link.split('/tt')[-1]
+        
 
         # Add Imdb link to movie list
         movies = await self.config.guild(message.guild).movies()
-        movie = {"imdb_id": link, "score": 0, "watched": False}
         exists = False
         for m in movies:
-            if m["imdb_id"] == link:
+            if m["imdb_id"] == imdb_id:
                 exists = True
                 break
         if exists:
@@ -272,7 +273,17 @@ class MovieVote(commands.Cog):
             await message.delete()
             return
 
-        movies.append(movie)
+        try:
+            imdb_movie = imdb.get_movie(imdb_id)
+            movie = {
+                "link": link, "imdb_id": imdb_id, "score": 0, "watched": False}
+            movie["title"] = imdb_movie.get("title") 
+            movie["genres"] = imdb_movie.get("genres") 
+            movie["year"] = imdb_movie.get("year") 
+            movies.append(movie)
+        except:
+            await message.reply(f"Error getting movie from IMDB.")
+            return
         await self.config.guild(message.guild).movies.set(movies)
     
         # Still need to fix error (discord.errors.NotFound) on first run of cog
@@ -300,6 +311,7 @@ class MovieVote(commands.Cog):
         link = link_group.group(1) if link_group else None
         if not link:
             return
+        imdb_id = link.split('/tt')[-1]
 
         guild_data = await self.config.guild(message.guild).all()
         try:
@@ -311,7 +323,7 @@ class MovieVote(commands.Cog):
 
         movies = await self.config.guild(message.guild).movies()
         for movie in movies:
-            if movie["imdb_id"] == link:
+            if movie["imdb_id"] == imdb_id:
                 movies.remove(movie)
                 await self.config.guild(message.guild).movies.set(movies)
                 break
@@ -354,6 +366,7 @@ class MovieVote(commands.Cog):
         link = link_group.group(1) if link_group else None
         if not link:
             return
+        imdb_id = link.split('/tt')[-1]
         log.info(f"Handling {link}")
 
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -378,7 +391,7 @@ class MovieVote(commands.Cog):
         movies = await self.config.guild(message.guild).movies()
         log.info(f"Updating {link} with new score: {upvotes - dnvotes}")
         for movie in movies:
-            if movie["title"] == link:
+            if movie["imdb_id"] == imdb_id:
                 movie["score"] = upvotes - dnvotes 
         await self.config.guild(message.guild).movies.set(movies)
 
