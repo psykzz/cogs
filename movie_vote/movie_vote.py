@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 from datetime import datetime
 
@@ -7,6 +8,7 @@ from redbot.core import Config, checks, commands
 
 RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
+log = logging.getLogger("red.cog.movie_vote")
 
 class MovieVote(commands.Cog):
     """Manage a channel for collecting votes for what to watch next."""
@@ -297,7 +299,7 @@ class MovieVote(commands.Cog):
         link = link_group.group(1) if link_group else None
         if not link:
             return
-        print(f"Handling {link}")
+        log.info(f"Handling {link}")
 
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
             return
@@ -321,7 +323,7 @@ class MovieVote(commands.Cog):
 
         # Update the movie with the new score
         movies = await self.config.guild(message.guild).movies()
-        print(f"Updating {link} with new score: {upvotes - dnvotes}")
+        log.info(f"Updating {link} with new score: {upvotes - dnvotes}")
         for movie in movies:
             if movie["title"] == link:
                 movie["score"] = upvotes - dnvotes 
@@ -332,7 +334,7 @@ class MovieVote(commands.Cog):
         
 
     async def update_leaderboard(self, message):
-        print("Updating leaderboard")
+        log.info("Updating leaderboard")
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
