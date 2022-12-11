@@ -234,7 +234,8 @@ class MovieVote(commands.Cog):
             return
 
         # Find links in message
-        link = RE_IMDB_LINK.search(message.content)
+        link_group = RE_IMDB_LINK.search(message.content)
+        link = link_group.group(1) if link_group else None
         if not link:
             return
 
@@ -262,7 +263,8 @@ class MovieVote(commands.Cog):
         if isinstance(message.channel, discord.abc.PrivateChannel):
             return
         # Find links in message
-        link = RE_IMDB_LINK.search(message.content)
+        link_group = RE_IMDB_LINK.search(message.content)
+        link = link_group.group(1) if link_group else None
         if not link:
             return
         guild_data = await self.config.guild(message.guild).all()
@@ -299,7 +301,8 @@ class MovieVote(commands.Cog):
         if not reaction.me:
             return
         # Find links in message
-        link = RE_IMDB_LINK.search(message.content)
+        link_group = RE_IMDB_LINK.search(message.content)
+        link = link_group.group(1) if link_group else None
         if not link:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
