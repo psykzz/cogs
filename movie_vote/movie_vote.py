@@ -204,7 +204,7 @@ class MovieVote(commands.Cog):
         imdb_data = imdb.get_movie(movie['imdb_id'])
         embed =  discord.Embed(title=f"🎬 {movie['title']} ({movie['year']})", description=f"_{', '.join(movie['genres'])}_")
         embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
-        embed.add_field(name=f"Stream", value=f"https://vidsrc.me/embed/{movie['imdb_id']}", inline=True)
+        embed.add_field(name=f"Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
 
         await ctx.reply(embed=embed)
