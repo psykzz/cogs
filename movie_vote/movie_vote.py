@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import discord
 import httpx
@@ -35,14 +35,14 @@ class MovieVote(commands.Cog):
         return
     
 
-    async def get_latest_episodes(self, imdb_id: str) -> Dict[str, Any]:
+    async def get_latest_episodes(self, imdb_id: str) -> Union[Dict[str, Any], None]:
         """Get the latest episodes from vidsrc"""
         response = await http_get(
                 "https://vidsrc.me/episodes/latest/page-1.json"
             )
         if not response:
-            return []
-        return next((x for x in response.get('result', []) if x.imdb_id == imdb_id), None)
+            return None
+        return next((x for x in response.get('result', []) if x.get('imdb_id', '') == imdb_id), None)
         
     
     @commands.group(autohelp=False)
