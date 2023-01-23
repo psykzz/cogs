@@ -41,8 +41,11 @@ class MovieVote(commands.Cog):
                 "https://vidsrc.me/episodes/latest/page-1.json"
             )
         if not response:
+            log.info("Response was empty. %s", response)
             return None
-        return next((x for x in response.get('result', []) if x.get('imdb_id', '') == imdb_id), None)
+        all_data = response.get('result', [])
+        log.info("Checking %s episodes against '%s'", len(all_data), imdb_id)
+        return next((x for x in all_data if x.get('imdb_id', '') == imdb_id), None)
         
     
     @commands.group(autohelp=False)
