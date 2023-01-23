@@ -87,9 +87,9 @@ class MovieVote(commands.Cog):
             await self.config.guild(ctx.guild).channels_enabled.set(new_channel_list)
 
     @movie.command(name="check")
-    async def _movievote_check(self, ctx, *, imdb_link: str):
+    async def _movievote_check(self, ctx: commands.Context, *, imdb_link: str):
         """Check vidsrc has a link to the next episode"""
-
+        await ctx.trigger_typing()
         link_group = RE_IMDB_LINK.search(imdb_link)
         link = link_group.group(1) if link_group else None
         if not link:
@@ -107,7 +107,7 @@ class MovieVote(commands.Cog):
         embed.add_field(name="Season", value=episode.get('episode', ''), inline=True)
         embed.add_field(name=f"Episode", value=episode.get('season', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
-        return ctx.reply(embed=embed)
+        await ctx.reply(embed=embed)
 
     @movie.command(name="updatedb")
     async def _movievote_updatedb(self, ctx):
