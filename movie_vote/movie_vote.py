@@ -97,7 +97,7 @@ class MovieVote(commands.Cog):
             return
         imdb_id = link.split('/tt')[-1]
 
-        episode = await self.get_latest_episodes(imdb_id)
+        episode = await self.get_latest_episodes(f"tt{imdb_id}")
         if not episode:
             await ctx.send("Unable to get episode data.")
             return
