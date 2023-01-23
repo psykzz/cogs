@@ -45,7 +45,7 @@ class MovieVote(commands.Cog):
             return None
         all_data = response.get('result', [])
         log.info("Checking %s episodes against '%s'", len(all_data), imdb_id)
-        return next((x for x in all_data if x.get('imdb_id', '') == imdb_id), None)
+        return next((x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"), None)
         
     
     @commands.group(autohelp=False)
@@ -97,12 +97,12 @@ class MovieVote(commands.Cog):
             return
         imdb_id = link.split('/tt')[-1]
 
-        episode = await self.get_latest_episodes(f"tt{imdb_id}")
+        episode = await self.get_latest_episodes(imdb_id)
         if not episode:
             await ctx.send("Unable to get episode data.")
             return
 
-        imdb_data = imdb.get_movie(episode.get('imdb_id', ''))
+        imdb_data = imdb.get_movie(imdb_id)
         embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", url=episode.get('embed_url', ''))
         embed.add_field(name="Season", value=episode.get('episode', ''), inline=True)
         embed.add_field(name=f"Episode", value=episode.get('season', ''), inline=True)
