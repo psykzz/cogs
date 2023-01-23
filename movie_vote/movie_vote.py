@@ -104,8 +104,8 @@ class MovieVote(commands.Cog):
 
         imdb_data = imdb.get_movie(imdb_id)
         embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", url=episode.get('embed_url', ''))
-        embed.add_field(name="Season", value=episode.get('episode', ''), inline=True)
-        embed.add_field(name=f"Episode", value=episode.get('season', ''), inline=True)
+        embed.add_field(name="Season", value=episode.get('season', ''), inline=True)
+        embed.add_field(name=f"Episode", value=episode.get('episode', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
         await ctx.reply(embed=embed)
 
