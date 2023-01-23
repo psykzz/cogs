@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import re
+from typing import Any, Dict
 
 import discord
+import httpx
 from imdb import Cinemagoer
 from redbot.core import Config, checks, commands
 
@@ -24,13 +26,25 @@ class MovieVote(commands.Cog):
             "leaderboard": 0,
             "up_emoji": "👍",
             "dn_emoji": "👎",
+            "notify_episode": [],
         }
         self.config.register_guild(**default_guild)
 
     async def red_delete_data_for_user(self, **kwargs):
         """Nothing to delete."""
         return
+    
 
+    async def get_latest_episodes(self, imdb_id: str) -> Dict[str, Any]:
+        """Get the latest episodes from vidsrc"""
+        response = await http_get(
+                "https://vidsrc.me/episodes/latest/page-1.json"
+            )
+        if not response:
+            return []
+        return next((x for x in response.get('result', []) if x.imdb_id == imdb_id), None)
+        
+    
     @commands.group(autohelp=False)
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
@@ -69,13 +83,35 @@ class MovieVote(commands.Cog):
             new_channel_list = [x for x in guild_data["channels_enabled"] if x not in bad_channels]
             await self.config.guild(ctx.guild).channels_enabled.set(new_channel_list)
 
+    @movie.command(name="check")
+    async def _movievote_check(self, ctx, *, imdb_link: str):
+        """Check vidsrc has a link to the next episode"""
+
+        link_group = RE_IMDB_LINK.search(imdb_link)
+        link = link_group.group(1) if link_group else None
+        if not link:
+            await ctx.reply("Add an IMDB link to the command.")
+            return
+        imdb_id = link.split('/tt')[-1]
+
+        episode = await self.get_latest_episodes(imdb_id)
+        if not episode:
+            await ctx.send("Unable to get episode data.")
+            return
+
+        imdb_data = imdb.get_movie(episode.get('imdb_id', ''))
+        embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", url=episode.get('embed_url', ''))
+        embed.add_field(name="Season", value=episode.get('episode', ''), inline=True)
+        embed.add_field(name=f"Episode", value=episode.get('season', ''), inline=True)
+        embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
+        return ctx.reply(embed=embed)
+
     @movie.command(name="updatedb")
     async def _movievote_updatedb(self, ctx):
         'Loop through all the movies, update their imdb data'
         await self.update_movies(ctx)
         await ctx.reply("Updating, this might take some time.")
-        
-    
+
 
 
     @movie.command(name="on")
@@ -456,3 +492,21 @@ class MovieVote(commands.Cog):
             
         await self.config.guild(ctx.guild).movies.set(movies)
 
+
+async def http_get(url):
+    max_attempts = 3
+    attempt = 0
+    while (
+        max_attempts > attempt
+    ):  # httpx doesn't support retries, so we'll build our own basic loop for that
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(url, headers={"user-agent": "psykzz-cogs/1.0.0"})
+            if r.status_code == 200:
+                return r.json()
+            else:
+                attempt += 1
+            await asyncio.sleep(1)
+        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
+            attempt += 1
+            await asyncio.sleep(1)
