@@ -5,6 +5,6 @@
   "description": "Adds upvote and downvote reactions to every message in a channel. Messages receiving excessive downvotes can be deleted automatically.\n\nDependencies: None",
   "tags": ["reaction", "vote", "upvote", "downvote"],
   "permissions": ["add_reactions"],
-  "requirements": ["cinemagoer==2022.12.4"],
+  "requirements": ["cinemagoer==2022.12.27"],
   "end_user_data_statement": "This cog does not persistently store data or metadata about users."
 }
