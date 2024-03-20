@@ -125,7 +125,7 @@ class TGMC(commands.Cog):
         "Get the current winrates on nuclear war"
         return await self.get_winrate(ctx, delta, "Nuclear War")
 
-    @winrates.command(aliases=["campaign"])
+    @winrates.command(aliases=["camp"])
     async def campaign(self, ctx, delta="14"):
         "Get the current winrates on campaign"
         return await self.get_winrate(ctx, delta, "Campaign")
