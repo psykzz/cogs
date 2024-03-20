@@ -128,7 +128,12 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["camp"])
     async def campaign(self, ctx, delta="14"):
         "Get the current winrates on campaign"
-        return await self.get_winrate(ctx, delta, "Campaign")
+        return await self.get_winrate(ctx, delta, "Campaign", [
+            MARINE_MAJOR_VICTORY,
+            SOM_MAJOR_VICTORY,
+            MARINE_MINOR_VICTORY,
+            SOM_MINOR_VICTORY
+        ])
 
     @winrates.command(aliases=["combat", "patrol", "combat-patrol", "cp"])
     async def combatpatrol(self, ctx, delta="14"):
