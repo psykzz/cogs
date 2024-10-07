@@ -45,8 +45,10 @@ class EmptyVoices(commands.Cog):
 
         if not has_empty:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
-            # Create new channel, and add it to the temp list
-
+            new_voice_channel = await category.create_voice_channel(f"Voice {len(category.voice_channels) + 1}")
+            guild_group = self.config.guild(guild)
+            temp_channels = await guild_group.emptyvoices.temp_channels()
+            await guild_group.emptyvoices.temp_channels.set([...temp_channels, new_voice_channel.id])
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
