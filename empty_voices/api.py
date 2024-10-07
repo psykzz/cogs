@@ -36,10 +36,13 @@ class EmptyVoices(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        log.info("on_voice_state_update")
         if await self.bot.cog_disabled_in_guild(self, member.guild):
+            log.warn("on_voice_state_update - disabled for guild")
             return
         guild = member.guild
         if not guild:
+            log.warn("on_voice_state_update - no guild found")
             return
 
         guild_group = self.config.guild(guild)
