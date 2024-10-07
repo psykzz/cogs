@@ -48,7 +48,7 @@ class EmptyVoices(commands.Cog):
             new_voice_channel = await category.create_voice_channel(f"Voice {len(category.voice_channels) + 1}")
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
-            await guild_group.emptyvoices.temp_channels.set([...temp_channels, new_voice_channel.id])
+            await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
