@@ -28,21 +28,21 @@ class EmptyVoices(commands.Cog):
     async def validate_channel(guild: discord.Guild, channel: discord.VoiceChannel):
         "Check if this channel is empty, and delete it"
         if len(channel.members) == 0:
-            log.warn(f"I should delete {channel.mention}, it's empty...")
+            log.warning(f"I should delete {channel.mention}, it's empty...")
 
     async def validate_category(guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
-        log.warn(f"validating category {category.mention}")
+        log.warning(f"validating category {category.mention}")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         log.info("on_voice_state_update")
         if await self.bot.cog_disabled_in_guild(self, member.guild):
-            log.warn("on_voice_state_update - disabled for guild")
+            log.warning("on_voice_state_update - disabled for guild")
             return
         guild = member.guild
         if not guild:
-            log.warn("on_voice_state_update - no guild found")
+            log.warning("on_voice_state_update - no guild found")
             return
 
         guild_group = self.config.guild(guild)
@@ -51,19 +51,19 @@ class EmptyVoices(commands.Cog):
         channels = []
         categories = []
         if before.channel and before.channel.category.id in watch_list:
-            log.warn(f"watching! - {before.channel.mention}")
+            log.warning(f"watching! - {before.channel.mention}")
             channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category.id in watch_list:
-            log.warn(f"watching! - {after.channel.mention}")
+            log.warning(f"watching! - {after.channel.mention}")
             channels.append(after.channel)
             categories.append(after.channel.category)
 
         for channel in channels:
-            validate_channel(guild, channel)
+            self.validate_channel(guild, channel)
 
         for category in categories:
-            validate_category(guild, category)
+            self.validate_category(guild, category)
 
     
     @commands.guild_only()
