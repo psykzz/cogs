@@ -25,9 +25,11 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
-    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel):
+    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, is_temp):
         "Check if this channel is empty, and delete it"
-        log.warning(f"validating channel {channel.mention}")
+        log.warning(f"validating channel {channel.mention}, temp: {is_temp}")
+        if not is_temp: 
+            return
         if len(channel.members) == 0:
             log.warning(f"I should delete {channel.mention}, it's empty...")
             # Delete the channel, and remove it from the temp list
@@ -65,18 +67,15 @@ class EmptyVoices(commands.Cog):
         categories = []
         if before.channel and before.channel.category.id in watch_list:
             log.warning(f"watching! - {before.channel.mention}")
-
-            if before.channel.id not in temp_channels:
-                channels.append(before.channel)
+            channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category.id in watch_list:
             log.warning(f"watching! - {after.channel.mention}")
-            if after.channel.id not in temp_channels:
-                channels.append(after.channel)
+            channels.append(after.channel)
             categories.append(after.channel.category)
 
         for channel in channels:
-            await self.validate_channel(guild, channel)
+            await self.validate_channel(guild, channel, channel.id in temp_channels)
 
         for category in categories:
             await self.validate_category(guild, category)
