@@ -35,12 +35,12 @@ class EmptyVoices(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         if await self.bot.cog_disabled_in_guild(self, member.guild):
             return
-
-        watch_list = await guild_group.emptyvoices.watchlist()
-
         guild = member.guild
         if not guild:
             return
+
+        guild_group = self.config.guild(ctx.guild)
+        watch_list = await guild_group.emptyvoices.watchlist()
 
         channels = []
         categories = []
