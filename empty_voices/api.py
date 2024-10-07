@@ -32,7 +32,11 @@ class EmptyVoices(commands.Cog):
             return
         if len(channel.members) == 0:
             log.warning(f"I should delete {channel.mention}, it's empty...")
-            # Delete the channel, and remove it from the temp list
+            guild_group = self.config.guild(guild)
+            temp_channels = await guild_group.emptyvoices.temp_channels()
+            temp_channels.remove(channel.id)
+            await guild_group.emptyvoices.temp_channels.set(temp_channels)
+            await channel.delete(reason="Removing empty temp channel")
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
@@ -89,8 +93,17 @@ class EmptyVoices(commands.Cog):
         "Empty Voices"
         pass
 
+        
     @emptyvoices.command()
-    async def watchcat(self, ctx, category: discord.CategoryChannel):
+    async def watching(self, ctx):
+        "See what categories are being watched"
+
+        guild_group = self.config.guild(ctx.guild)
+        watch_list = await guild_group.emptyvoices.watchlist()
+        await ctx.send(f"{ctx.author.mention}, We are watching {', '.join(watch_list)}.")
+
+    @emptyvoices.command()
+    async def watch(self, ctx, category: discord.CategoryChannel):
         "Set a category to watch"
 
         guild_group = self.config.guild(ctx.guild)
@@ -104,4 +117,22 @@ class EmptyVoices(commands.Cog):
         else:
             await ctx.send(f"{ctx.author.mention}, {category.mention} is already on the watchlist.")
 
-        await ctx.send(f"{ctx.author.mention}, there are {len(watch_list)} items in the watchlist.")
+        await ctx.send(f"{ctx.author.mention}, there are {len(watch_list)} channels in the watchlist.")
+
+
+    @emptyvoices.command()
+    async def stopwatch(self, ctx, category: discord.CategoryChannel):
+        "Set a category to stop watching"
+
+        guild_group = self.config.guild(ctx.guild)
+        watch_list = await guild_group.emptyvoices.watchlist()
+
+        # Remove current channel from watchlist if there.
+        if category.id in watch_list:
+            watch_list.remove(category.id)
+            await guild_group.emptyvoices.watchlist.set(watch_list)
+            await ctx.send(f"{ctx.author.mention}, removing {category.mention} from the watchlist.")
+        else:
+            await ctx.send(f"{ctx.author.mention}, {category.mention} isn't on the watchlist.")
+
+        await ctx.send(f"{ctx.author.mention}, there are {len(watch_list)} channels in the watchlist.")
