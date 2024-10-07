@@ -11,6 +11,8 @@ default_guild = {
     },
 }
 
+log = logging.getLogger("red.cog.empty_voices")
+
 class EmptyVoices(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -25,11 +27,11 @@ class EmptyVoices(commands.Cog):
     async def validate_channel(guild: discord.Guild, channel: discord.VoiceChannel):
         "Check if this channel is empty, and delete it"
         if len(channel.members) == 0:
-            await guild.owner.send("I should delete {channel.mention}, it's empty...")
+            log.warn(f"I should delete {channel.mention}, it's empty...")
 
     async def validate_category(guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
-        pass
+        log.warn(f"validating category {category.mention}")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -45,11 +47,11 @@ class EmptyVoices(commands.Cog):
         channels = []
         categories = []
         if before.channel and before.channel.category in watch_list:
-            await guild.owner.send("watching!")
+            log.warn(f"watching! - {before.channel.mention}")
             channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category in watch_list:
-            await guild.owner.send("watching!")
+            log.warn(f"watching! - {after.channel.mention}")
             channels.append(after.channel)
             categories.append(after.channel.category)
 
