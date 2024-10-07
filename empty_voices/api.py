@@ -7,7 +7,7 @@ IDENTIFIER = 1672261474290236288
 default_guild = {
     "emptyvoices": {
         "watchlist": [],
-        "temp_channels"
+        "temp_channels": [],
     },
 }
 
