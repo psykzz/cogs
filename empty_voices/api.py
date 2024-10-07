@@ -31,11 +31,12 @@ class EmptyVoices(commands.Cog):
         "Set a category to watch"
 
         guild_group = self.config.guild(ctx.guild)
-        watch_list = guild_group.emptyvoices.watchlist()
+        watch_list = await guild_group.emptyvoices.watchlist()
 
         # Add current channel to watchlist if not there.
         if category.id not in watch_list:
             watch_list.append(category.id)
+            await guild_group.emptyvoices.watchlist.set(watch_list)
             await ctx.send(f"{ctx.author.mention}, adding {category.mention} to watchlist.")
         else:
             await ctx.send(f"{ctx.author.mention}, {category.mention} is already on the watchlist.")
