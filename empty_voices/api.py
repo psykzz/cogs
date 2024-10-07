@@ -27,12 +27,24 @@ class EmptyVoices(commands.Cog):
 
     async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel):
         "Check if this channel is empty, and delete it"
+        log.warning(f"validating channel {channel.mention}")
         if len(channel.members) == 0:
             log.warning(f"I should delete {channel.mention}, it's empty...")
+            # Delete the channel, and remove it from the temp list
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
         log.warning(f"validating category {category.mention}")
+
+        has_empty = False
+        for channel in category.voice_channels:
+            if channel.members == 0:
+                has_empty = True
+
+        if not has_empty:
+            log.warning(f"I should create a new channel in {category.mention}, it's full...")
+            # Create new channel, and add it to the temp list
+
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -47,16 +59,20 @@ class EmptyVoices(commands.Cog):
 
         guild_group = self.config.guild(guild)
         watch_list = await guild_group.emptyvoices.watchlist()
+        temp_channels = await guild_group.emptyvoices.temp_channels()
 
         channels = []
         categories = []
         if before.channel and before.channel.category.id in watch_list:
             log.warning(f"watching! - {before.channel.mention}")
-            channels.append(before.channel)
+
+            if before.channel.id not in temp_channels:
+                channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category.id in watch_list:
             log.warning(f"watching! - {after.channel.mention}")
-            channels.append(after.channel)
+            if after.channel.id not in temp_channels:
+                channels.append(after.channel)
             categories.append(after.channel.category)
 
         for channel in channels:
