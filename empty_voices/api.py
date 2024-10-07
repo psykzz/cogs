@@ -25,12 +25,12 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
-    async def validate_channel(guild: discord.Guild, channel: discord.VoiceChannel):
+    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel):
         "Check if this channel is empty, and delete it"
         if len(channel.members) == 0:
             log.warning(f"I should delete {channel.mention}, it's empty...")
 
-    async def validate_category(guild: discord.Guild, category: discord.CategoryChannel):
+    async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
         log.warning(f"validating category {category.mention}")
 
