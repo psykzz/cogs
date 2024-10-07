@@ -38,7 +38,7 @@ class EmptyVoices(commands.Cog):
 
         has_empty = False
         for channel in category.voice_channels:
-            if channel.members == 0:
+            if len(channel.members) == 0:
                 has_empty = True
 
         if not has_empty:
