@@ -50,11 +50,11 @@ class EmptyVoices(commands.Cog):
 
         channels = []
         categories = []
-        if before.channel and before.channel.category in watch_list:
+        if before.channel and before.channel.category.id in watch_list:
             log.warn(f"watching! - {before.channel.mention}")
             channels.append(before.channel)
             categories.append(before.channel.category)
-        if after.channel and after.channel.category in watch_list:
+        if after.channel and after.channel.category.id in watch_list:
             log.warn(f"watching! - {after.channel.mention}")
             channels.append(after.channel)
             categories.append(after.channel.category)
