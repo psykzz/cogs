@@ -39,7 +39,7 @@ class EmptyVoices(commands.Cog):
         if not guild:
             return
 
-        guild_group = self.config.guild(ctx.guild)
+        guild_group = self.config.guild(guild)
         watch_list = await guild_group.emptyvoices.watchlist()
 
         channels = []
