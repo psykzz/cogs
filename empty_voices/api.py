@@ -1,5 +1,5 @@
 import discord
-from redbot.core import commands
+from redbot.core import Config, commands
 
 
 IDENTIFIER = 1672261474290236288
