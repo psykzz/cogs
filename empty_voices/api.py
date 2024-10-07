@@ -60,10 +60,10 @@ class EmptyVoices(commands.Cog):
             categories.append(after.channel.category)
 
         for channel in channels:
-            self.validate_channel(guild, channel)
+            await self.validate_channel(guild, channel)
 
         for category in categories:
-            self.validate_category(guild, category)
+            await self.validate_category(guild, category)
 
     
     @commands.guild_only()
