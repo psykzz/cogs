@@ -41,11 +41,17 @@ class EmptyVoices(commands.Cog):
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         "Check if this category has an empty voice channel"
         log.warning(f"validating category {category.mention}")
+        guild_group = self.config.guild(guild)
+        temp_channels = await guild_group.emptyvoices.temp_channels()
 
         has_empty = False
         for channel in category.voice_channels:
             if len(channel.members) == 0:
                 has_empty = True
+                # Delete temp channels when leaving a category
+                # TODO: This could just be teh default way instead of validating channels manually...
+                # if channel.id in temp_channels:
+                #     await validate_channel(self, guild, channel, is_temp)
 
         if not has_empty:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
