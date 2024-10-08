@@ -55,7 +55,7 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
-        category_temp_channels = [c for c in category.voice_channels if c in temp_channels]
+        category_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
         public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel] 
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
 
@@ -75,7 +75,7 @@ class EmptyVoices(commands.Cog):
         #     permanant_channels_have_space = True
 
         keep_first_channel = not empty_public_channels
-        for channel in temp_channels:
+        for channel in category_temp_channels:
             await self.try_delete_channel(guild, channel, keep_first_channel)
             keep_first_channel = False
 
