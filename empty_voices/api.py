@@ -25,13 +25,15 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
-    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel):
+    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep = False):
         "Check if this channel is empty, and delete it"
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
         is_temp = channel.id in temp_channels
 
-        log.info(f"Validating channel {channel.mention}, temp: {is_temp}")
+        log.info(f"Validating channel {channel.mention}, temp: {is_temp}, should_keep: {should_keep}")
+        if should_keep:
+            return
         if not is_temp: 
             return
         if len(channel.members) > 0:
@@ -42,11 +44,13 @@ class EmptyVoices(commands.Cog):
         await guild_group.emptyvoices.temp_channels.set(temp_channels)
         await channel.delete(reason="Removing empty temp channel")
 
+
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         """
         When someone joins or leaves a category, delete all the empty temp channels, 
-        then check if there are any spare channels and create a spare if needed.
+        then check if there are any empty channels and create a spare channel if needed.
         """
+
         log.info(f"Validating category: {category.mention}")
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
@@ -58,8 +62,18 @@ class EmptyVoices(commands.Cog):
             return
 
         # If we have empty channels lets empty them.
+        # No space in permanant channel, only 1 temp channel
+        permanant_channels_have_space = False
+        for channel in category.voice_channels:
+            if channel.id in temp_channels:
+                continue
+            if len(channel.members) > 0
+                continue
+            permanant_channels_have_space = True
+
+        should_keep = permanant_channels_have_space and len(public_channels) == 1
         for channel in public_channels:
-            await self.validate_channel(guild, channel)
+            await self.validate_channel(guild, channel, should_keep)
 
         # Refresh the cache
         refreshed_channel = await guild.fetch_channel(category.id)
@@ -70,6 +84,7 @@ class EmptyVoices(commands.Cog):
         if not has_empty:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
             new_voice_channel = await category.create_voice_channel(f"Voice {len(public_channels) + 1}")
+
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
