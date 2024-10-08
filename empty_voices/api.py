@@ -55,6 +55,7 @@ class EmptyVoices(commands.Cog):
 
         if len(public_channels) == 0:
             log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
+            return
 
         # Are there any empty voice channels
         has_empty = any(len(channel.members) == 0 for channel in public_channels)
