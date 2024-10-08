@@ -58,7 +58,7 @@ class EmptyVoices(commands.Cog):
         public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels]
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
         public_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
-        empty_temp_channels = [len(channel.members) == 0 for channel in public_temp_channels]
+        empty_temp_channels = [channel for channel in public_temp_channels if len(channel.members) == 0]
 
         # Avoid making changes if there are
         if len(public_channels) == 0:
