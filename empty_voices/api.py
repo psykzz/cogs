@@ -69,6 +69,10 @@ class EmptyVoices(commands.Cog):
             # We always keep the first channel.
             for channel in empty_temp_channels[1:]:
                 await self.try_delete_channel(guild, channel)
+        else:
+            # clear all
+            for channel in empty_temp_channels:
+                await self.try_delete_channel(guild, channel)
 
         # Refresh the cache
         refreshed_category = await guild.fetch_channel(category.id)
