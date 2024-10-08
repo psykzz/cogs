@@ -53,7 +53,7 @@ class EmptyVoices(commands.Cog):
 
         # Cleanup empty temp channels
         for channel in category.voice_channels:
-            await self.validate_channel(self, guild, channel)
+            await self.validate_channel(guild, channel)
 
         # Are there any empty voice channels
         has_empty = any(len(channel.members) == 0 for channel in category.voice_channels)
