@@ -63,19 +63,18 @@ class EmptyVoices(commands.Cog):
 
         # If we have empty channels lets empty them.
         # No space in permanant channel, only 1 temp channel
-        temp_public_channels = 0
         permanant_channels_have_space = False
         for channel in category.voice_channels:
             if channel.id in temp_channels:
-                temp_public_channels += 1
                 continue
             if len(channel.members) > 0:
                 continue
             permanant_channels_have_space = True
 
-        should_keep = permanant_channels_have_space and temp_public_channels == 1
+        should_keep = not permanant_channels_have_space
         for channel in public_channels:
             await self.validate_channel(guild, channel, should_keep)
+            should_keep = False
 
         # Refresh the cache
         refreshed_channel = await guild.fetch_channel(category.id)
