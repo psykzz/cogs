@@ -53,6 +53,9 @@ class EmptyVoices(commands.Cog):
 
         public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel] 
 
+        if len(public_channels) == 0:
+            log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
+
         # Are there any empty voice channels
         has_empty = any(len(channel.members) == 0 for channel in public_channels)
         if not has_empty:
@@ -85,11 +88,11 @@ class EmptyVoices(commands.Cog):
         categories = []
         if before.channel and before.channel.category.id in watch_list:
             log.info(f"Processing watched channel {before.channel.mention}")
-            channels.append(before.channel)
+            # channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category.id in watch_list:
             log.info(f"Processing watched channel {after.channel.mention}")
-            channels.append(after.channel)
+            # channels.append(after.channel)
             categories.append(after.channel.category)
 
         for channel in set(channels):
