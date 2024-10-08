@@ -51,11 +51,13 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
+        public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel] 
+
         # Are there any empty voice channels
-        has_empty = any(len(channel.members) == 0 for channel in category.voice_channels)
+        has_empty = any(len(channel.members) == 0 for channel in public_channels)
         if not has_empty:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
-            new_voice_channel = await category.create_voice_channel(f"Voice {len(category.voice_channels) + 1}")
+            new_voice_channel = await category.create_voice_channel(f"Voice {len(public_channels) + 1}")
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
