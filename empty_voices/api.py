@@ -90,10 +90,10 @@ class EmptyVoices(commands.Cog):
             channels.append(after.channel)
             categories.append(after.channel.category)
 
-        for channel in channels:
+        for channel in set(channels):
             await self.validate_channel(guild, channel)
 
-        for category in categories:
+        for category in set(categories):
             await self.validate_category(guild, category)
 
     
