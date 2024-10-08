@@ -55,29 +55,20 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
-        category_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
         public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels]
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
+        public_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
+        empty_temp_channels = [len(channel.members) == 0 for channel in public_temp_channels]
 
         # Avoid making changes if there are
         if len(public_channels) == 0:
             log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
             return
 
-        # If we have empty channels lets empty them.
-        # No space in permanant channel, only 1 temp channel
-        # permanant_channels_have_space = False
-        # for channel in category.voice_channels:
-        #     if channel.id in temp_channels:
-        #         continue
-        #     if len(channel.members) > 0:
-        #         continue
-        #     permanant_channels_have_space = True
-
-        keep_first_channel = not empty_public_channels
-        for channel in category_temp_channels:
-            await self.try_delete_channel(guild, channel, keep_first_channel)
-            keep_first_channel = False
+        if not empty_public_channels:
+            # We always keep the first channel.
+            for channel in empty_temp_channels[1:]:
+                await self.try_delete_channel(guild, channel)
 
         # Refresh the cache
         refreshed_category = await guild.fetch_channel(category.id)
