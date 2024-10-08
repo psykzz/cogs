@@ -67,7 +67,7 @@ class EmptyVoices(commands.Cog):
         for channel in category.voice_channels:
             if channel.id in temp_channels:
                 continue
-            if len(channel.members) > 0
+            if len(channel.members) > 0:
                 continue
             permanant_channels_have_space = True
 
