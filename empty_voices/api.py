@@ -61,6 +61,9 @@ class EmptyVoices(commands.Cog):
         for channel in public_channels:
             await self.validate_channel(guild, channel)
 
+        # Refresh the cache
+        await guild.fetch_channels()
+
         # Are there any empty voice channels
         has_empty = any(len(channel.members) == 0 for channel in public_channels)
         if not has_empty:
