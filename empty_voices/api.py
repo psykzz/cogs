@@ -51,10 +51,6 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
-        # Cleanup empty temp channels
-        for channel in category.voice_channels:
-            await self.validate_channel(guild, channel)
-
         # Are there any empty voice channels
         has_empty = any(len(channel.members) == 0 for channel in category.voice_channels)
         if not has_empty:
@@ -63,6 +59,10 @@ class EmptyVoices(commands.Cog):
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
+        else:
+            # If we have empty channels lets empty them.
+            for channel in category.voice_channels:
+                await self.validate_channel(guild, channel)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
