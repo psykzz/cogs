@@ -25,34 +25,38 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
-    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, is_temp):
+    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel):
         "Check if this channel is empty, and delete it"
-        log.warning(f"validating channel {channel.mention}, temp: {is_temp}")
+        guild_group = self.config.guild(guild)
+        temp_channels = await guild_group.emptyvoices.temp_channels()
+        is_temp = channel.id in temp_channels
+
+        log.info(f"Validating channel {channel.mention}, temp: {is_temp}")
         if not is_temp: 
             return
-        if len(channel.members) == 0:
-            log.warning(f"I should delete {channel.mention}, it's empty...")
-            guild_group = self.config.guild(guild)
-            temp_channels = await guild_group.emptyvoices.temp_channels()
-            temp_channels.remove(channel.id)
-            await guild_group.emptyvoices.temp_channels.set(temp_channels)
-            await channel.delete(reason="Removing empty temp channel")
+        if len(channel.members) > 0:
+            return
+
+        log.info(f"I should delete {channel.mention}, it's empty...")
+        temp_channels.remove(channel.id)
+        await guild_group.emptyvoices.temp_channels.set(temp_channels)
+        await channel.delete(reason="Removing empty temp channel")
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
-        "Check if this category has an empty voice channel"
-        log.warning(f"validating category {category.mention}")
+        """
+        When someone joins or leaves a category, delete all the empty temp channels, 
+        then check if there are any spare channels and create a spare if needed.
+        """
+        log.info(f"Validating category: {category.mention}")
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
-        has_empty = False
+        # Cleanup empty temp channels
         for channel in category.voice_channels:
-            if len(channel.members) == 0:
-                has_empty = True
-                # Delete temp channels when leaving a category
-                # TODO: This could just be teh default way instead of validating channels manually...
-                # if channel.id in temp_channels:
-                #     await validate_channel(self, guild, channel, is_temp)
+            await self.validate_channel(self, guild, channel, channel.id in temp_channels)
 
+        # Are there any empty voice channels
+        has_empty = any(len(channel.members) == 0 for channel in category.voice_channels)
         if not has_empty:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
             new_voice_channel = await category.create_voice_channel(f"Voice {len(category.voice_channels) + 1}")
@@ -78,11 +82,11 @@ class EmptyVoices(commands.Cog):
         channels = []
         categories = []
         if before.channel and before.channel.category.id in watch_list:
-            log.warning(f"watching! - {before.channel.mention}")
+            log.info(f"Processing watched channel {before.channel.mention}")
             channels.append(before.channel)
             categories.append(before.channel.category)
         if after.channel and after.channel.category.id in watch_list:
-            log.warning(f"watching! - {after.channel.mention}")
+            log.info(f"Processing watched channel {after.channel.mention}")
             channels.append(after.channel)
             categories.append(after.channel.category)
 
