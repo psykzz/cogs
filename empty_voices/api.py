@@ -56,7 +56,7 @@ class EmptyVoices(commands.Cog):
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
         category_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
-        public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel] 
+        public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels]
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
 
         # Avoid making changes if there are
@@ -80,12 +80,12 @@ class EmptyVoices(commands.Cog):
             keep_first_channel = False
 
         # Refresh the cache
-        refreshed_channel = await guild.fetch_channel(category.id)
-        public_channels = [c for c in refreshed_channel.voice_channels if c.permissions_for(guild.default_role).view_channel] 
+        refreshed_category = await guild.fetch_channel(category.id)
+        public_channels = [c for c in refreshed_category.voice_channels if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels]
 
         # Are there any empty voice channels
-        has_free_channel = any(len(channel.members) == 0 for channel in public_channels)
-        if not has_free_channel:
+        empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
+        if not empty_public_channels:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
             new_voice_channel = await category.create_voice_channel(f"Voice {len(public_channels) + 1}")
 
