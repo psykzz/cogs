@@ -25,7 +25,7 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
-    async def validate_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep = False):
+    async def try_delete_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep = False):
         "Check if this channel is empty, and delete it"
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
@@ -55,34 +55,37 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
+        category_temp_channels = [c for c in category.voice_channels if c in temp_channels]
         public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel] 
+        empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
 
+        # Avoid making changes if there are
         if len(public_channels) == 0:
             log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
             return
 
         # If we have empty channels lets empty them.
         # No space in permanant channel, only 1 temp channel
-        permanant_channels_have_space = False
-        for channel in category.voice_channels:
-            if channel.id in temp_channels:
-                continue
-            if len(channel.members) > 0:
-                continue
-            permanant_channels_have_space = True
+        # permanant_channels_have_space = False
+        # for channel in category.voice_channels:
+        #     if channel.id in temp_channels:
+        #         continue
+        #     if len(channel.members) > 0:
+        #         continue
+        #     permanant_channels_have_space = True
 
-        should_keep = not permanant_channels_have_space
-        for channel in public_channels:
-            await self.validate_channel(guild, channel, should_keep)
-            should_keep = False
+        keep_first_channel = not empty_public_channels
+        for channel in temp_channels:
+            await self.try_delete_channel(guild, channel, keep_first_channel)
+            keep_first_channel = False
 
         # Refresh the cache
         refreshed_channel = await guild.fetch_channel(category.id)
         public_channels = [c for c in refreshed_channel.voice_channels if c.permissions_for(guild.default_role).view_channel] 
 
         # Are there any empty voice channels
-        has_empty = any(len(channel.members) == 0 for channel in public_channels)
-        if not has_empty:
+        has_free_channel = any(len(channel.members) == 0 for channel in public_channels)
+        if not has_free_channel:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
             new_voice_channel = await category.create_voice_channel(f"Voice {len(public_channels) + 1}")
 
@@ -118,7 +121,7 @@ class EmptyVoices(commands.Cog):
             categories.append(after.channel.category)
 
         for channel in set(channels):
-            await self.validate_channel(guild, channel)
+            await self.try_delete_channel(guild, channel)
 
         for category in set(categories):
             await self.validate_category(guild, category)
