@@ -91,7 +91,7 @@ class EmptyVoices(commands.Cog):
 
     async def try_rename_channel(self, channel: discord.VoiceChannel, name):
         "Attempt to rename a channel that isn't already renamed"
-        if 'Voice ' not in channel.name:
+        if 'Voice ' not in channel.name and name:
             log.info("Not renaming, already renamed.")
             return
 
