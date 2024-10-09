@@ -88,6 +88,15 @@ class EmptyVoices(commands.Cog):
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
             
+            
+    async def try_rename_channel(self, channel: discord.VoiceChannel, name: str):
+        "Attempt to rename a channel that isn't already renamed"
+        if 'Voice ' not in channel.name:
+            log.info("Not renaming, already renamed.")
+            return
+
+        await channel.rename(name=f"{name}'s chat", reason="First join - channel renamed")
+
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -114,6 +123,8 @@ class EmptyVoices(commands.Cog):
             log.info(f"Processing watched channel {after.channel.mention}")
             # channels.append(after.channel)
             categories.append(after.channel.category)
+
+            await self.try_rename_channel(channel, member.name)
 
         for channel in set(channels):
             await self.try_delete_channel(guild, channel)
