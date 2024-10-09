@@ -91,6 +91,13 @@ class EmptyVoices(commands.Cog):
 
     async def try_rename_channel(self, channel: discord.VoiceChannel, name):
         "Attempt to rename a channel that isn't already renamed"
+        guild_group = self.config.guild(guild)
+        temp_channels = await guild_group.emptyvoices.temp_channels()
+        is_temp = channel.id in temp_channels
+
+        if not is_temp:
+            log.info("Not renaming, permanant channel.")
+            return
         if 'Voice ' not in channel.name and name:
             log.info("Not renaming, already renamed.")
             return
@@ -122,7 +129,7 @@ class EmptyVoices(commands.Cog):
             categories.append(before.channel.category)
 
             # reset channel name to empty
-            if len(before.channel.members) == 1:
+            if len(before.channel.members) == 0:
                 await self.try_rename_channel(before.channel, None)
 
         if after.channel and after.channel.category.id in watch_list:
