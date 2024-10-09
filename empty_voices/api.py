@@ -82,20 +82,21 @@ class EmptyVoices(commands.Cog):
         empty_public_channels = any(len(channel.members) == 0 for channel in voice_channels)
         if not empty_public_channels:
             log.warning(f"I should create a new channel in {category.mention}, it's full...")
-            new_voice_channel = await category.create_voice_channel(f"Voice {len(voice_channels) + 1}")
+            new_voice_channel = await category.create_voice_channel("Voice chat")
 
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
             
 
-    async def try_rename_channel(self, channel: discord.VoiceChannel, name: str):
+    async def try_rename_channel(self, channel: discord.VoiceChannel, name):
         "Attempt to rename a channel that isn't already renamed"
         if 'Voice ' not in channel.name:
             log.info("Not renaming, already renamed.")
             return
 
-        await channel.edit(name=f"{name}'s chat", reason="First join - channel renamed")
+        new_name = f"{name}'s chat" if name else "Voice chat"
+        await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
 
 
     @commands.Cog.listener()
@@ -119,6 +120,11 @@ class EmptyVoices(commands.Cog):
             log.info(f"Processing watched channel {before.channel.mention}")
             # channels.append(before.channel)
             categories.append(before.channel.category)
+
+            # reset channel name to empty
+            if len(before.channel.members) == 0:
+                await self.try_rename_channel(before.channel, None)
+
         if after.channel and after.channel.category.id in watch_list:
             log.info(f"Processing watched channel {after.channel.mention}")
             # channels.append(after.channel)
