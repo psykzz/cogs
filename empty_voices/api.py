@@ -130,7 +130,7 @@ class EmptyVoices(commands.Cog):
 
             # reset channel name to empty
             if len(before.channel.members) == 0:
-                await self.try_rename_channel(before.channel, None)
+                await self.try_rename_channel(guild, before.channel, None)
 
         if after.channel and after.channel.category.id in watch_list:
             log.info(f"Processing watched channel {after.channel.mention}")
