@@ -122,7 +122,7 @@ class EmptyVoices(commands.Cog):
             categories.append(before.channel.category)
 
             # reset channel name to empty
-            if len(before.channel.members) == 0:
+            if len(before.channel.members) == 1:
                 await self.try_rename_channel(before.channel, None)
 
         if after.channel and after.channel.category.id in watch_list:
