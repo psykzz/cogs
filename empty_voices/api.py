@@ -88,7 +88,7 @@ class EmptyVoices(commands.Cog):
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
             
-            
+
     async def try_rename_channel(self, channel: discord.VoiceChannel, name: str):
         "Attempt to rename a channel that isn't already renamed"
         if 'Voice ' not in channel.name:
@@ -124,7 +124,7 @@ class EmptyVoices(commands.Cog):
             # channels.append(after.channel)
             categories.append(after.channel.category)
 
-            await self.try_rename_channel(channel, member.name)
+            await self.try_rename_channel(after.channel, member.name)
 
         for channel in set(channels):
             await self.try_delete_channel(guild, channel)
