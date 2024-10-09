@@ -95,7 +95,7 @@ class EmptyVoices(commands.Cog):
             log.info("Not renaming, already renamed.")
             return
 
-        await channel.rename(name=f"{name}'s chat", reason="First join - channel renamed")
+        await channel.edit(name=f"{name}'s chat", reason="First join - channel renamed")
 
 
     @commands.Cog.listener()
