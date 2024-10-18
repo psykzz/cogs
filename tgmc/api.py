@@ -37,6 +37,9 @@ class TGMC(commands.Cog):
         self.bot = bot
 
     async def get_winrate(self, ctx, delta="14", gamemode=None, custom_conditions=None):
+        # disabled for now until database is restored. 
+        return await ctx.send("Offline until db connection is restored")    
+        
         raw_data = await http_get(
             f"https://statbus.psykzz.com/api/winrate?delta={delta}"
         )
