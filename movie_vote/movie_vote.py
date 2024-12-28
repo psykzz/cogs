@@ -465,7 +465,7 @@ class MovieVote(commands.Cog):
             for position, movie in enumerate(movie_list, start=1):
                 ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
             
-            embed.add_field(name="", value=ugly_field_value)
+            embed.description= ugly_field_value
             return embed
 
 
