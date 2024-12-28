@@ -295,13 +295,13 @@ class MovieVote(commands.Cog):
 
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
 
-        def generate_page(movie):
+        def generate_page(movie, position):
             title = movie.get("title", "unknown")
             year = movie.get("year", "unknown")
             imdb = movie.get("imdb_id", 00000)
-            return f"{title} ({year}) | https://www.imdb.com/title/tt{imdb}"
+            return f"#{position} {title} ({year}) | https://www.imdb.com/title/tt{imdb}"
 
-        pages = [generate_page(movie) for movie in movies]
+        pages = [generate_page(movie, position) for position, movie in enumerate(movie_list, start=1)]
         await menu(ctx, pages) 
 
 
