@@ -459,10 +459,18 @@ class MovieVote(commands.Cog):
         # sublist
         movie_list = movies[:limit] if limit else movies
 
+        if limit > 5:
+            # We must use the ugly style because of discord limits
+            ugly_field_value = ""
+            for position, movie in enumerate(movie_list, start=1):
+                ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+            
+            embed.add_field(name="", value=ugly_field_value)
+            return embed
+
+
         for position, movie in enumerate(movie_list, start=1):
-            genres = f"_{', '.join(movie['genres'])}_\n"
-            imdb_link = f"[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})"
-            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"{imdb_link}", inline=True)
+            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", inline=True)
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
             embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
         return embed
