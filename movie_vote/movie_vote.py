@@ -460,7 +460,7 @@ class MovieVote(commands.Cog):
         movie_list = movies[:limit] if limit else movies
 
         for position, movie in enumerate(movie_list, start=1):
-            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\nhttps://www.imdb.com/title/tt{movie['imdb_id']}", inline=True)
+            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", inline=True)
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
             embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
         return embed
