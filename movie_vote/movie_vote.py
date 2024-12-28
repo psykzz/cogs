@@ -261,7 +261,7 @@ class MovieVote(commands.Cog):
             return
 
         if limit == "all":
-            limit = None
+            limit = 99999
 
         embed = await self.generate_leaderboard(ctx.guild, limit, watched_only)
         leaderboard = await ctx.send(embed=embed)
