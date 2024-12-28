@@ -265,11 +265,16 @@ class MovieVote(commands.Cog):
         leaderboard = await ctx.send(embed=embed)
         await leaderboard.pin()
 
-        leaderboard_id = await self.config.guild(message.guild).leaderboard()
-        if leaderboard_id:
-            leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
-            await leaderboard_msg.unpin()
-            await leaderboard_msg.delete()
+        try:
+            leaderboard_id = await self.config.guild(ctx.guild).leaderboard()
+            if leaderboard_id:
+                leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+                await leaderboard_msg.unpin()
+                await leaderboard_msg.delete()
+        except:
+            log.error("unable to find delete and unpin previous message")
+            pass
+
 
         # Save the leaderboard message ID so we can edit it later
         await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
@@ -279,7 +284,6 @@ class MovieVote(commands.Cog):
         """
             Get the movie leaderboard.
         """
-        
         movies = await self.config.guild(ctx.guild).movies()
         if not movies:
             await ctx.send("No movies in the list.")
@@ -288,6 +292,8 @@ class MovieVote(commands.Cog):
         # filter out movies that have been watched
         if watched_only:
             movies = [movie for movie in movies if not movie.get("watched", False)]
+
+        movies = sorted(movies, key=lambda x: x["score"], reverse=True)
 
         def generate_page(movie):
             title = movie.get("title", "unknown")
