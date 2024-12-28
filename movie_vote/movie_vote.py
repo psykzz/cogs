@@ -463,8 +463,10 @@ class MovieVote(commands.Cog):
             # We must use the ugly style because of discord limits
             ugly_field_value = ""
             for position, movie in enumerate(movie_list, start=1):
-                ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
-            
+                try:
+                    ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+                except Exception as e:
+                    log.exception(f"Unable to parse pos: {position} - {movie['title']}", e)
             embed.description= ugly_field_value
             return embed
 
