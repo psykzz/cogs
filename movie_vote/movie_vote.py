@@ -249,7 +249,7 @@ class MovieVote(commands.Cog):
         await ctx.reply(embed=embed)
 
     @movie.command(name="leaderboard")
-    async def _movievote_leaderboard(self, ctx):
+    async def _movievote_leaderboard(self, ctx, limit: int|str = 5, watched_only: boolean = True, will_pin = False):
         """
             Get the movie leaderboard.
             The leaderboard will be updated each time a movie is added or removed from the list.
@@ -260,24 +260,16 @@ class MovieVote(commands.Cog):
             await ctx.send("No movies in the list.")
             return
 
-        movies = sorted(movies, key=lambda x: x["score"], reverse=True)
-        msg = "Movie Leaderboard:\n"
-        for movie in movies:
-            msg += "**{}** (score: {})\n".format(movie["title"], movie["score"])
-        embed = discord.Embed(description=msg)
+        if limit == "all":
+            limit = None
+
+        embed = await self.generate_leaderboard(ctx.guild, limit, watched_only)
         leaderboard = await ctx.send(embed=embed)
 
-        # Save the leaderboard message ID so we can edit it later
-        await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
+        if will_pin:
+            # Save the leaderboard message ID so we can edit it later
+            await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
 
-    def fix_custom_emoji(self, emoji):
-        if emoji[:2] != "<:":
-            return emoji
-        for guild in self.bot.guilds:
-            for e in guild.emojis:
-                if str(e.id) == emoji.split(":")[2][:-1]:
-                    return e
-        return None
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -451,24 +443,30 @@ class MovieVote(commands.Cog):
             await leaderboard_msg.edit(embed=embed)
 
 
-    async def generate_leaderboard(self, guild: discord.Guild):
+    async def generate_leaderboard(self, guild: discord.Guild, limit=5, watched_only=True):
         # Save the leaderboard message ID so we can edit it later
         movies = await self.config.guild(guild).movies()
         if not movies:
             return
 
         # filter out movies that have been watched
-        movies = [movie for movie in movies if not movie["watched"]]
+        if watched_only:
+            movies = [movie for movie in movies if not movie["watched"]]
 
         embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
-        for position, movie in enumerate(movies[:5], start=1):
+
+        # sublist
+        movie_list = movies[:limit] if limit else movies
+
+        for position, movie in enumerate(movie_list, start=1):
             embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\nhttps://www.imdb.com/title/tt{movie['imdb_id']}", inline=True)
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
             embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
         return embed
 
 
+    # Updates movies to new format
     async def update_movie(self, original_movie):
         movie = original_movie
         try:
@@ -487,14 +485,23 @@ class MovieVote(commands.Cog):
         except:
             return original_movie
 
-
-
+    # Loop through old movies and update them to the new format
     async def update_movies(self, ctx):
         movies = await self.config.guild(ctx.guild).movies()
         for movie in movies:
             movie = await self.update_movie(movie)
             
         await self.config.guild(ctx.guild).movies.set(movies)
+
+    # Helper function to fix emojis
+    def fix_custom_emoji(self, emoji):
+        if emoji[:2] != "<:":
+            return emoji
+        for guild in self.bot.guilds:
+            for e in guild.emojis:
+                if str(e.id) == emoji.split(":")[2][:-1]:
+                    return e
+        return None
 
 
 async def http_get(url):
@@ -514,3 +521,4 @@ async def http_get(url):
         except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
             attempt += 1
             await asyncio.sleep(1)
+
