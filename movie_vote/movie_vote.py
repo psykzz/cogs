@@ -249,7 +249,7 @@ class MovieVote(commands.Cog):
         await ctx.reply(embed=embed)
 
     @movie.command(name="leaderboard")
-    async def _movievote_leaderboard(self, ctx, limit: int|str = 5, watched_only: boolean = True, will_pin = False):
+    async def _movievote_leaderboard(self, ctx, limit: int|str = 5, watched_only: bool = True, will_pin = False):
         """
             Get the movie leaderboard.
             The leaderboard will be updated each time a movie is added or removed from the list.
