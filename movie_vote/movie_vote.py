@@ -289,7 +289,7 @@ class MovieVote(commands.Cog):
         if watched_only:
             movies = [movie for movie in movies if not movie.get("watched", False)]
 
-        await menu(ctx, [f"{movie['title']} ({movie['year']}) | https://www.imdb.com/title/tt{movie['imdb_id']}" for m in movies]) 
+        await menu(ctx, [f"{movie['title']} ({movie['year']}) | https://www.imdb.com/title/tt{movie['imdb_id']}" for movie in movies]) 
 
 
     @commands.Cog.listener()
