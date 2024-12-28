@@ -289,7 +289,13 @@ class MovieVote(commands.Cog):
         if watched_only:
             movies = [movie for movie in movies if not movie.get("watched", False)]
 
-        pages = [f"{movie.get('title', "unknown")} ({movie.get('year', "unknown")}) | https://www.imdb.com/title/tt{movie.get('imdb_id', 00000)}" for movie in movies]
+        def generate_page(movie):
+            title = movie.get("title", "unknown")
+            year = movie.get("year", "unknown")
+            imdb = movie.get("imdb_id", 00000)
+            return f"{title} ({year}) | https://www.imdb.com/title/tt{imdb}"
+
+        pages = [generate_page(movie) for movie in movies]
         await menu(ctx, pages) 
 
 
