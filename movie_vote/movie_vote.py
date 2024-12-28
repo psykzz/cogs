@@ -7,6 +7,7 @@ import discord
 import httpx
 from imdb import Cinemagoer
 from redbot.core import Config, checks, commands
+from redbot.core.utils.menus import menu
 
 imdb = Cinemagoer()
 RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
@@ -248,11 +249,11 @@ class MovieVote(commands.Cog):
 
         await ctx.reply(embed=embed)
 
-    @movie.command(name="leaderboard")
-    async def _movievote_leaderboard(self, ctx, limit: int|str = 5, watched_only: bool = True, will_pin = False):
+    @movie.command(name="pinboard")
+    async def _movievote_pinboard(self, ctx):
         """
-            Get the movie leaderboard.
-            The leaderboard will be updated each time a movie is added or removed from the list.
+            Get the movie pinboard.
+            The pinboard will be updated each time a movie is added or removed from the list and show the top 5 movies next to be watched.
         """
         
         movies = await self.config.guild(ctx.guild).movies()
@@ -260,15 +261,35 @@ class MovieVote(commands.Cog):
             await ctx.send("No movies in the list.")
             return
 
-        if limit == "all":
-            limit = 99999
-
-        embed = await self.generate_leaderboard(ctx.guild, limit, watched_only)
+        embed = await self.generate_leaderboard(ctx.guild, 5, True)
         leaderboard = await ctx.send(embed=embed)
+        await leaderboard.pin()
 
-        if will_pin:
-            # Save the leaderboard message ID so we can edit it later
-            await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
+        leaderboard_id = await self.config.guild(message.guild).leaderboard()
+        if leaderboard_id:
+            leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+            await leaderboard_msg.unpin()
+            await leaderboard_msg.delete()
+
+        # Save the leaderboard message ID so we can edit it later
+        await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
+
+    @movie.command(name="leaderboard")
+    async def _movievote_leaderboard(self, ctx, watched_only = True):
+        """
+            Get the movie leaderboard.
+        """
+        
+        movies = await self.config.guild(ctx.guild).movies()
+        if not movies:
+            await ctx.send("No movies in the list.")
+            return
+
+        # filter out movies that have been watched
+        if watched_only:
+            movies = [movie for movie in movies if not movie.get("watched", False)]
+
+        await menu(ctx, [f"{movie['title']} ({movie['year']}) | https://www.imdb.com/title/tt{movie['imdb_id']}" for m in movies]) 
 
 
     @commands.Cog.listener()
