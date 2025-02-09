@@ -37,7 +37,7 @@ class EmptyVoices(commands.Cog):
             else:
                 new_channels.append(channel.id)
         if len(new_channels):
-        log.info(f"Updating temp_channels with {len(new_channels)} remaining channels")
+            log.info(f"Updating temp_channels with {len(new_channels)} remaining channels")
         await guild_group.emptyvoices.temp_channels.set(new_channels)
 
 
