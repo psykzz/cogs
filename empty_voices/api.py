@@ -25,6 +25,22 @@ class EmptyVoices(commands.Cog):
         self.config.register_guild(**default_guild)
 
 
+    async def cleanup_temp_channels_config(self, guild: discord.Guild):
+        "Cleanup old channel ids that may have been deleted or moved manually outside of the bot"
+        guild_group = self.config.guild(guild)
+        temp_channels = await guild_group.emptyvoices.temp_channels()
+        new_channels = []
+        for channel_id in temp_channels:
+            channel = guild.get_channel_or_thread(channel_id)
+            if not channel:
+                log.info(f"Unable to find channel {channel_id} in guild: {guild.id}")
+            else:
+                new_channels.append(channel.id)
+        if len(new_channels):
+        log.info(f"Updating temp_channels with {len(new_channels)} remaining channels")
+        await guild_group.emptyvoices.temp_channels.set(new_channels)
+
+
     async def try_delete_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep = False):
         "Check if this channel is empty, and delete it"
         guild_group = self.config.guild(guild)
@@ -43,7 +59,7 @@ class EmptyVoices(commands.Cog):
         temp_channels.remove(channel.id)
         await guild_group.emptyvoices.temp_channels.set(temp_channels)
         await channel.delete(reason="Removing empty temp channel")
-
+ 
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         """
@@ -87,6 +103,9 @@ class EmptyVoices(commands.Cog):
             guild_group = self.config.guild(guild)
             temp_channels = await guild_group.emptyvoices.temp_channels()
             await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
+
+        # Cleanup old channels that may no longer exist but we have the id for.
+        await self.cleanup_temp_channels_config(guild)
             
 
     async def try_rename_channel(self, guild, channel: discord.VoiceChannel, name):
