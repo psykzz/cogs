@@ -108,11 +108,14 @@ class EmptyVoices(commands.Cog):
         await self.cleanup_temp_channels_config(guild)
             
 
-    async def try_rename_channel(self, guild, channel: discord.VoiceChannel, name):
+    async def try_rename_channel(self, guild, channel: discord.VoiceChannel, member):
         "Attempt to rename a channel that isn't already renamed"
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
         is_temp = channel.id in temp_channels
+
+        # Backwards compat, keep name.
+        name = member.name if member else None
 
         if not is_temp:
             log.info("Not renaming, permanant channel.")
@@ -122,6 +125,13 @@ class EmptyVoices(commands.Cog):
             return
 
         new_name = f"{name}'s chat" if name else "Voice chat"
+
+        if member:
+            try:
+                all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
+                channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
+            except Exception as e:
+                log.warning(f"I dont' have permission to give permission to {member.name}")
         await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
 
 
@@ -156,7 +166,7 @@ class EmptyVoices(commands.Cog):
             # channels.append(after.channel)
             categories.append(after.channel.category)
 
-            await self.try_rename_channel(guild, after.channel, member.name)
+            await self.try_rename_channel(guild, after.channel, member)
 
         for channel in set(channels):
             await self.try_delete_channel(guild, channel)
