@@ -126,12 +126,14 @@ class EmptyVoices(commands.Cog):
 
         new_name = f"{name}'s chat" if name else "Voice chat"
 
-        if member:
+        # This isn't currently working due to channels being sync'd with their parents
+        if False and member:
             try:
                 all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
                 await channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
             except Exception as e:
                 log.warning(f"I dont' have permission to give permission to {member.name}")
+
         await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
 
 
