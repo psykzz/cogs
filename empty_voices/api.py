@@ -129,7 +129,7 @@ class EmptyVoices(commands.Cog):
         if member:
             try:
                 all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
-                channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
+                await channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
             except Exception as e:
                 log.warning(f"I dont' have permission to give permission to {member.name}")
         await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
