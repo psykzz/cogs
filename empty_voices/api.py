@@ -81,6 +81,8 @@ class EmptyVoices(commands.Cog):
             log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
             return
 
+        # If we don't have free public channels then we should keep a voice channel, try to delete all by the first.
+        # otherwise, if there is a public channel free, try to remove all the channels.
         if not empty_public_channels:
             # We always keep the first channel.
             for channel in empty_temp_channels[1:]:
@@ -90,7 +92,8 @@ class EmptyVoices(commands.Cog):
             for channel in empty_temp_channels:
                 await self.try_delete_channel(guild, channel)
 
-        # Refresh the cache
+        
+        # Since we've deleted somethings, we need to refrehs the catch and check again.
         refreshed_category = await guild.fetch_channel(category.id)
         voice_channels = [c for c in refreshed_category.voice_channels if c.permissions_for(guild.default_role).view_channel]
 
@@ -109,13 +112,17 @@ class EmptyVoices(commands.Cog):
             
 
     async def try_rename_channel(self, guild, channel: discord.VoiceChannel, member):
-        "Attempt to rename a channel that isn't already renamed"
+        "Attempt to rename a channel that isn't already renamed, does not reset "
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
         is_temp = channel.id in temp_channels
 
         # Backwards compat, keep name.
         name = member.name if member else None
+
+        # avoid resetting channels, prefer to delete them.
+        if not name: 
+            return
 
         if not is_temp:
             log.info("Not renaming, permanant channel.")
@@ -127,13 +134,14 @@ class EmptyVoices(commands.Cog):
         new_name = f"{name}'s chat" if name else "Voice chat"
 
         # This isn't currently working due to channels being sync'd with their parents
-        if False and member:
-            try:
-                all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
-                await channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
-            except Exception as e:
-                log.warning(f"I dont' have permission to give permission to {member.name}")
+        # if member:
+        #     try:
+        #         all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
+        #         await channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
+        #     except Exception as e:
+        #         log.warning(f"I dont' have permission to give permission to {member.name}")
 
+        # This is highly rate limited, we should avoid doing this to the same channel too much.
         await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
 
 
@@ -156,16 +164,16 @@ class EmptyVoices(commands.Cog):
         categories = []
         if before.channel and before.channel.category.id in watch_list:
             log.info(f"Processing watched channel {before.channel.mention}")
-            # channels.append(before.channel)
             categories.append(before.channel.category)
 
             # reset channel name to empty
             if len(before.channel.members) == 0:
-                await self.try_rename_channel(guild, before.channel, None)
+                channels.append(before.channel)
+                # await self.try_delete_channel(guild, channel)
+                # await self.try_rename_channel(guild, before.channel, None)
 
         if after.channel and after.channel.category.id in watch_list:
             log.info(f"Processing watched channel {after.channel.mention}")
-            # channels.append(after.channel)
             categories.append(after.channel.category)
 
             await self.try_rename_channel(guild, after.channel, member)
