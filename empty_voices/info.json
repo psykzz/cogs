@@ -1,11 +1,14 @@
 {
     "author": ["PsyKzz"],
     "name": "Empty Voices",
-    "short": "Always have empty voices",
-    "description": "Always have empty voices.",
+    "short": "Dynamic voice channel management",
+    "description": "Automatically manages voice channels by creating temporary channels when needed and cleaning up empty ones. Includes commands to manage watched categories and temporary channels.",
     "tags": [
         "channel",
         "empty",
-        "voice"
+        "voice",
+        "dynamic",
+        "auto",
+        "management"
     ]
 }
