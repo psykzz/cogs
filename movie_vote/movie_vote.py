@@ -291,7 +291,8 @@ class MovieVote(commands.Cog):
         try:
             leaderboard_id = await self.config.guild(ctx.guild).leaderboard()
             if leaderboard_id:
-                leaderboard_msg = await ctx.channel.fetch_message(leaderboard_id)
+                channel = ctx.channel
+                leaderboard_msg = await channel.fetch_message(leaderboard_id)
                 await leaderboard_msg.unpin()
                 await leaderboard_msg.delete()
         except Exception as e:
@@ -339,7 +340,8 @@ class MovieVote(commands.Cog):
         if isinstance(message.channel, discord.abc.PrivateChannel):
             return
         # Ignore commands
-        if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):
+        prefixes = await self.bot.get_valid_prefixes()
+        if message.content.startswith(tuple(prefixes)):
             return
         guild_data = await self.config.guild(message.guild).all()
         try:
@@ -347,7 +349,8 @@ class MovieVote(commands.Cog):
         except KeyError:
             return
         channel_id = message.channel.id
-        enabled_channels = await self.config.guild(message.guild).channels_enabled()
+        guild_config = self.config.guild(message.guild)
+        enabled_channels = await guild_config.channels_enabled()
         if channel_id not in enabled_channels:
             return
         if message.author.id == self.bot.user.id:
@@ -361,7 +364,8 @@ class MovieVote(commands.Cog):
         imdb_id = link.split('/tt')[-1]
 
         # Add Imdb link to movie list
-        movies = await self.config.guild(message.guild).movies()
+        guild_config = self.config.guild(message.guild)
+        movies = await guild_config.movies()
         exists = False
         for m in movies:
             if m["imdb_id"] == imdb_id:
@@ -385,7 +389,7 @@ class MovieVote(commands.Cog):
             log.error("Error getting movie from IMDB: %s", e)
             await message.reply("Error getting movie from IMDB.")
             return
-        await self.config.guild(message.guild).movies.set(movies)
+        await guild_config.movies.set(movies)
 
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
@@ -420,11 +424,12 @@ class MovieVote(commands.Cog):
         except KeyError:
             return
         channel_id = message.channel.id
-        enabled_channels = await self.config.guild(message.guild).channels_enabled()
+        guild_config = self.config.guild(message.guild)
+        enabled_channels = await guild_config.channels_enabled()
         if channel_id not in enabled_channels:
             return
 
-        movies = await self.config.guild(message.guild).movies()
+        movies = await guild_config.movies()
         for movie in movies:
             if movie["imdb_id"] == imdb_id:
                 movies.remove(movie)
@@ -459,7 +464,6 @@ class MovieVote(commands.Cog):
         log.info("Reaction removed")
         await self.count_votes(message, emoji)
 
-
     async def count_votes(self, message, emoji):
         if not message.guild:
             return
@@ -473,13 +477,14 @@ class MovieVote(commands.Cog):
         log.info("Handling %s", link)
 
         channel_id = message.channel.id
-        enabled_channels = await self.config.guild(message.guild).channels_enabled()
+        guild_config = self.config.guild(message.guild)
+        enabled_channels = await guild_config.channels_enabled()
         if channel_id not in enabled_channels:
             log.info("Wrong channel %s", channel_id)
             return
 
-        up_emoji = await self.config.guild(message.guild).up_emoji()
-        dn_emoji = await self.config.guild(message.guild).dn_emoji()
+        up_emoji = await guild_config.up_emoji()
+        dn_emoji = await guild_config.dn_emoji()
         if str(emoji) not in (up_emoji, dn_emoji):
             log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
@@ -493,23 +498,27 @@ class MovieVote(commands.Cog):
                 dnvotes = react.count
 
         # Update the movie with the new score
-        movies = await self.config.guild(message.guild).movies()
+        guild_config = self.config.guild(message.guild)
+        movies = await guild_config.movies()
         log.info("Updating %s with new score: %s", link, upvotes - dnvotes)
         for movie in movies:
             if movie["imdb_id"] == imdb_id:
                 movie["score"] = upvotes - dnvotes
-        await self.config.guild(message.guild).movies.set(movies)
+        await guild_config.movies.set(movies)
 
         # Update the loadboard message with new scores
         await self.update_leaderboard(message)
 
     async def update_leaderboard(self, message):
         log.info("Updating leaderboard")
-        leaderboard_id = await self.config.guild(message.guild).leaderboard()
+        guild_config = self.config.guild(message.guild)
+        leaderboard_id = await guild_config.leaderboard()
         if leaderboard_id:
-            leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+            channel = message.channel
+            leaderboard_msg = await channel.fetch_message(leaderboard_id)
 
-            embed = await self.generate_leaderboard(message.guild)  # type: ignore
+            # type: ignore
+            embed = await self.generate_leaderboard(message.guild)
             await leaderboard_msg.edit(embed=embed)
 
     async def generate_leaderboard(
@@ -549,7 +558,8 @@ class MovieVote(commands.Cog):
                     )
                 except Exception as e:
                     log.exception(
-                        "Unable to parse pos: %s - %s", position, movie['title'], e
+                        "Unable to parse pos: %s - %s",
+                        position, movie['title'], e
                     )
             embed.description = ugly_field_value
             return embed
@@ -558,9 +568,12 @@ class MovieVote(commands.Cog):
             title = f"#{position} {movie['title']} ({movie['year']})"
             genres = ', '.join(movie['genres'])
             imdb_id = movie['imdb_id']
-            value = f"_{genres}_\n[IMDB](https://www.imdb.com/title/tt{imdb_id})"
+            imdb_url = f"https://www.imdb.com/title/tt{imdb_id}"
+            value = f"_{genres}_\n[IMDB]({imdb_url})"
             embed.add_field(name=title, value=value, inline=True)
-            embed.add_field(name="Score", value=f"{movie['score']}", inline=True)
+            embed.add_field(
+                name="Score", value=f"{movie['score']}", inline=True
+            )
             embed.add_field(name="\u200B", value="\u200B")  # Empty field
         return embed
 
