@@ -14,6 +14,7 @@ RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
 log = logging.getLogger("red.cog.movie_vote")
 
+
 class MovieVote(commands.Cog):
     """Manage a channel for collecting votes for what to watch next."""
 
@@ -34,21 +35,24 @@ class MovieVote(commands.Cog):
     async def red_delete_data_for_user(self, **kwargs):
         """Nothing to delete."""
         return
-    
 
-    async def get_latest_episodes(self, imdb_id: str) -> Union[Dict[str, Any], None]:
+    async def get_latest_episodes(
+            self, imdb_id: str
+    ) -> Union[Dict[str, Any], None]:
         """Get the latest episodes from vidsrc"""
         response = await http_get(
-                "https://vidsrc.me/episodes/latest/page-1.json"
-            )
+            "https://vidsrc.me/episodes/latest/page-1.json"
+        )
         if not response:
             log.info("Response was empty. %s", response)
             return None
         all_data = response.get('result', [])
         log.info("Checking %s episodes against '%s'", len(all_data), imdb_id)
-        return next((x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"), None)
-        
-    
+        return next(
+            (x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"),
+            None
+        )
+
     @commands.group(autohelp=False)
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
@@ -57,7 +61,6 @@ class MovieVote(commands.Cog):
 
         if ctx.invoked_subcommand is not None:
             return
-        
         await ctx.send_help()
 
         guild_data = await self.config.guild(ctx.guild).all()
@@ -104,9 +107,13 @@ class MovieVote(commands.Cog):
             return
 
         imdb_data = imdb.get_movie(imdb_id)
-        embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", description=f"Episode found! Link: {episode.get('embed_url', '')}", url=episode.get('embed_url', ''))
+        embed = discord.Embed(
+            title=f"🎬 {episode.get('show_title', '')}",
+            description=f"Episode found! Link: {episode.get('embed_url', '')}",
+            url=episode.get('embed_url', '')
+        )
         embed.add_field(name="Season", value=episode.get('season', ''), inline=True)
-        embed.add_field(name=f"Episode", value=episode.get('episode', ''), inline=True)
+        embed.add_field(name="Episode", value=episode.get('episode', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
         await ctx.reply(embed=embed)
 
@@ -268,12 +275,11 @@ class MovieVote(commands.Cog):
         try:
             leaderboard_id = await self.config.guild(ctx.guild).leaderboard()
             if leaderboard_id:
-                leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+                leaderboard_msg = await ctx.channel.fetch_message(leaderboard_id)
                 await leaderboard_msg.unpin()
                 await leaderboard_msg.delete()
-        except:
-            log.error("unable to find delete and unpin previous message")
-            pass
+        except Exception as e:
+            log.error("unable to find delete and unpin previous message: %s", e)
 
 
         # Save the leaderboard message ID so we can edit it later
@@ -301,8 +307,8 @@ class MovieVote(commands.Cog):
             imdb = movie.get("imdb_id", 00000)
             return f"#{position} {title} ({year}) | https://www.imdb.com/title/tt{imdb}"
 
-        pages = [generate_page(movie, position) for position, movie in enumerate(movie_list, start=1)]
-        await menu(ctx, pages) 
+        pages = [generate_page(movie, position) for position, movie in enumerate(movies, start=1)]
+        await menu(ctx, pages)
 
 
     @commands.Cog.listener()
@@ -313,7 +319,7 @@ class MovieVote(commands.Cog):
             return
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -349,8 +355,9 @@ class MovieVote(commands.Cog):
             movie["genres"] = imdb_movie.get("genres") 
             movie["year"] = imdb_movie.get("year") 
             movies.append(movie)
-        except:
-            await message.reply(f"Error getting movie from IMDB.")
+        except Exception as e:
+            log.error("Error getting movie from IMDB: %s", e)
+            await message.reply("Error getting movie from IMDB.")
             return
         await self.config.guild(message.guild).movies.set(movies)
     
@@ -383,7 +390,7 @@ class MovieVote(commands.Cog):
 
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -528,7 +535,8 @@ class MovieVote(commands.Cog):
             movie["year"] = imdb_movie.get("year") 
             log.info("Updated movie: %s", movie["title"])
             return movie
-        except:
+        except Exception as e:
+            log.error("Error updating movie: %s", e)
             return original_movie
 
     # Loop through old movies and update them to the new format
