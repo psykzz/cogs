@@ -11,7 +11,6 @@ default_guild = {
     "timers": {},
 }
 
-
 VALID_ZONES = [
     "Everfall",
     "First Light",
@@ -28,7 +27,6 @@ VALID_ZONES = [
     "Reekwater",
     "Shattered Mountain",
 ]
-
 
 class WarTimers(commands.Cog):
     "Adds roles to people who react to a message"
@@ -122,11 +120,11 @@ class WarTimers(commands.Cog):
         )
 
         # defenders = await self.ask_question(ctx, "Who are the defenders?", {
-        #     ":x:": None, ":regional_indicator_c:": "Covenant", 
+        #     ":x:": None, ":regional_indicator_c:": "Covenant",
         #     ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"
         # })
         # attackers = await self.ask_question(ctx, "Who are the attackers?", {
-        #     ":x:": None, ":regional_indicator_c:": "Covenant", 
+        #     ":x:": None, ":regional_indicator_c:": "Covenant",
         #     ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"
         # })
         # await ctx.send(f"Def: {defenders}, Attk: {attackers}")
@@ -191,10 +189,8 @@ class WarTimers(commands.Cog):
             return None
         return VALID_ZONES[lower_zones.index(zone.lower())]
 
-
 RFC1123_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
 INFRACTION_FORMAT = "%Y-%m-%d %H:%M"
-
 
 def _stringify_time_unit(value: int, unit: str) -> str:
     """
@@ -213,7 +209,6 @@ def _stringify_time_unit(value: int, unit: str) -> str:
         return f"less than a {unit[:-1]}"
     else:
         return f"{value} {unit}"
-
 
 def humanize_delta(
     delta: relativedelta, precision: str = "seconds", max_units: int = 6

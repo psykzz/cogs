@@ -2,7 +2,6 @@ import random
 
 from redbot.core import commands
 
-
 class Misc(commands.Cog):
     "Misc things for your server"
 

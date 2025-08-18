@@ -4,7 +4,6 @@ from redbot.core import commands  # Changed from discord.ext
 from redbot.core import checks, Config
 from redbot.core.bot import Red
 
-
 class AssignRoles(commands.Cog):
     """Authorise one role to give another role"""
     __author__ = "#s#8059"

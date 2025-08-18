@@ -31,7 +31,6 @@ async def http_get(url):
             await asyncio.sleep(5)
             pass
 
-
 class TGMC(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -98,13 +97,13 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def all(self, ctx, delta="14"):
         "Get the current winrates"
-        return await self.get_winrate(ctx, delta, None) # None should get all winrates together
+        return await self.get_winrate(ctx, delta, None)  # None should get all winrates together
 
     @winrates.command(aliases=["distresssignal", "distress-signal", "ds"])
     async def distress(self, ctx, delta="14"):
         "Get the current winrates on distress"
         return await self.get_winrate(ctx, delta, "Distress Signal")
-        
+
     @winrates.command()
     async def crash(self, ctx, delta="14"):
         "Get the current winrates on crash"

@@ -7,7 +7,6 @@ default_guild = {
     "watching": {},
 }
 
-
 class RoleReacts(commands.Cog):
     "Adds roles to people who react to a message"
 
@@ -78,7 +77,6 @@ class RoleReacts(commands.Cog):
         await guild_config.watching.set(watching)
         await message.remove_reaction(react, ctx.me)
         await ctx.send("Reaction removed.")
-        
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

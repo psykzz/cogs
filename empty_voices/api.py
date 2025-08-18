@@ -2,7 +2,6 @@ import logging
 import discord
 from redbot.core import Config, commands
 
-
 IDENTIFIER = 1672261474290236288
 
 default_guild = {
@@ -24,7 +23,6 @@ class EmptyVoices(commands.Cog):
 
         self.config.register_guild(**default_guild)
 
-
     async def cleanup_temp_channels_config(self, guild: discord.Guild):
         "Cleanup old channel ids that may have been deleted or moved manually outside of the bot"
         guild_group = self.config.guild(guild)
@@ -40,8 +38,7 @@ class EmptyVoices(commands.Cog):
             log.info(f"Updating temp_channels with {len(new_channels)} remaining channels")
         await guild_group.emptyvoices.temp_channels.set(new_channels)
 
-
-    async def try_delete_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep = False):
+    async def try_delete_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep=False):
         "Check if this channel is empty, and delete it"
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
@@ -50,7 +47,7 @@ class EmptyVoices(commands.Cog):
         log.info(f"Validating channel {channel.mention}, temp: {is_temp}, should_keep: {should_keep}")
         if should_keep:
             return
-        if not is_temp: 
+        if not is_temp:
             return
         if len(channel.members) > 0:
             return
@@ -59,11 +56,10 @@ class EmptyVoices(commands.Cog):
         temp_channels.remove(channel.id)
         await guild_group.emptyvoices.temp_channels.set(temp_channels)
         await channel.delete(reason="Removing empty temp channel")
- 
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         """
-        When someone joins or leaves a category, delete all the empty temp channels, 
+        When someone joins or leaves a category, delete all the empty temp channels,
         then check if there are any empty channels and create a spare channel if needed.
         """
 
@@ -72,7 +68,7 @@ class EmptyVoices(commands.Cog):
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
         public_channels = [
-            c for c in category.voice_channels 
+            c for c in category.voice_channels
             if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels
         ]
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
@@ -95,11 +91,10 @@ class EmptyVoices(commands.Cog):
             for channel in empty_temp_channels:
                 await self.try_delete_channel(guild, channel)
 
-        
         # Since we've deleted somethings, we need to refrehs the catch and check again.
         refreshed_category = await guild.fetch_channel(category.id)
         voice_channels = [
-            c for c in refreshed_category.voice_channels 
+            c for c in refreshed_category.voice_channels
             if c.permissions_for(guild.default_role).view_channel
         ]
 
@@ -115,7 +110,6 @@ class EmptyVoices(commands.Cog):
 
         # Cleanup old channels that may no longer exist but we have the id for.
         await self.cleanup_temp_channels_config(guild)
-            
 
     async def try_rename_channel(self, guild, channel: discord.VoiceChannel, member):
         "Attempt to rename a channel that isn't already renamed, does not reset "
@@ -127,7 +121,7 @@ class EmptyVoices(commands.Cog):
         name = member.name if member else None
 
         # avoid resetting channels, prefer to delete them.
-        if not name: 
+        if not name:
             return
 
         if not is_temp:
@@ -144,8 +138,8 @@ class EmptyVoices(commands.Cog):
         #     try:
         #         all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
         #         await channel.set_permissions(
-        #             member, 
-        #             overwrite=all_voice_permissions, 
+        #             member,
+        #             overwrite=all_voice_permissions,
         #             reason="EmptyVoices - Giving channel owner permissions."
         #         )
         #     except Exception as e:
@@ -153,7 +147,6 @@ class EmptyVoices(commands.Cog):
 
         # This is highly rate limited, we should avoid doing this to the same channel too much.
         await channel.edit(name=new_name, reason="EmptyVoices - channel renamed")
-
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -193,14 +186,12 @@ class EmptyVoices(commands.Cog):
         for category in set(categories):
             await self.validate_category(guild, category)
 
-    
     @commands.guild_only()
     @commands.group()
     async def emptyvoices(self, _ctx):
         "Empty Voices"
         pass
 
-        
     @emptyvoices.command()
     async def watching(self, ctx):
         "See what categories are being watched"
@@ -225,7 +216,6 @@ class EmptyVoices(commands.Cog):
             await ctx.send(f"{ctx.author.mention}, {category.mention} is already on the watchlist.")
 
         await ctx.send(f"{ctx.author.mention}, there are {len(watch_list)} channels in the watchlist.")
-
 
     @emptyvoices.command()
     async def stopwatch(self, ctx, category: discord.CategoryChannel):
