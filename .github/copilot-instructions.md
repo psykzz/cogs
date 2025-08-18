@@ -23,17 +23,6 @@ python3 -m py_compile */*.py
 flake8 . --statistics
 ```
 
-### Expected Linting Issues
-The codebase currently has **228 flake8 violations** including:
-- 132 line length violations (E501)
-- 30 excessive blank lines (E303) 
-- 24 whitespace issues (W293)
-- 14 unused f-string placeholders (F541)
-- 9 unused imports (F401)
-- 3 undefined variables (F821) in movie_vote/movie_vote.py and nw_server_status/server_status.py
-
-**Do NOT attempt to fix existing linting issues** unless directly related to your changes. The CI build expects these issues.
-
 ### Validation Commands
 Always run these validation steps before committing changes:
 
@@ -161,9 +150,8 @@ Focus on syntax validation and logic testing instead.
 
 ### GitHub Actions
 The repository uses `.github/workflows/lint.yml` which:
-- Runs on Python 3.9
-- Uses flake8 for linting via py-actions/flake8@v1
-- **Expects current linting violations** - do not attempt to fix unrelated issues
+- Runs on Python 3.13
+- Uses flake8 for linting via py-actions/flake8@v2
 
 ### Pre-commit Validation
 Always run before committing:
