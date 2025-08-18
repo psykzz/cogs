@@ -104,7 +104,11 @@ class MovieVote(commands.Cog):
             return
 
         imdb_data = imdb.get_movie(imdb_id)
-        embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", description=f"Episode found! Link: {episode.get('embed_url', '')}", url=episode.get('embed_url', ''))
+        embed = discord.Embed(
+            title=f"🎬 {episode.get('show_title', '')}", 
+            description=f"Episode found! Link: {episode.get('embed_url', '')}", 
+            url=episode.get('embed_url', '')
+        )
         embed.add_field(name="Season", value=episode.get('season', ''), inline=True)
         embed.add_field(name=f"Episode", value=episode.get('episode', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
@@ -242,7 +246,10 @@ class MovieVote(commands.Cog):
         movie = movies[0]
 
         imdb_data = imdb.get_movie(movie['imdb_id'])
-        embed =  discord.Embed(title=f"🎬 {movie['title']} ({movie['year']})", description=f"_{', '.join(movie['genres'])}_")
+        embed = discord.Embed(
+            title=f"🎬 {movie['title']} ({movie['year']})", 
+            description=f"_{', '.join(movie['genres'])}_"
+        )
         embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
         embed.add_field(name=f"Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
@@ -253,7 +260,8 @@ class MovieVote(commands.Cog):
     async def _movievote_pinboard(self, ctx):
         """
             Get the movie pinboard.
-            The pinboard will be updated each time a movie is added or removed from the list and show the top 5 movies next to be watched.
+            The pinboard will be updated each time a movie is added or removed from the list 
+            and show the top 5 movies next to be watched.
         """
         
         movies = await self.config.guild(ctx.guild).movies()
@@ -498,7 +506,11 @@ class MovieVote(commands.Cog):
             ugly_field_value = ""
             for position, movie in enumerate(movie_list, start=1):
                 try:
-                    ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+                    ugly_field_value += (
+                        f"#{position} {movie['title']} ({movie['year']})\n"
+                        f"_{', '.join(movie['genres'])}_\n"
+                        f"[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+                    )
                 except Exception as e:
                     log.exception(f"Unable to parse pos: {position} - {movie['title']}", e)
             embed.description= ugly_field_value
@@ -506,7 +518,11 @@ class MovieVote(commands.Cog):
 
 
         for position, movie in enumerate(movie_list, start=1):
-            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", inline=True)
+            embed.add_field(
+                name=f"#{position} {movie['title']} ({movie['year']})", 
+                value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", 
+                inline=True
+            )
             embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
             embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
         return embed
