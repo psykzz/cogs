@@ -71,7 +71,10 @@ class EmptyVoices(commands.Cog):
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
 
-        public_channels = [c for c in category.voice_channels if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels]
+        public_channels = [
+            c for c in category.voice_channels 
+            if c.permissions_for(guild.default_role).view_channel and c.id not in temp_channels
+        ]
         empty_public_channels = any(len(channel.members) == 0 for channel in public_channels)
         public_temp_channels = [c for c in category.voice_channels if c.id in temp_channels]
         empty_temp_channels = [channel for channel in public_temp_channels if len(channel.members) == 0]
@@ -95,7 +98,10 @@ class EmptyVoices(commands.Cog):
         
         # Since we've deleted somethings, we need to refrehs the catch and check again.
         refreshed_category = await guild.fetch_channel(category.id)
-        voice_channels = [c for c in refreshed_category.voice_channels if c.permissions_for(guild.default_role).view_channel]
+        voice_channels = [
+            c for c in refreshed_category.voice_channels 
+            if c.permissions_for(guild.default_role).view_channel
+        ]
 
         # Create a new voice channel if there is no space left in any voice channel
         empty_public_channels = any(len(channel.members) == 0 for channel in voice_channels)
@@ -137,7 +143,11 @@ class EmptyVoices(commands.Cog):
         # if member:
         #     try:
         #         all_voice_permissions = PermissionOverwrite.from_pair(Permissions.voice(), Permissions.none())
-        #         await channel.set_permissions(member, overwrite=all_voice_permissions, reason="EmptyVoices - Giving channel owner permissions.")
+        #         await channel.set_permissions(
+        #             member, 
+        #             overwrite=all_voice_permissions, 
+        #             reason="EmptyVoices - Giving channel owner permissions."
+        #         )
         #     except Exception as e:
         #         log.warning(f"I dont' have permission to give permission to {member.name}")
 

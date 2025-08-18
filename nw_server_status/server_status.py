@@ -190,7 +190,10 @@ class ServerStatus(commands.Cog):
         # Check if the bot has permission to the channel
         bot_perms = voice_channel.permissions_for(ctx.me)
         if not bot_perms.manage_channels:
-            await ctx.send(f'I require the "Manage Channels" permission for {voice_channel.mention} to execute that command.')
+            await ctx.send(
+                f'I require the "Manage Channels" permission for {voice_channel.mention} '
+                f'to execute that command.'
+            )
             return
 
         guild_config = self.config.guild(ctx.guild)
@@ -211,7 +214,10 @@ class ServerStatus(commands.Cog):
         voice_channel = await self.get_guild_monitor_channel(ctx.guild)
         bot_perms = voice_channel.permissions_for(ctx.me)
         if not bot_perms.manage_channels:
-            await ctx.send(f'I require the "Manage Channels" permission for {voice_channel.mention} to execute that command.')
+            await ctx.send(
+                f'I require the "Manage Channels" permission for {voice_channel.mention} '
+                f'to execute that command.'
+            )
             return
 
         await self.update_guild_channel(ctx.guild)
