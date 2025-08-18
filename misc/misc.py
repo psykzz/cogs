@@ -1,9 +1,6 @@
-import datetime
-import logging
 import random
 
-import discord
-from redbot.core import Config, commands
+from redbot.core import commands
 
 
 class Misc(commands.Cog):

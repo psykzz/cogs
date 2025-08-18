@@ -1,7 +1,3 @@
-import datetime
-import logging
-import random
-
 import discord
 from redbot.core import Config, commands
 

@@ -110,7 +110,7 @@ class MovieVote(commands.Cog):
             url=episode.get('embed_url', '')
         )
         embed.add_field(name="Season", value=episode.get('season', ''), inline=True)
-        embed.add_field(name=f"Episode", value=episode.get('episode', ''), inline=True)
+        embed.add_field(name="Episode", value=episode.get('episode', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
         await ctx.reply(embed=embed)
 
@@ -250,8 +250,8 @@ class MovieVote(commands.Cog):
             title=f"🎬 {movie['title']} ({movie['year']})", 
             description=f"_{', '.join(movie['genres'])}_"
         )
-        embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
-        embed.add_field(name=f"Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
+        embed.add_field(name="Score", value=f"{movie['score']}", inline=True)
+        embed.add_field(name="Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
 
         await ctx.reply(embed=embed)
@@ -276,12 +276,11 @@ class MovieVote(commands.Cog):
         try:
             leaderboard_id = await self.config.guild(ctx.guild).leaderboard()
             if leaderboard_id:
-                leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+                leaderboard_msg = await ctx.channel.fetch_message(leaderboard_id)
                 await leaderboard_msg.unpin()
                 await leaderboard_msg.delete()
-        except:
+        except Exception:
             log.error("unable to find delete and unpin previous message")
-            pass
 
 
         # Save the leaderboard message ID so we can edit it later
@@ -309,7 +308,7 @@ class MovieVote(commands.Cog):
             imdb = movie.get("imdb_id", 00000)
             return f"#{position} {title} ({year}) | https://www.imdb.com/title/tt{imdb}"
 
-        pages = [generate_page(movie, position) for position, movie in enumerate(movie_list, start=1)]
+        pages = [generate_page(movie, position) for position, movie in enumerate(movies, start=1)]
         await menu(ctx, pages) 
 
 
@@ -321,7 +320,7 @@ class MovieVote(commands.Cog):
             return
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -357,8 +356,8 @@ class MovieVote(commands.Cog):
             movie["genres"] = imdb_movie.get("genres") 
             movie["year"] = imdb_movie.get("year") 
             movies.append(movie)
-        except:
-            await message.reply(f"Error getting movie from IMDB.")
+        except Exception:
+            await message.reply("Error getting movie from IMDB.")
             return
         await self.config.guild(message.guild).movies.set(movies)
     
@@ -391,7 +390,7 @@ class MovieVote(commands.Cog):
 
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -523,8 +522,8 @@ class MovieVote(commands.Cog):
                 value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", 
                 inline=True
             )
-            embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
-            embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
+            embed.add_field(name="Score", value=f"{movie['score']}", inline=True)
+            embed.add_field(name="\u200B", value="\u200B")  # Empty field
         return embed
 
 
@@ -544,7 +543,7 @@ class MovieVote(commands.Cog):
             movie["year"] = imdb_movie.get("year") 
             log.info("Updated movie: %s", movie["title"])
             return movie
-        except:
+        except Exception:
             return original_movie
 
     # Loop through old movies and update them to the new format

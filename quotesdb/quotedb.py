@@ -1,5 +1,4 @@
 import datetime
-import logging
 import random
 
 import discord
@@ -111,11 +110,11 @@ class QuoteDB(commands.Cog):
             inline=False
         )
         log.add_field(
-            name=f"Author",
+            name="Author",
             value=f"{member}",
         )
         log.add_field(
-            name=f"Created",
+            name="Created",
             value=f"{created_at}",
         )
 

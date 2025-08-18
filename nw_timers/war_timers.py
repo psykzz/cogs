@@ -4,7 +4,6 @@ from dateutil.relativedelta import relativedelta
 
 from redbot.core import Config, commands
 from redbot.core.utils.predicates import ReactionPredicate
-from redbot.core.utils.menus import start_adding_reactions
 
 IDENTIFIER = 4175987634259872345  # Random to this cog
 
@@ -89,7 +88,7 @@ class WarTimers(commands.Cog):
 
         zone, timer = upcoming_war
         if not zone:
-            await ctx.send(f"There are no upcoming wars.")
+            await ctx.send("There are no upcoming wars.")
             return
         relative_time = relativedelta(timer, datetime.datetime.now())
         await ctx.send(
@@ -103,7 +102,7 @@ class WarTimers(commands.Cog):
 
         relative_delta = commands.parse_relativedelta(relative_time)
         if not relative_delta:
-            await ctx.send(f"Unable to parse timestamp, try 24h3m or something else.")
+            await ctx.send("Unable to parse timestamp, try 24h3m or something else.")
             return
 
         war_time = datetime.datetime.now() + relative_delta

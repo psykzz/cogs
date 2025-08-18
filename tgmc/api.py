@@ -51,7 +51,7 @@ class TGMC(commands.Cog):
         winrates.type = "rich"
 
         winrates.set_author(
-            name="TGMC Statbus", url=f"https://statbus.psykzz.com",
+            name="TGMC Statbus", url="https://statbus.psykzz.com",
         )
 
         result_type = [
@@ -80,7 +80,7 @@ class TGMC(commands.Cog):
             )
         else:
             winrates.add_field(
-                name="Winrate (Marine wins)", value=f"`Not enough data`"
+                name="Winrate (Marine wins)", value="`Not enough data`"
             )
         winrates.add_field(
             name="View Raw",

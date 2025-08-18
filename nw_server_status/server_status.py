@@ -100,7 +100,6 @@ class ServerStatus(commands.Cog):
     async def get_guild_monitor_channel(self, guild):
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.server_channel()
-        realm_name = await guild_config.default_realm()
 
         # Check if the channel is valid
         if not channel_id or channel_id == "0":
@@ -119,6 +118,8 @@ class ServerStatus(commands.Cog):
         logger.info(f"Updating guild {guild}...")
         channel = await self.get_guild_monitor_channel(guild)
 
+        guild_config = self.config.guild(guild)
+        realm_name = await guild_config.default_realm()
         server_status = await self.get_server_status(realm_name)
         if not server_status:
             return
@@ -201,7 +202,7 @@ class ServerStatus(commands.Cog):
         if voice_channel:
             await ctx.send(f"Setup {voice_channel} as the monitor channel.")
         else:
-            await ctx.send(f"Disabled monitor channel.")
+            await ctx.send("Disabled monitor channel.")
 
     
     @commands.command()

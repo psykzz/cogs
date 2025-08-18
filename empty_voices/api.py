@@ -168,7 +168,6 @@ class EmptyVoices(commands.Cog):
 
         guild_group = self.config.guild(guild)
         watch_list = await guild_group.emptyvoices.watchlist()
-        temp_channels = await guild_group.emptyvoices.temp_channels()
 
         channels = []
         categories = []
