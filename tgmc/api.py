@@ -11,6 +11,7 @@ XENOMORPH_MINOR_VICTORY = "Xenomorph Minor Victory"
 SOM_MAJOR_VICTORY = "Sons of Mars Major Victory"
 SOM_MINOR_VICTORY = "Sons of Mars Minor Victory"
 
+
 async def http_get(url):
     max_attempts = 3
     attempt = 0
@@ -30,6 +31,7 @@ async def http_get(url):
             attempt += 1
             await asyncio.sleep(5)
             pass
+
 
 class TGMC(commands.Cog):
     def __init__(self, bot):

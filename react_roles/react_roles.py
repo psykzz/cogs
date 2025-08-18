@@ -7,6 +7,7 @@ default_guild = {
     "watching": {},
 }
 
+
 class RoleReacts(commands.Cog):
     "Adds roles to people who react to a message"
 

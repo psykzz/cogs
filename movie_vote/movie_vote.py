@@ -14,6 +14,7 @@ RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
 log = logging.getLogger("red.cog.movie_vote")
 
+
 class MovieVote(commands.Cog):
     """Manage a channel for collecting votes for what to watch next."""
 
@@ -551,6 +552,7 @@ class MovieVote(commands.Cog):
                 if str(e.id) == emoji.split(":")[2][:-1]:
                     return e
         return None
+
 
 async def http_get(url):
     max_attempts = 3

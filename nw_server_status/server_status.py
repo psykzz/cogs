@@ -20,6 +20,7 @@ default_guild = {
 logger = logging.getLogger("red.psykzz.cogs")
 logger.setLevel(logging.DEBUG)
 
+
 class ServerStatus(commands.Cog):
     "Provider server status"
 
@@ -233,6 +234,7 @@ class ServerStatus(commands.Cog):
 
         await guild_config.default_realm.set(server)
         await ctx.send(f"Server updated to '{server}'.")
+
 
 async def http_get(url):
     max_attempts = 3

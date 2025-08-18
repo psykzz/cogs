@@ -28,6 +28,7 @@ VALID_ZONES = [
     "Shattered Mountain",
 ]
 
+
 class WarTimers(commands.Cog):
     "Adds roles to people who react to a message"
 
@@ -189,8 +190,10 @@ class WarTimers(commands.Cog):
             return None
         return VALID_ZONES[lower_zones.index(zone.lower())]
 
+
 RFC1123_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
 INFRACTION_FORMAT = "%Y-%m-%d %H:%M"
+
 
 def _stringify_time_unit(value: int, unit: str) -> str:
     """
@@ -209,6 +212,7 @@ def _stringify_time_unit(value: int, unit: str) -> str:
         return f"less than a {unit[:-1]}"
     else:
         return f"{value} {unit}"
+
 
 def humanize_delta(
     delta: relativedelta, precision: str = "seconds", max_units: int = 6

@@ -13,6 +13,7 @@ default_guild = {
 
 log = logging.getLogger("red.cog.empty_voices")
 
+
 class EmptyVoices(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

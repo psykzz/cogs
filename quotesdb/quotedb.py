@@ -14,6 +14,7 @@ default_guild = {
     },
 }
 
+
 class QuoteDB(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
