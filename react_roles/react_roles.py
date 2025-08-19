@@ -1,7 +1,3 @@
-import datetime
-import logging
-import random
-
 import discord
 from redbot.core import Config, commands
 
@@ -82,7 +78,6 @@ class RoleReacts(commands.Cog):
         await guild_config.watching.set(watching)
         await message.remove_reaction(react, ctx.me)
         await ctx.send("Reaction removed.")
-        
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

@@ -4,14 +4,12 @@ from dateutil.relativedelta import relativedelta
 
 from redbot.core import Config, commands
 from redbot.core.utils.predicates import ReactionPredicate
-from redbot.core.utils.menus import start_adding_reactions
 
 IDENTIFIER = 4175987634259872345  # Random to this cog
 
 default_guild = {
     "timers": {},
 }
-
 
 VALID_ZONES = [
     "Everfall",
@@ -89,7 +87,7 @@ class WarTimers(commands.Cog):
 
         zone, timer = upcoming_war
         if not zone:
-            await ctx.send(f"There are no upcoming wars.")
+            await ctx.send("There are no upcoming wars.")
             return
         relative_time = relativedelta(timer, datetime.datetime.now())
         await ctx.send(
@@ -103,7 +101,7 @@ class WarTimers(commands.Cog):
 
         relative_delta = commands.parse_relativedelta(relative_time)
         if not relative_delta:
-            await ctx.send(f"Unable to parse timestamp, try 24h3m or something else.")
+            await ctx.send("Unable to parse timestamp, try 24h3m or something else.")
             return
 
         war_time = datetime.datetime.now() + relative_delta
@@ -123,11 +121,11 @@ class WarTimers(commands.Cog):
         )
 
         # defenders = await self.ask_question(ctx, "Who are the defenders?", {
-        #     ":x:": None, ":regional_indicator_c:": "Covenant", 
+        #     ":x:": None, ":regional_indicator_c:": "Covenant",
         #     ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"
         # })
         # attackers = await self.ask_question(ctx, "Who are the attackers?", {
-        #     ":x:": None, ":regional_indicator_c:": "Covenant", 
+        #     ":x:": None, ":regional_indicator_c:": "Covenant",
         #     ":regional_indicator_s:": "Syndicate", ":regional_indicator_m:": "Marauders"
         # })
         # await ctx.send(f"Def: {defenders}, Attk: {attackers}")

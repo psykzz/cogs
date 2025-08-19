@@ -11,6 +11,7 @@ XENOMORPH_MINOR_VICTORY = "Xenomorph Minor Victory"
 SOM_MAJOR_VICTORY = "Sons of Mars Major Victory"
 SOM_MINOR_VICTORY = "Sons of Mars Minor Victory"
 
+
 async def http_get(url):
     max_attempts = 3
     attempt = 0
@@ -51,7 +52,7 @@ class TGMC(commands.Cog):
         winrates.type = "rich"
 
         winrates.set_author(
-            name="TGMC Statbus", url=f"https://statbus.psykzz.com",
+            name="TGMC Statbus", url="https://statbus.psykzz.com",
         )
 
         result_type = [
@@ -80,7 +81,7 @@ class TGMC(commands.Cog):
             )
         else:
             winrates.add_field(
-                name="Winrate (Marine wins)", value=f"`Not enough data`"
+                name="Winrate (Marine wins)", value="`Not enough data`"
             )
         winrates.add_field(
             name="View Raw",
@@ -98,13 +99,13 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def all(self, ctx, delta="14"):
         "Get the current winrates"
-        return await self.get_winrate(ctx, delta, None) # None should get all winrates together
+        return await self.get_winrate(ctx, delta, None)  # None should get all winrates together
 
     @winrates.command(aliases=["distresssignal", "distress-signal", "ds"])
     async def distress(self, ctx, delta="14"):
         "Get the current winrates on distress"
         return await self.get_winrate(ctx, delta, "Distress Signal")
-        
+
     @winrates.command()
     async def crash(self, ctx, delta="14"):
         "Get the current winrates on crash"

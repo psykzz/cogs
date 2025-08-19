@@ -12,7 +12,6 @@ ishtakar_world_id = "3f1cd819f97e"
 default_server = "Ishtakar"
 realm_data_url = "https://nwdb.info/server-status/data.json"
 
-
 default_guild = {
     "default_realm": "Ishtakar",
     "server_channel": None,
@@ -66,7 +65,6 @@ class ServerStatus(commands.Cog):
         except Exception:
             logger.exception("Exception while downloading new data")
 
-
     def parse_server(self, server):
         (
             connectionCountMax,
@@ -100,7 +98,6 @@ class ServerStatus(commands.Cog):
     async def get_guild_monitor_channel(self, guild):
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.server_channel()
-        realm_name = await guild_config.default_realm()
 
         # Check if the channel is valid
         if not channel_id or channel_id == "0":
@@ -113,12 +110,13 @@ class ServerStatus(commands.Cog):
             await guild_config.server_channel.set(None)
             return
         return channel
-        
 
     async def update_guild_channel(self, guild):
         logger.info(f"Updating guild {guild}...")
         channel = await self.get_guild_monitor_channel(guild)
 
+        guild_config = self.config.guild(guild)
+        realm_name = await guild_config.default_realm()
         server_status = await self.get_server_status(realm_name)
         if not server_status:
             return
@@ -130,12 +128,10 @@ class ServerStatus(commands.Cog):
             return
         await channel.edit(name=new_channel_name)
 
-
     async def update_monitor_channels(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
             self.update_guild_channel(guild)
-
 
     async def get_server_status(self, server_name, data=None):
         if not data:
@@ -153,7 +149,6 @@ class ServerStatus(commands.Cog):
             return f"{server_name}: {online}/{max_online} Offline - Server maintenance"
         return f"{server_name}: {online}/{max_online} Online - {in_queue} in queue."
 
-
     async def get_world_id(self, server_name):
         if not self.queue_data:
             return
@@ -161,7 +156,6 @@ class ServerStatus(commands.Cog):
         if not server_data:
             return
         return server_data.get("worldId")
-
 
     @commands.command()
     async def queue(self, ctx, server: str = None):
@@ -179,7 +173,6 @@ class ServerStatus(commands.Cog):
         data = await self.get_queue_data(worldId=worldId)
         msg = await self.get_server_status(server, data)
         await ctx.send(msg)
-
 
     @commands.command()
     @commands.guild_only()
@@ -201,9 +194,8 @@ class ServerStatus(commands.Cog):
         if voice_channel:
             await ctx.send(f"Setup {voice_channel} as the monitor channel.")
         else:
-            await ctx.send(f"Disabled monitor channel.")
+            await ctx.send("Disabled monitor channel.")
 
-    
     @commands.command()
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
@@ -222,7 +214,6 @@ class ServerStatus(commands.Cog):
 
         await self.update_guild_channel(ctx.guild)
         await ctx.send("Forced monitor channel update.")
-
 
     @commands.command()
     @commands.guild_only()
