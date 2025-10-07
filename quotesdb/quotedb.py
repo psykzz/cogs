@@ -1,5 +1,4 @@
 import datetime
-import logging
 import random
 
 import discord
@@ -14,6 +13,7 @@ default_guild = {
         "trigger": {},
     },
 }
+
 
 class QuoteDB(commands.Cog):
     def __init__(self, bot):
@@ -49,7 +49,7 @@ class QuoteDB(commands.Cog):
     @commands.command(name="..")
     async def quote_show(self, ctx, *, trigger: str):
         'Show a quote'
-        
+
         guild_group = self.config.guild(ctx.guild)
 
         trigger_data = await guild_group.quotes.trigger()
@@ -95,7 +95,7 @@ class QuoteDB(commands.Cog):
             await ctx.send(f"{ctx.author.mention}, invalid quote id.")
             return
         data = quotes[qid]
-            
+
         member = discord.utils.find(lambda m: m.id == data['user'], ctx.channel.guild.members)
 
         log = discord.Embed()
@@ -111,11 +111,11 @@ class QuoteDB(commands.Cog):
             inline=False
         )
         log.add_field(
-            name=f"Author",
+            name="Author",
             value=f"{member}",
         )
         log.add_field(
-            name=f"Created",
+            name="Created",
             value=f"{created_at}",
         )
 

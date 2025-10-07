@@ -1,5 +1,6 @@
 from .api import EmptyVoices
 
+
 async def setup(bot):
     await bot.add_cog(EmptyVoices(bot))
 

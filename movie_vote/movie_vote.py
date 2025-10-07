@@ -14,6 +14,7 @@ RE_IMDB_LINK = re.compile(r"(https:\/\/www\.imdb\.com\/title\/tt\d+)")
 
 log = logging.getLogger("red.cog.movie_vote")
 
+
 class MovieVote(commands.Cog):
     """Manage a channel for collecting votes for what to watch next."""
 
@@ -34,7 +35,6 @@ class MovieVote(commands.Cog):
     async def red_delete_data_for_user(self, **kwargs):
         """Nothing to delete."""
         return
-    
 
     async def get_latest_episodes(self, imdb_id: str) -> Union[Dict[str, Any], None]:
         """Get the latest episodes from vidsrc"""
@@ -47,8 +47,7 @@ class MovieVote(commands.Cog):
         all_data = response.get('result', [])
         log.info("Checking %s episodes against '%s'", len(all_data), imdb_id)
         return next((x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"), None)
-        
-    
+
     @commands.group(autohelp=False)
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
@@ -57,7 +56,7 @@ class MovieVote(commands.Cog):
 
         if ctx.invoked_subcommand is not None:
             return
-        
+
         await ctx.send_help()
 
         guild_data = await self.config.guild(ctx.guild).all()
@@ -104,9 +103,13 @@ class MovieVote(commands.Cog):
             return
 
         imdb_data = imdb.get_movie(imdb_id)
-        embed =  discord.Embed(title=f"🎬 {episode.get('show_title', '')}", description=f"Episode found! Link: {episode.get('embed_url', '')}", url=episode.get('embed_url', ''))
+        embed = discord.Embed(
+            title=f"🎬 {episode.get('show_title', '')}",
+            description=f"Episode found! Link: {episode.get('embed_url', '')}",
+            url=episode.get('embed_url', '')
+        )
         embed.add_field(name="Season", value=episode.get('season', ''), inline=True)
-        embed.add_field(name=f"Episode", value=episode.get('episode', ''), inline=True)
+        embed.add_field(name="Episode", value=episode.get('episode', ''), inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
         await ctx.reply(embed=embed)
 
@@ -115,8 +118,6 @@ class MovieVote(commands.Cog):
         'Loop through all the movies, update their imdb data'
         await self.update_movies(ctx)
         await ctx.reply("Updating, this might take some time.")
-
-
 
     @movie.command(name="on")
     async def _movievote_on(self, ctx):
@@ -227,7 +228,7 @@ class MovieVote(commands.Cog):
     async def _movievote_next(self, ctx):
         """Get the next movie to watch.
         Looks at all movies (minus those marked watched) returns the one with the highest score."""
-            
+
         movies = await self.config.guild(ctx.guild).movies()
         if not movies:
             await ctx.send("No movies in the list.")
@@ -242,9 +243,12 @@ class MovieVote(commands.Cog):
         movie = movies[0]
 
         imdb_data = imdb.get_movie(movie['imdb_id'])
-        embed =  discord.Embed(title=f"🎬 {movie['title']} ({movie['year']})", description=f"_{', '.join(movie['genres'])}_")
-        embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
-        embed.add_field(name=f"Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
+        embed = discord.Embed(
+            title=f"🎬 {movie['title']} ({movie['year']})",
+            description=f"_{', '.join(movie['genres'])}_"
+        )
+        embed.add_field(name="Score", value=f"{movie['score']}", inline=True)
+        embed.add_field(name="Stream", value=f"https://vidsrc.me/embed/tt{movie['imdb_id']}", inline=True)
         embed.set_thumbnail(url=imdb_data.get_fullsizeURL())
 
         await ctx.reply(embed=embed)
@@ -253,9 +257,10 @@ class MovieVote(commands.Cog):
     async def _movievote_pinboard(self, ctx):
         """
             Get the movie pinboard.
-            The pinboard will be updated each time a movie is added or removed from the list and show the top 5 movies next to be watched.
+            The pinboard will be updated each time a movie is added or removed from the list
+            and show the top 5 movies next to be watched.
         """
-        
+
         movies = await self.config.guild(ctx.guild).movies()
         if not movies:
             await ctx.send("No movies in the list.")
@@ -268,19 +273,17 @@ class MovieVote(commands.Cog):
         try:
             leaderboard_id = await self.config.guild(ctx.guild).leaderboard()
             if leaderboard_id:
-                leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
+                leaderboard_msg = await ctx.channel.fetch_message(leaderboard_id)
                 await leaderboard_msg.unpin()
                 await leaderboard_msg.delete()
-        except:
+        except Exception:
             log.error("unable to find delete and unpin previous message")
-            pass
-
 
         # Save the leaderboard message ID so we can edit it later
         await self.config.guild(ctx.guild).leaderboard.set(leaderboard.id)
 
     @movie.command(name="leaderboard")
-    async def _movievote_leaderboard(self, ctx, watched_only = True):
+    async def _movievote_leaderboard(self, ctx, watched_only=True):
         """
             Get the movie leaderboard.
         """
@@ -301,9 +304,8 @@ class MovieVote(commands.Cog):
             imdb = movie.get("imdb_id", 00000)
             return f"#{position} {title} ({year}) | https://www.imdb.com/title/tt{imdb}"
 
-        pages = [generate_page(movie, position) for position, movie in enumerate(movie_list, start=1)]
-        await menu(ctx, pages) 
-
+        pages = [generate_page(movie, position) for position, movie in enumerate(movies, start=1)]
+        await menu(ctx, pages)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -313,7 +315,7 @@ class MovieVote(commands.Cog):
             return
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -327,7 +329,6 @@ class MovieVote(commands.Cog):
         if not link:
             return
         imdb_id = link.split('/tt')[-1]
-        
 
         # Add Imdb link to movie list
         movies = await self.config.guild(message.guild).movies()
@@ -345,15 +346,15 @@ class MovieVote(commands.Cog):
             imdb_movie = imdb.get_movie(imdb_id)
             movie = {
                 "link": link, "imdb_id": imdb_id, "score": 0, "watched": False}
-            movie["title"] = imdb_movie.get("title") 
-            movie["genres"] = imdb_movie.get("genres") 
-            movie["year"] = imdb_movie.get("year") 
+            movie["title"] = imdb_movie.get("title")
+            movie["genres"] = imdb_movie.get("genres")
+            movie["year"] = imdb_movie.get("year")
             movies.append(movie)
-        except:
-            await message.reply(f"Error getting movie from IMDB.")
+        except Exception:
+            await message.reply("Error getting movie from IMDB.")
             return
         await self.config.guild(message.guild).movies.set(movies)
-    
+
         # Still need to fix error (discord.errors.NotFound) on first run of cog
         # must be due to the way the emoji is stored in settings/json
         try:
@@ -383,7 +384,7 @@ class MovieVote(commands.Cog):
 
         guild_data = await self.config.guild(message.guild).all()
         try:
-            test = guild_data["channels_enabled"]
+            guild_data["channels_enabled"]
         except KeyError:
             return
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
@@ -397,7 +398,7 @@ class MovieVote(commands.Cog):
                 break
 
         await self.update_leaderboard(message)
-        
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         channel = await self.bot.fetch_channel(payload.channel_id)
@@ -420,10 +421,9 @@ class MovieVote(commands.Cog):
 
         if user.id == self.bot.user.id:
             return
-            
+
         log.info("Reaction removed")
         await self.count_votes(message, emoji)
-
 
     async def count_votes(self, message, emoji):
         if not message.guild:
@@ -460,22 +460,20 @@ class MovieVote(commands.Cog):
         log.info(f"Updating {link} with new score: {upvotes - dnvotes}")
         for movie in movies:
             if movie["imdb_id"] == imdb_id:
-                movie["score"] = upvotes - dnvotes 
+                movie["score"] = upvotes - dnvotes
         await self.config.guild(message.guild).movies.set(movies)
 
         # Update the loadboard message with new scores
         await self.update_leaderboard(message)
-        
 
     async def update_leaderboard(self, message):
         log.info("Updating leaderboard")
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
-            
-            embed = await self.generate_leaderboard(message.guild) # type: ignore
-            await leaderboard_msg.edit(embed=embed)
 
+            embed = await self.generate_leaderboard(message.guild)  # type: ignore
+            await leaderboard_msg.edit(embed=embed)
 
     async def generate_leaderboard(self, guild: discord.Guild, limit=5, watched_only=True):
         # Save the leaderboard message ID so we can edit it later
@@ -487,7 +485,7 @@ class MovieVote(commands.Cog):
         if watched_only:
             movies = [movie for movie in movies if not movie["watched"]]
 
-        embed =  discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
+        embed = discord.Embed(title="Movie Leaderboard 🎬", description="Showing the Top 5 films to be watched")
         movies = sorted(movies, key=lambda x: x["score"], reverse=True)
 
         # sublist
@@ -498,19 +496,25 @@ class MovieVote(commands.Cog):
             ugly_field_value = ""
             for position, movie in enumerate(movie_list, start=1):
                 try:
-                    ugly_field_value += f"#{position} {movie['title']} ({movie['year']})\n_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+                    ugly_field_value += (
+                        f"#{position} {movie['title']} ({movie['year']})\n"
+                        f"_{', '.join(movie['genres'])}_\n"
+                        f"[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})\n\n\n"
+                    )
                 except Exception as e:
                     log.exception(f"Unable to parse pos: {position} - {movie['title']}", e)
-            embed.description= ugly_field_value
+            embed.description = ugly_field_value
             return embed
 
-
         for position, movie in enumerate(movie_list, start=1):
-            embed.add_field(name=f"#{position} {movie['title']} ({movie['year']})", value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})", inline=True)
-            embed.add_field(name=f"Score", value=f"{movie['score']}", inline=True)
-            embed.add_field(name=f"\u200B", value=f"\u200B") # Empty field
+            embed.add_field(
+                name=f"#{position} {movie['title']} ({movie['year']})",
+                value=f"_{', '.join(movie['genres'])}_\n[IMDB](https://www.imdb.com/title/tt{movie['imdb_id']})",
+                inline=True
+            )
+            embed.add_field(name="Score", value=f"{movie['score']}", inline=True)
+            embed.add_field(name="\u200B", value="\u200B")  # Empty field
         return embed
-
 
     # Updates movies to new format
     async def update_movie(self, original_movie):
@@ -523,12 +527,12 @@ class MovieVote(commands.Cog):
 
             # Get movie info from IMDB
             imdb_movie = imdb.get_movie(movie['imdb_id'])
-            movie["title"] = imdb_movie.get("title") 
-            movie["genres"] = imdb_movie.get("genres") 
-            movie["year"] = imdb_movie.get("year") 
+            movie["title"] = imdb_movie.get("title")
+            movie["genres"] = imdb_movie.get("genres")
+            movie["year"] = imdb_movie.get("year")
             log.info("Updated movie: %s", movie["title"])
             return movie
-        except:
+        except Exception:
             return original_movie
 
     # Loop through old movies and update them to the new format
@@ -536,7 +540,7 @@ class MovieVote(commands.Cog):
         movies = await self.config.guild(ctx.guild).movies()
         for movie in movies:
             movie = await self.update_movie(movie)
-            
+
         await self.config.guild(ctx.guild).movies.set(movies)
 
     # Helper function to fix emojis
@@ -567,4 +571,3 @@ async def http_get(url):
         except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
             attempt += 1
             await asyncio.sleep(1)
-
