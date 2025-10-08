@@ -1,4 +1,5 @@
 import logging
+import re
 import discord
 from redbot.core import Config, commands
 
@@ -127,20 +128,82 @@ class EmptyVoices(commands.Cog):
             log.error(f"Error refreshing category {category.name}: {e}")
             return
 
-        # Create a new voice channel if there is no space left in any voice channel
-        empty_public_channels = any(len(channel.members) == 0 for channel in voice_channels)
-        if not empty_public_channels:
-            log.warning(f"I should create a new channel in {category.mention}, it's full...")
-            try:
-                new_voice_channel = await category.create_voice_channel("Voice chat")
+        # Check how many temp channels we currently have in this category
+        guild_group = self.config.guild(guild)
+        temp_channels = await guild_group.emptyvoices.temp_channels()
+        current_temp_in_category = [c for c in voice_channels if c.id in temp_channels]
+        needed_channels = min_temp_channels - len(current_temp_in_category)
 
-                guild_group = self.config.guild(guild)
-                temp_channels = await guild_group.emptyvoices.temp_channels()
-                await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
-            except discord.Forbidden:
-                log.error(f"Missing permissions to create voice channel in category {category.name}")
-            except Exception as e:
-                log.error(f"Error creating voice channel in category {category.name}: {e}")
+        # Create temp channels if we don't have enough and all channels are full
+        empty_public_channels = any(len(channel.members) == 0 for channel in voice_channels)
+        if not empty_public_channels and needed_channels > 0:
+            log.warning(f"Need to create {needed_channels} channel(s) in {category.mention}...")
+
+            # Find existing numbered channels to determine gaps and next positions
+            existing_numbers = set()
+            channel_positions = {}
+
+            for channel in current_temp_in_category:
+                match = re.match(r'Voice chat - (\d+)', channel.name)
+                if match:
+                    num = int(match.group(1))
+                    existing_numbers.add(num)
+                    channel_positions[num] = channel.position
+
+            # Find available numbers (fill gaps first, then extend)
+            available_numbers = []
+            if existing_numbers:
+                max_num = max(existing_numbers)
+                # Fill gaps first
+                for i in range(1, max_num + 1):
+                    if i not in existing_numbers:
+                        available_numbers.append(i)
+                # Then extend beyond the max
+                for i in range(max_num + 1, max_num + needed_channels + 1):
+                    available_numbers.append(i)
+            else:
+                # No existing numbered channels, start from 1
+                available_numbers = list(range(1, needed_channels + 1))
+
+            # Create the needed channels
+            created_count = 0
+            for num in available_numbers[:needed_channels]:
+                try:
+                    channel_name = f"Voice chat - {num}"
+
+                    # Determine position: place after the closest lower-numbered channel
+                    position = None
+                    if channel_positions:
+                        # Find the highest position of channels with numbers less than this one
+                        lower_positions = [pos for n, pos in channel_positions.items() if n < num]
+                        if lower_positions:
+                            position = max(lower_positions) + 1
+
+                    if position is not None:
+                        new_voice_channel = await category.create_voice_channel(
+                            channel_name,
+                            position=position
+                        )
+                    else:
+                        new_voice_channel = await category.create_voice_channel(channel_name)
+
+                    temp_channels = await guild_group.emptyvoices.temp_channels()
+                    await guild_group.emptyvoices.temp_channels.set([*temp_channels, new_voice_channel.id])
+
+                    # Update tracking for next iteration
+                    channel_positions[num] = new_voice_channel.position
+                    created_count += 1
+
+                    log.info(f"Created temp channel: {channel_name} in {category.mention}")
+                except discord.Forbidden:
+                    log.error(f"Missing permissions to create voice channel in category {category.name}")
+                    break
+                except Exception as e:
+                    log.error(f"Error creating voice channel '{channel_name}' in category {category.name}: {e}")
+                    break
+
+            if created_count > 0:
+                log.info(f"Successfully created {created_count} temp channel(s) in {category.mention}")
 
         # Cleanup old channels that may no longer exist but we have the id for
         await self.cleanup_temp_channels_config(guild)
