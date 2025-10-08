@@ -8,6 +8,7 @@ default_guild = {
     "emptyvoices": {
         "watchlist": [],
         "temp_channels": [],
+        "min_temp_channels": 1,
     },
 }
 
@@ -83,6 +84,7 @@ class EmptyVoices(commands.Cog):
         log.info(f"Validating category: {category.mention}")
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
+        min_temp_channels = await guild_group.emptyvoices.min_temp_channels()
 
         public_channels = [
             c for c in category.voice_channels
@@ -97,11 +99,11 @@ class EmptyVoices(commands.Cog):
             log.warning(f"{category.mention} doesn't have public channels, not creating anything.")
             return
 
-        # If we don't have free public channels then we should keep a voice channel, try to delete all but the first.
+        # If we don't have free public channels then we should keep min_temp_channels, try to delete the rest.
         # otherwise, if there is a public channel free, try to remove all the channels.
         if not empty_public_channels:
-            # We always keep the first channel.
-            for channel in empty_temp_channels[1:]:
+            # We always keep the first min_temp_channels channels.
+            for channel in empty_temp_channels[min_temp_channels:]:
                 await self.try_delete_channel(guild, channel)
         else:
             # clear all
@@ -351,3 +353,27 @@ class EmptyVoices(commands.Cog):
             await ctx.send(f"{ctx.author.mention}, {category.mention} isn't on the watchlist.")
 
         await ctx.send(f"{ctx.author.mention}, there are {len(watch_list)} channels in the watchlist.")
+
+    @emptyvoices.command()
+    async def settempcount(self, ctx, count: int):
+        """Set the minimum number of temporary channels to maintain"""
+
+        if count < 0:
+            await ctx.send(f"{ctx.author.mention}, count must be 0 or greater.")
+            return
+
+        if count > 10:
+            await ctx.send(f"{ctx.author.mention}, count cannot exceed 10 to prevent channel spam.")
+            return
+
+        guild_group = self.config.guild(ctx.guild)
+        await guild_group.emptyvoices.min_temp_channels.set(count)
+        await ctx.send(f"{ctx.author.mention}, minimum temporary channels set to {count}.")
+
+    @emptyvoices.command()
+    async def gettempcount(self, ctx):
+        """Get the current minimum number of temporary channels to maintain"""
+
+        guild_group = self.config.guild(ctx.guild)
+        min_temp_channels = await guild_group.emptyvoices.min_temp_channels()
+        await ctx.send(f"{ctx.author.mention}, minimum temporary channels is set to {min_temp_channels}.")
