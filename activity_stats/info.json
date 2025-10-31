@@ -1,0 +1,13 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Activity Stats",
+    "short": "Track Discord activity and game statistics",
+    "description": "Automatically tracks what games members are playing and provides statistics on the most popular games and individual player activity.",
+    "permissions": ["Send Messages", "Read Message History"],
+    "tags": [
+        "Statistics",
+        "Games",
+        "Activity",
+        "Tracking"
+    ]
+}
