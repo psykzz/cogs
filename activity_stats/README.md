@@ -12,31 +12,33 @@ Track Discord activity and keep statistics on the most played games across all m
 
 ## Commands
 
+All commands are grouped under the `!activity` command.
+
 ### User Commands
 
-#### `!topgames [limit]`
+#### `!activity topgames [limit]`
 Shows the most played games on the server.
 - **limit**: Number of games to display (default: 10)
-- **Example**: `!topgames 5` - Shows top 5 games
+- **Example**: `!activity topgames 5` - Shows top 5 games
 
-#### `!mygames [user]`
+#### `!activity mygames [user]`
 Shows game statistics for yourself or another user.
 - **user**: Optional - The user to check (default: yourself)
-- **Example**: `!mygames @JohnDoe` - Shows JohnDoe's game stats
+- **Example**: `!activity mygames @JohnDoe` - Shows JohnDoe's game stats
 
-#### `!gameinfo <game_name>`
+#### `!activity gameinfo <game_name>`
 Shows detailed statistics for a specific game.
 - **game_name**: The name of the game to check
-- **Example**: `!gameinfo Minecraft` - Shows stats for Minecraft
+- **Example**: `!activity gameinfo Minecraft` - Shows stats for Minecraft
 
 ### Admin Commands
 
 Requires "Manage Server" permission.
 
-#### `!activitystats info`
+#### `!activity info`
 Shows statistics about the tracking system (total games tracked, users with stats, currently playing).
 
-#### `!activitystats clear`
+#### `!activity clear`
 Clears all activity statistics for the server.
 
 ## How It Works
@@ -67,7 +69,7 @@ Statistics are stored per-guild, so each server has its own independent tracking
 ## Example Usage
 
 ```
-User: !topgames 5
+User: !activity topgames 5
 Bot: 🎮 Top 5 Games on My Server
      1. Minecraft: 245h 30m
      2. League of Legends: 189h 15m
@@ -75,13 +77,13 @@ Bot: 🎮 Top 5 Games on My Server
      4. Valorant: 134h 20m
      5. World of Warcraft: 98h 10m
 
-User: !mygames
+User: !activity mygames
 Bot: 🎮 YourName's Games
      1. Minecraft: 45h 30m
      2. Among Us: 23h 15m
      3. Valorant: 12h 45m
 
-User: !gameinfo Minecraft
+User: !activity gameinfo Minecraft
 Bot: 🎮 Minecraft
      Total playtime: 245h 30m
      Players: 12

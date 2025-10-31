@@ -98,7 +98,12 @@ class ActivityStats(commands.Cog):
                         del last_activity_update[user_id_str]
 
     @commands.guild_only()
-    @commands.command(name="topgames")
+    @commands.group(name="activity", invoke_without_command=True)
+    async def activity_group(self, ctx):
+        """Activity tracking commands."""
+        await ctx.send_help()
+
+    @activity_group.command(name="topgames")
     async def top_games(self, ctx, limit: int = 10):
         """Show the most played games on this server.
 
@@ -132,8 +137,7 @@ class ActivityStats(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.guild_only()
-    @commands.command(name="mygames")
+    @activity_group.command(name="mygames")
     async def my_games(self, ctx, user: Optional[discord.Member] = None):
         """Show game statistics for yourself or another user.
 
@@ -168,8 +172,7 @@ class ActivityStats(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.guild_only()
-    @commands.command(name="gameinfo")
+    @activity_group.command(name="gameinfo")
     async def game_info(self, ctx, *, game_name: str):
         """Show detailed statistics for a specific game.
 
@@ -230,15 +233,8 @@ class ActivityStats(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.guild_only()
-    @commands.group(name="activitystats")
+    @activity_group.command(name="clear")
     @commands.has_permissions(manage_guild=True)
-    async def activity_stats_admin(self, ctx):
-        """Admin commands for activity statistics."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
-
-    @activity_stats_admin.command(name="clear")
     async def clear_stats(self, ctx):
         """Clear all activity statistics for this server."""
         guild_config = self.config.guild(ctx.guild)
@@ -247,7 +243,8 @@ class ActivityStats(commands.Cog):
         await guild_config.last_activity.set({})
         await ctx.send("✅ All activity statistics have been cleared!")
 
-    @activity_stats_admin.command(name="info")
+    @activity_group.command(name="info")
+    @commands.has_permissions(manage_guild=True)
     async def stats_info(self, ctx):
         """Show statistics about the tracking system."""
         guild_config = self.config.guild(ctx.guild)
