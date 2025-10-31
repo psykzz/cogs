@@ -1,4 +1,4 @@
-import datetime
+import time
 from typing import Optional
 
 import discord
@@ -32,7 +32,7 @@ class ActivityStats(commands.Cog):
         guild_config = self.config.guild(after.guild)
 
         # Get the current timestamp
-        now = datetime.datetime.now().timestamp()
+        now = time.time()
 
         # Check if user was playing a game before
         before_game = self._get_game_name(before)
@@ -93,6 +93,9 @@ class ActivityStats(commands.Cog):
             async with guild_config.last_activity() as last_activity_update:
                 if user_id_str in last_activity_update and game_name in last_activity_update[user_id_str]:
                     del last_activity_update[user_id_str][game_name]
+                    # Clean up empty user entries
+                    if not last_activity_update[user_id_str]:
+                        del last_activity_update[user_id_str]
 
     @commands.guild_only()
     @commands.command(name="topgames")
