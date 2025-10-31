@@ -12,22 +12,7 @@ default_guild = {
 }
 
 log = logging.getLogger("red.cog.empty_voices")
-
-
-class EmptyVoices(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-        self.config = Config.get_conf(
-            self, identifier=IDENTIFIER, force_registration=True
-        )
-
-        self.config.register_guild(**default_guild)
-
-    async def cleanup_temp_channels_config(self, guild: discord.Guild):
-        """Cleanup old channel ids that may have been deleted or moved manually outside of the bot"""
-        guild_group = self.config.guild(guild)
-        temp_channels = await guild_group.emptyvoices.temp_channels()
+nels()
         new_channels = []
         for channel_id in temp_channels:
             channel = guild.get_channel_or_thread(channel_id)
