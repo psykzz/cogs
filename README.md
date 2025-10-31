@@ -6,3 +6,9 @@ Cogs for redbot
 > You need to ensure you have the downloader enabled `.load downloader`
 
 `.repo add psykzz-cogs https://github.com/psykzz/cogs`
+
+
+
+### Author
+
+Built by psykzz
