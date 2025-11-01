@@ -17,6 +17,7 @@ class ActivityStats(commands.Cog):
         )
 
         default_guild = {
+            "enabled": True,  # Whether tracking is enabled for this guild
             "game_stats": {},  # {game_name: total_seconds}
             "user_game_stats": {},  # {user_id: {game_name: total_seconds}}
             "last_activity": {},  # {user_id: {game_name: timestamp}}
@@ -30,6 +31,11 @@ class ActivityStats(commands.Cog):
             return
 
         guild_config = self.config.guild(after.guild)
+
+        # Check if tracking is enabled for this guild
+        enabled = await guild_config.enabled()
+        if not enabled:
+            return
 
         # Get the current timestamp
         now = time.time()
@@ -248,6 +254,7 @@ class ActivityStats(commands.Cog):
     async def stats_info(self, ctx):
         """Show statistics about the tracking system."""
         guild_config = self.config.guild(ctx.guild)
+        enabled = await guild_config.enabled()
         game_stats = await guild_config.game_stats()
         user_game_stats = await guild_config.user_game_stats()
         last_activity = await guild_config.last_activity()
@@ -260,8 +267,31 @@ class ActivityStats(commands.Cog):
             title="📊 Activity Stats Info",
             color=discord.Color.orange(),
         )
+        embed.add_field(name="Status", value="✅ Enabled" if enabled else "❌ Disabled", inline=True)
         embed.add_field(name="Games Tracked", value=str(total_games), inline=True)
         embed.add_field(name="Users with Stats", value=str(total_users), inline=True)
         embed.add_field(name="Currently Playing", value=str(active_users), inline=True)
 
         await ctx.send(embed=embed)
+
+    @activity_group.group(name="set", invoke_without_command=True)
+    @commands.has_permissions(manage_guild=True)
+    async def set_config(self, ctx):
+        """Configure activity tracking settings."""
+        await ctx.send_help()
+
+    @set_config.command(name="enabled")
+    @commands.has_permissions(manage_guild=True)
+    async def set_enabled(self, ctx):
+        """Enable activity tracking for this server."""
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.enabled.set(True)
+        await ctx.send("✅ Activity tracking has been **enabled** for this server!")
+
+    @set_config.command(name="disabled")
+    @commands.has_permissions(manage_guild=True)
+    async def set_disabled(self, ctx):
+        """Disable activity tracking for this server."""
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.enabled.set(False)
+        await ctx.send("✅ Activity tracking has been **disabled** for this server!")

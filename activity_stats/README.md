@@ -36,10 +36,16 @@ Shows detailed statistics for a specific game.
 Requires "Manage Server" permission.
 
 #### `!activity info`
-Shows statistics about the tracking system (total games tracked, users with stats, currently playing).
+Shows statistics about the tracking system (tracking status, total games tracked, users with stats, currently playing).
 
 #### `!activity clear`
 Clears all activity statistics for the server.
+
+#### `!activity set enabled`
+Enables activity tracking for this server. Tracking is enabled by default.
+
+#### `!activity set disabled`
+Disables activity tracking for this server. No new activity will be tracked until re-enabled.
 
 ## How It Works
 
@@ -49,6 +55,8 @@ The cog listens for Discord presence updates (when users start or stop playing g
 - **Active sessions** to calculate duration when games are stopped
 
 Statistics are stored per-guild, so each server has its own independent tracking.
+
+**Note:** Tracking is enabled by default for all servers. Server administrators can disable tracking at any time using `!activity set disabled`.
 
 ## Privacy Notes
 
