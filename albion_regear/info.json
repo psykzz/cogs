@@ -1,0 +1,15 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Albion Regear",
+    "short": "Get regear costs for Albion Online deaths",
+    "description": "Calculates the cost to regear after a death in Albion Online using the unofficial game APIs.",
+    "permissions" : ["Send Messages"],
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
+    "tags": [
+        "Albion Online",
+        "API",
+        "Game"
+    ]
+}
