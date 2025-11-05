@@ -237,7 +237,7 @@ Update `.github/copilot-instructions.md` in the following scenarios:
 After updating copilot instructions, verify:
 ```bash
 # Ensure the markdown is valid (no broken formatting)
-cat .github/copilot-instructions.md | head -50
+head -50 .github/copilot-instructions.md
 
 # Verify all cogs are documented (excludes .github directory)
 ls -d */ | grep -v '.github/' | sed 's|/||' | sort > /tmp/cogs_actual.txt
