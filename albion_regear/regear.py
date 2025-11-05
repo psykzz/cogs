@@ -148,8 +148,19 @@ class AlbionRegear(commands.Cog):
             # Format the cost with commas for readability
             formatted_cost = f"{total_cost:,}"
 
+            # Build item breakdown
+            item_breakdown = ""
+            if priced_items:
+                lines = ["\n**Item Costs:**"]
+                for item in priced_items:
+                    item_name = item["type"]
+                    item_price = f"{item['price']:,}"
+                    lines.append(f"- {item_name}: {item_price} silver")
+                item_breakdown = "\n".join(lines) + "\n"
+
             # Send response
             await ctx.send(
                 f"**Regear cost for {player_name}:** {formatted_cost} silver\n"
+                f"{item_breakdown}"
                 f"Killboard: {killboard_url}"
             )
