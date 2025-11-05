@@ -43,10 +43,21 @@ flake8 . --count --statistics
 Each cog follows this structure:
 ```
 cog_name/
-├── __init__.py          # Cog registration
+├── __init__.py          # Cog registration with async setup
 ├── main_file.py         # Main implementation
 └── info.json           # Metadata and dependencies
 ```
+
+### Cog Registration Pattern
+All cogs use async setup functions in `__init__.py`:
+```python
+from .cog_name import CogClass
+
+async def setup(bot):
+    await bot.add_cog(CogClass(bot))
+```
+
+**IMPORTANT**: When creating new cogs or updating existing ones, always use the async setup pattern shown above. This is the modern Red-bot convention and ensures compatibility with the bot framework.
 
 ### Key Cogs
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)

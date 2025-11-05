@@ -2,7 +2,7 @@
     "author": ["PsyKzz"],
     "name": "User",
     "short": "Manage bot user settings",
-    "description": "Commands to manage the bot's nickname in a guild and avatar globally.",
+    "description": "Commands to manage the bot's nickname and avatar in a guild.",
     "permissions" : ["Manage Nicknames", "Send Messages"],
     "tags": [
         "Bot",
