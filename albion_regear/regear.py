@@ -43,7 +43,7 @@ class AlbionRegear(commands.Cog):
     async def get_latest_death(self, player_id):
         """Get the latest death event for a player"""
         url = f"https://gameinfo-ams.albiononline.com/api/gameinfo/players/{player_id}/deaths"
-        result = await http_get(url, params)
+        result = await http_get(url)
 
         if result and len(result) > 0:
             return result[0]
