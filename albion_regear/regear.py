@@ -8,7 +8,7 @@ async def http_get(url, params=None):
     """Make HTTP GET request with retries"""
     max_attempts = 3
     attempt = 0
-    while max_attempts > attempt:
+    while attempt < max_attempts:
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(url, params=params, timeout=10.0)
@@ -17,8 +17,8 @@ async def http_get(url, params=None):
                 return r.json()
             else:
                 attempt += 1
-            await asyncio.sleep(2)
-        except (httpx.ConnectTimeout, httpx.HTTPError):
+                await asyncio.sleep(2)
+        except (httpx.ConnectTimeout, httpx.RequestError):
             attempt += 1
             await asyncio.sleep(2)
     return None
