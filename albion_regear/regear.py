@@ -83,9 +83,8 @@ class AlbionRegear(commands.Cog):
         # Build URL with item list in path and use Bridgewatch location
         item_list = ",".join(item_ids)
         log.info(f"Fetching prices for {len(item_ids)} items: {item_ids}")
-        url = f"https://europe.albion-online-data.com/api/v2/stats/prices/{item_list}"
-        params = {"locations": "Bridgewatch", "qualities": "1"}
-        result = await http_get(url, params)
+        url = f"https://europe.albion-online-data.com/api/v2/stats/prices/{item_list}?locations=Bridgewatch&qualities=1"
+        result = await http_get(url)
 
         if not result:
             log.error("Failed to fetch item prices - API returned no data")
