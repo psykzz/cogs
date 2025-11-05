@@ -41,6 +41,20 @@ class AlbionRegear(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def normalize_quality(self, quality):
+        """Normalize quality value for price lookups
+
+        Consumables (potions, food) have Quality=0 in death events,
+        but the price API only provides Q1 prices for them.
+
+        Args:
+            quality: Quality value from death event (0-5)
+
+        Returns:
+            Normalized quality value for price lookup (1-5)
+        """
+        return 1 if quality == 0 else quality
+
     async def search_player(self, name):
         """Search for a player by name"""
         log.info(f"Searching for player: {name}")
@@ -102,6 +116,7 @@ class AlbionRegear(commands.Cog):
         price_data = {}
         for item_data in result:
             item_id = item_data.get("item_id")
+            # API always returns quality field, but use 0 as failsafe default
             quality = item_data.get("quality", 0)
             sell_price_min = item_data.get("sell_price_min", 0)
 
@@ -147,9 +162,8 @@ class AlbionRegear(commands.Cog):
             if item and item.get("Type"):
                 item_type = item["Type"]
                 item_quality = item.get("Quality", 1)  # Default to quality 1 if not specified
-                # Consumables (potions, food) have Quality=0, but API only has Q1 prices for them
-                if item_quality == 0:
-                    item_quality = 1
+                # Normalize quality for price lookups (Q0 -> Q1 for consumables)
+                item_quality = self.normalize_quality(item_quality)
                 item_count = item.get("Count", 1)
                 log.info(f"  - {slot}: {item_type} Q{item_quality} (Count: {item_count})")
                 items_with_quality[item_type] = item_quality
