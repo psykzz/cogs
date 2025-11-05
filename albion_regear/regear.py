@@ -91,20 +91,20 @@ class AlbionRegear(commands.Cog):
             log.error("Failed to fetch item prices - API returned no data")
             return {}
 
-        # Create a map of item_id -> buy_price_max
+        # Create a map of item_id -> sell_price_min
         price_map = {}
         for item_data in result:
             item_id = item_data.get("item_id")
-            buy_price_max = item_data.get("buy_price_max", 0)
-            # Avoid extreme values by checking if buy_price_max is reasonable
-            if buy_price_max and buy_price_max > 0:
+            sell_price_min = item_data.get("sell_price_min", 0)
+            # Avoid extreme values by checking if sell_price_min is reasonable
+            if sell_price_min and sell_price_min > 0:
                 # Use existing price or take the max across cities
-                if item_id not in price_map or buy_price_max > price_map[item_id]:
-                    price_map[item_id] = buy_price_max
-                    log.info(f"Price found for {item_id}: {buy_price_max} silver")
+                if item_id not in price_map or sell_price_min > price_map[item_id]:
+                    price_map[item_id] = sell_price_min
+                    log.info(f"Price found for {item_id}: {sell_price_min} silver")
             else:
                 msg = f"No valid price found for item: {item_id}"
-                msg += f" (buy_price_max={buy_price_max})"
+                msg += f" (sell_price_min={sell_price_min})"
                 log.warning(msg)
 
         # Log items that didn't get prices
