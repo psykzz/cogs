@@ -78,7 +78,7 @@ pip3 install dependency_name==version
 # For movie_vote cog
 pip3 install cinemagoer==2022.12.27
 
-# For albion_regear, nw_server_status, and tgmc cogs  
+# For albion_regear and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
 
 # For Discord functionality (if testing imports)
@@ -241,7 +241,7 @@ cat .github/copilot-instructions.md | head -50
 
 # Verify all cogs are documented (excludes .github directory)
 ls -d */ | grep -v '.github/' | sed 's|/||' | sort > /tmp/cogs_actual.txt
-grep -E "^\- \*\*[a-z_]+/\*\*:" .github/copilot-instructions.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
+grep -E "^\- \*\*[^/]+/\*\*:" .github/copilot-instructions.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
 diff /tmp/cogs_actual.txt /tmp/cogs_documented.txt
 ```
 
