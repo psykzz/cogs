@@ -151,11 +151,12 @@ class AlbionRegear(commands.Cog):
             # Build item breakdown
             item_breakdown = ""
             if priced_items:
-                item_breakdown = "\n**Item Costs:**\n"
+                lines = ["\n**Item Costs:**"]
                 for item in priced_items:
                     item_name = item["type"]
                     item_price = f"{item['price']:,}"
-                    item_breakdown += f"- {item_name}: {item_price} silver\n"
+                    lines.append(f"- {item_name}: {item_price} silver")
+                item_breakdown = "\n".join(lines) + "\n"
 
             # Send response
             await ctx.send(
