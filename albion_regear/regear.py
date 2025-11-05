@@ -55,9 +55,10 @@ class AlbionRegear(commands.Cog):
         if not item_ids:
             return {}
 
-        url = "https://europe.albion-online-data.com/api/v2/stats/prices"
-        # Join item IDs with comma for bulk query
-        params = {"items": ",".join(item_ids)}
+        # Build URL with item list in path and use Bridgewatch location
+        item_list = ",".join(item_ids)
+        url = f"https://europe.albion-online-data.com/api/v2/stats/prices/{item_list}"
+        params = {"locations": "Bridgewatch", "qualities": "1"}
         result = await http_get(url, params)
 
         if not result:
