@@ -32,10 +32,12 @@ class User(commands.Cog):
         except discord.HTTPException as e:
             await ctx.send(f"❌ Failed to change nickname: {e}")
 
-    @commands.guild_only()
     @_user.command(name="avatar")
     async def _avatar(self, ctx):
-        """Change the bot's avatar using an attached image"""
+        """Change the bot's avatar globally using an attached image
+
+        Note: This changes the bot's avatar everywhere, not just in this server.
+        """
         if not ctx.message.attachments:
             await ctx.send("❌ Please attach an image to use as the new avatar.")
             return

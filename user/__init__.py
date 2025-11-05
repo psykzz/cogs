@@ -6,4 +6,4 @@ def setup(bot):
 
 
 __version__ = "1.0.0"
-__author__ = "psykzz"
+__author__ = "PsyKzz"
