@@ -240,8 +240,8 @@ After updating copilot instructions, verify:
 cat .github/copilot-instructions.md | head -50
 
 # Verify all cogs are documented
-ls -d */ | sort > /tmp/cogs_actual.txt
-grep -E "^\- \*\*[a-z_]+/\*\*:" .github/copilot-instructions.md | sed 's/.*\*\*\([^/]*\).*/\1/' | sort > /tmp/cogs_documented.txt
+ls -d */ | sed 's|/||' | sort > /tmp/cogs_actual.txt
+grep -E "^\- \*\*[a-z_]+/\*\*:" .github/copilot-instructions.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
 diff /tmp/cogs_actual.txt /tmp/cogs_documented.txt
 ```
 
