@@ -58,7 +58,7 @@ cog_name/
 - **nw_timers/**: New World war timers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
-- **tgmc/**: API interface for TGMC game (requires: httpx)
+- **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 
 ## Dependencies and Installation
 
@@ -239,8 +239,8 @@ After updating copilot instructions, verify:
 # Ensure the markdown is valid (no broken formatting)
 cat .github/copilot-instructions.md | head -50
 
-# Verify all cogs are documented
-ls -d */ | sed 's|/||' | sort > /tmp/cogs_actual.txt
+# Verify all cogs are documented (excludes .github directory)
+ls -d */ | grep -v '.github/' | sed 's|/||' | sort > /tmp/cogs_actual.txt
 grep -E "^\- \*\*[a-z_]+/\*\*:" .github/copilot-instructions.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
 diff /tmp/cogs_actual.txt /tmp/cogs_documented.txt
 ```
