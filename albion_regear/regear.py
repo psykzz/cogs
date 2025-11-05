@@ -70,7 +70,7 @@ class AlbionRegear(commands.Cog):
         n = len(sorted_values)
         if n % 2 == 0:
             # For even number of values, return average of middle two
-            return int((sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2)
+            return round((sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2)
         else:
             # For odd number of values, return middle value
             return sorted_values[n // 2]
