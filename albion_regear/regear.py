@@ -160,12 +160,12 @@ class AlbionRegear(commands.Cog):
 
         for item_type, item in items_to_price.items():
             price = prices.get(item_type, 0)
+            total_cost += price
             if price > 0:
-                total_cost += price
                 priced_items.append({"type": item_type, "price": price})
                 log.info(f"Item {item_type}: {price} silver added to total")
             else:
-                log.warning(f"Item {item_type}: No price available, excluded from total")
+                log.warning(f"Item {item_type}: No price available (price is 0)")
 
         msg = f"Regear cost calculation complete - Total: {total_cost} silver"
         msg += f" ({len(priced_items)}/{len(item_ids)} items priced)"
