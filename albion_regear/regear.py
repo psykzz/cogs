@@ -55,6 +55,26 @@ class AlbionRegear(commands.Cog):
         """
         return 1 if quality == 0 else quality
 
+    def calculate_median(self, values):
+        """Calculate the median of a list of values
+
+        Args:
+            values: List of numeric values
+
+        Returns:
+            Median value (int)
+        """
+        if not values:
+            return 0
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        if n % 2 == 0:
+            # For even number of values, return average of middle two
+            return round((sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2)
+        else:
+            # For odd number of values, return middle value
+            return sorted_values[n // 2]
+
     async def search_player(self, name):
         """Search for a player by name"""
         log.info(f"Searching for player: {name}")
@@ -133,7 +153,20 @@ class AlbionRegear(commands.Cog):
                 price_map[item_id] = price_data[key]
                 log.info(f"Price found for {item_id} Q{quality}: {price_data[key]} silver")
             else:
-                log.warning(f"No price found for {item_id} Q{quality}")
+                # Try to find median of available qualities for this item
+                available_prices = [
+                    price for (item, q), price in price_data.items()
+                    if item == item_id
+                ]
+                if available_prices:
+                    median_price = self.calculate_median(available_prices)
+                    price_map[item_id] = median_price
+                    log.info(
+                        f"No exact match for {item_id} Q{quality}, "
+                        f"using median of {len(available_prices)} available qualities: {median_price} silver"
+                    )
+                else:
+                    log.warning(f"No price found for {item_id} Q{quality} and no other qualities available")
 
         log.info(f"Successfully retrieved prices for {len(price_map)}/{len(items_with_quality)} items")
         return price_map
