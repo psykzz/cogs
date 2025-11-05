@@ -147,6 +147,9 @@ class AlbionRegear(commands.Cog):
             if item and item.get("Type"):
                 item_type = item["Type"]
                 item_quality = item.get("Quality", 1)  # Default to quality 1 if not specified
+                # Consumables (potions, food) have Quality=0, but API only has Q1 prices for them
+                if item_quality == 0:
+                    item_quality = 1
                 item_count = item.get("Count", 1)
                 log.info(f"  - {slot}: {item_type} Q{item_quality} (Count: {item_count})")
                 items_with_quality[item_type] = item_quality
