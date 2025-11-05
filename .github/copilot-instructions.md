@@ -59,6 +59,7 @@ cog_name/
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
+- **user/**: Bot user management with nickname and avatar commands (no external deps)
 
 ## Dependencies and Installation
 
