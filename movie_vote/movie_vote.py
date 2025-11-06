@@ -399,18 +399,22 @@ class MovieVote(commands.Cog):
 
         await self.update_leaderboard(message)
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        # Only process reactions in movie channels
+    async def _is_movie_channel(self, payload) -> bool:
+        """Check if a reaction payload is from a movie channel."""
         if not payload.guild_id:
-            return
+            return False
 
         guild = self.bot.get_guild(payload.guild_id)
         if not guild:
-            return
+            return False
 
         enabled_channels = await self.config.guild(guild).channels_enabled()
-        if payload.channel_id not in enabled_channels:
+        return payload.channel_id in enabled_channels
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        # Only process reactions in movie channels
+        if not await self._is_movie_channel(payload):
             return
 
         channel = await self.bot.fetch_channel(payload.channel_id)
@@ -427,15 +431,7 @@ class MovieVote(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         # Only process reactions in movie channels
-        if not payload.guild_id:
-            return
-
-        guild = self.bot.get_guild(payload.guild_id)
-        if not guild:
-            return
-
-        enabled_channels = await self.config.guild(guild).channels_enabled()
-        if payload.channel_id not in enabled_channels:
+        if not await self._is_movie_channel(payload):
             return
 
         channel = await self.bot.fetch_channel(payload.channel_id)
