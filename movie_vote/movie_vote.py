@@ -408,8 +408,12 @@ class MovieVote(commands.Cog):
         if not guild:
             return False
 
-        enabled_channels = await self.config.guild(guild).channels_enabled()
-        return payload.channel_id in enabled_channels
+        try:
+            enabled_channels = await self.config.guild(guild).channels_enabled()
+            return payload.channel_id in enabled_channels
+        except Exception:
+            log.exception("Error checking if channel is enabled for movie voting")
+            return False
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
