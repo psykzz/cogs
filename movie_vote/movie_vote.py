@@ -409,7 +409,7 @@ class MovieVote(commands.Cog):
         if user.id == self.bot.user.id:
             return
 
-        log.info("Reaction added. {user.name} on '{message.clean_content}'")
+        log.info(f"Reaction added. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
 
     @commands.Cog.listener()
