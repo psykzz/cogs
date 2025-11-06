@@ -177,7 +177,7 @@ class EmptyVoices(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        log.info("on_voice_state_update")
+        log.debug("on_voice_state_update")
         try:
             if await self.bot.cog_disabled_in_guild(self, member.guild):
                 log.warning("on_voice_state_update - disabled for guild")
