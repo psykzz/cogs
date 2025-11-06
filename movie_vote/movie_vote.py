@@ -409,7 +409,7 @@ class MovieVote(commands.Cog):
         if user.id == self.bot.user.id:
             return
 
-        log.info("Reaction added")
+        log.info("Reaction added. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
 
     @commands.Cog.listener()
@@ -422,7 +422,7 @@ class MovieVote(commands.Cog):
         if user.id == self.bot.user.id:
             return
 
-        log.info("Reaction removed")
+        log.info(f"Reaction removed. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
 
     async def count_votes(self, message, emoji):
