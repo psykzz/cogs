@@ -282,7 +282,7 @@ class AlbionRegear(commands.Cog):
                     unix_timestamp = int(dt.timestamp())
                     # Format for Discord: <t:timestamp:R> shows relative time
                     discord_timestamp = f"<t:{unix_timestamp}:R>"
-                    log.info(f"Death timestamp: {timestamp_str} -> Unix: {unix_timestamp}")
+                    log.debug(f"Death timestamp: {timestamp_str} -> Unix: {unix_timestamp}")
                 except (ValueError, AttributeError) as e:
                     log.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
 
