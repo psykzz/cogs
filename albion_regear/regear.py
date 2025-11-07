@@ -274,11 +274,14 @@ class AlbionRegear(commands.Cog):
 
             # Extract and format timestamp for Discord
             timestamp_str = death.get("TimeStamp", "")
-            discord_timestamp = ""
+            discord_timestamp = None
             if timestamp_str:
                 try:
                     # Parse ISO 8601 timestamp and convert to Unix epoch
-                    dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                    # Replace trailing 'Z' with '+00:00' for proper timezone handling
+                    if timestamp_str.endswith("Z"):
+                        timestamp_str = timestamp_str[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(timestamp_str)
                     unix_timestamp = int(dt.timestamp())
                     # Format for Discord: <t:timestamp:R> shows relative time
                     discord_timestamp = f"<t:{unix_timestamp}:R>"
