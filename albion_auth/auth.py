@@ -89,29 +89,39 @@ class AlbionAuth(commands.Cog):
             try:
                 await ctx.author.edit(nick=player_name)
                 log.info(f"Successfully renamed {ctx.author} to {player_name}")
-                success_msg = f"✅ Successfully authenticated! Your nickname has been changed to **{player_name}**."
-                
+                success_msg = (
+                    f"✅ Successfully authenticated! "
+                    f"Your nickname has been changed to **{player_name}**."
+                )
+
                 # Check if auth role is configured and assign it
                 auth_role_id = await self.config.guild(ctx.guild).auth_role()
                 if auth_role_id:
                     auth_role = ctx.guild.get_role(auth_role_id)
                     if auth_role:
                         try:
-                            if auth_role not in ctx.author.roles:
-                                await ctx.author.add_roles(auth_role)
-                                success_msg += f"\n✅ Assigned the **{auth_role.name}** role."
-                                log.info(f"Assigned role {auth_role.name} to {ctx.author}")
-                            else:
-                                log.info(f"User {ctx.author} already has role {auth_role.name}")
+                            await ctx.author.add_roles(auth_role)
+                            success_msg += f"\n✅ Assigned the **{auth_role.name}** role."
+                            log.info(f"Assigned role {auth_role.name} to {ctx.author}")
                         except discord.Forbidden:
-                            log.error(f"Permission denied: Cannot assign role {auth_role.name} to {ctx.author}")
-                            success_msg += f"\n⚠️ Could not assign the **{auth_role.name}** role (insufficient permissions)."
+                            log.error(
+                                f"Permission denied: Cannot assign role "
+                                f"{auth_role.name} to {ctx.author}"
+                            )
+                            success_msg += (
+                                f"\n⚠️ Could not assign the **{auth_role.name}** role "
+                                "(insufficient permissions)."
+                            )
                         except discord.HTTPException as e:
                             log.error(f"Failed to assign role {auth_role.name} to {ctx.author}: {e}")
                             success_msg += f"\n⚠️ Failed to assign the **{auth_role.name}** role: {e}"
                     else:
                         log.warning(f"Configured auth role ID {auth_role_id} not found in guild")
-                
+                        success_msg += (
+                            "\n⚠️ The configured auth role could not be found. "
+                            "Please contact an administrator."
+                        )
+
                 await ctx.send(success_msg)
             except discord.Forbidden:
                 log.error(f"Permission denied: Cannot rename {ctx.author}")
@@ -148,4 +158,3 @@ class AlbionAuth(commands.Cog):
             await self.config.guild(ctx.guild).auth_role.set(role.id)
             log.info(f"Auth role set to {role.name} (ID: {role.id}) for guild {ctx.guild.name}")
             await ctx.send(f"✅ Auth role set to **{role.name}**. This role will be assigned when users authenticate.")
-
