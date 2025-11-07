@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 
 import httpx
 from redbot.core import commands
@@ -271,6 +272,23 @@ class AlbionRegear(commands.Cog):
             event_id = death.get("EventId")
             killboard_url = f"https://albiononline.com/killboard/kill/{event_id}"
 
+            # Extract and format timestamp for Discord
+            timestamp_str = death.get("TimeStamp", "")
+            discord_timestamp = None
+            if timestamp_str:
+                try:
+                    # Parse ISO 8601 timestamp and convert to Unix epoch
+                    # Replace trailing 'Z' with '+00:00' for proper timezone handling
+                    if timestamp_str.endswith("Z"):
+                        timestamp_str = timestamp_str[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(timestamp_str)
+                    unix_timestamp = int(dt.timestamp())
+                    # Format for Discord: <t:timestamp:R> shows relative time
+                    discord_timestamp = f"<t:{unix_timestamp}:R>"
+                    log.debug(f"Death timestamp: {timestamp_str} -> Unix: {unix_timestamp}")
+                except (ValueError, AttributeError) as e:
+                    log.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
+
             # Calculate regear cost
             total_cost, priced_items, unpriced_items = await self.calculate_regear_cost(death)
 
@@ -300,10 +318,11 @@ class AlbionRegear(commands.Cog):
 
             log.info(f"Regear command successful: {player_name} - Total cost: {formatted_cost} silver")
 
+            # Build response message
+            response_msg = f"**Regear cost for {player_name}:** {formatted_cost} silver"
+            if discord_timestamp:
+                response_msg += f" (Death: {discord_timestamp})"
+            response_msg += f"\n{item_breakdown}{unpriced_breakdown}Killboard: {killboard_url}"
+
             # Send response
-            await ctx.send(
-                f"**Regear cost for {player_name}:** {formatted_cost} silver\n"
-                f"{item_breakdown}"
-                f"{unpriced_breakdown}"
-                f"Killboard: {killboard_url}"
-            )
+            await ctx.send(response_msg)
