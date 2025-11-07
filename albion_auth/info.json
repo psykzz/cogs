@@ -1,0 +1,15 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Albion Auth",
+    "short": "Authenticate and rename users with Albion Online player names",
+    "description": "Allows users to authenticate their Discord identity with their Albion Online character name. The bot will search for the player and rename them if found.",
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
+    "permissions": ["Manage Nicknames", "Send Messages"],
+    "tags": [
+        "Albion Online",
+        "Authentication",
+        "API"
+    ]
+}
