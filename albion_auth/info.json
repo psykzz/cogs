@@ -6,7 +6,6 @@
     "requirements": [
         "httpx>=0.14.1"
     ],
-    "permissions": ["Manage Nicknames", "Send Messages"],
     "tags": [
         "Albion Online",
         "Authentication",
