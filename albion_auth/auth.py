@@ -3,7 +3,7 @@ import logging
 
 import discord
 import httpx
-from redbot.core import commands
+from redbot.core import commands, Config, checks
 
 log = logging.getLogger("red.cogs.albion_auth")
 
@@ -41,6 +41,8 @@ class AlbionAuth(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=73601, force_registration=True)
+        self.config.register_guild(auth_role=None)
 
     async def search_player(self, name):
         """Search for a player by name"""
@@ -63,6 +65,7 @@ class AlbionAuth(commands.Cog):
         """Authenticate with your Albion Online character name
 
         The bot will search for the player name in Albion Online and rename you to match.
+        If an auth role is configured, it will also be assigned to you.
 
         Usage: .auth <player_name>
         Example: .auth MyCharacter
@@ -86,10 +89,40 @@ class AlbionAuth(commands.Cog):
             try:
                 await ctx.author.edit(nick=player_name)
                 log.info(f"Successfully renamed {ctx.author} to {player_name}")
-                await ctx.send(
+                success_msg = (
                     f"✅ Successfully authenticated! "
                     f"Your nickname has been changed to **{player_name}**."
                 )
+
+                # Check if auth role is configured and assign it
+                auth_role_id = await self.config.guild(ctx.guild).auth_role()
+                if auth_role_id:
+                    auth_role = ctx.guild.get_role(auth_role_id)
+                    if auth_role:
+                        try:
+                            await ctx.author.add_roles(auth_role)
+                            success_msg += f"\n✅ Assigned the **{auth_role.name}** role."
+                            log.info(f"Assigned role {auth_role.name} to {ctx.author}")
+                        except discord.Forbidden:
+                            log.error(
+                                f"Permission denied: Cannot assign role "
+                                f"{auth_role.name} to {ctx.author}"
+                            )
+                            success_msg += (
+                                f"\n⚠️ Could not assign the **{auth_role.name}** role "
+                                "(insufficient permissions)."
+                            )
+                        except discord.HTTPException as e:
+                            log.error(f"Failed to assign role {auth_role.name} to {ctx.author}: {e}")
+                            success_msg += f"\n⚠️ Failed to assign the **{auth_role.name}** role: {e}"
+                    else:
+                        log.warning(f"Configured auth role ID {auth_role_id} not found in guild")
+                        success_msg += (
+                            "\n⚠️ The configured auth role could not be found. "
+                            "Please contact an administrator."
+                        )
+
+                await ctx.send(success_msg)
             except discord.Forbidden:
                 log.error(f"Permission denied: Cannot rename {ctx.author}")
                 await ctx.send(
@@ -99,3 +132,29 @@ class AlbionAuth(commands.Cog):
             except discord.HTTPException as e:
                 log.error(f"Failed to rename {ctx.author}: {e}")
                 await ctx.send(f"❌ Failed to change your nickname: {e}")
+
+    @commands.guild_only()
+    @checks.admin_or_permissions(manage_guild=True)
+    @commands.group(name="authset")
+    async def authset(self, ctx):
+        """Configure settings for the Albion authentication system"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
+
+    @authset.command(name="authrole")
+    async def authset_authrole(self, ctx, role: discord.Role = None):
+        """Set the role to assign when someone authenticates
+
+        If no role is provided, clears the current auth role setting.
+
+        Usage: .authset authrole @role
+        Example: .authset authrole @Verified
+        """
+        if role is None:
+            await self.config.guild(ctx.guild).auth_role.set(None)
+            log.info(f"Auth role cleared for guild {ctx.guild.name}")
+            await ctx.send("✅ Auth role has been cleared. No role will be assigned on authentication.")
+        else:
+            await self.config.guild(ctx.guild).auth_role.set(role.id)
+            log.info(f"Auth role set to {role.name} (ID: {role.id}) for guild {ctx.guild.name}")
+            await ctx.send(f"✅ Auth role set to **{role.name}**. This role will be assigned when users authenticate.")
