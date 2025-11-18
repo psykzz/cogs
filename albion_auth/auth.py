@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
+from typing import Dict, List
 
 import discord
 import httpx
@@ -42,7 +44,23 @@ class AlbionAuth(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=73601, force_registration=True)
-        self.config.register_guild(auth_role=None)
+        self.config.register_guild(
+            auth_role=None,
+            verified_users={},  # {user_id: {"name": str, "last_checked": timestamp}}
+            enable_daily_check=True
+        )
+        self._check_task = None
+
+    async def cog_load(self):
+        """Start the background task when cog loads"""
+        self._check_task = self.bot.loop.create_task(self._daily_check_loop())
+        log.info("Started daily name check task")
+
+    async def cog_unload(self):
+        """Cancel the background task when cog unloads"""
+        if self._check_task:
+            self._check_task.cancel()
+            log.info("Cancelled daily name check task")
 
     async def search_player(self, name):
         """Search for a player by name"""
@@ -58,6 +76,197 @@ class AlbionAuth(commands.Cog):
 
         log.warning(f"Player '{name}' not found in search results")
         return None
+
+    async def _daily_check_loop(self):
+        """Background task to check verified users periodically"""
+        await self.bot.wait_until_ready()
+        log.info("Daily check loop started")
+
+        while True:
+            try:
+                # Run check every hour
+                await asyncio.sleep(3600)
+                await self._check_users_batch()
+            except asyncio.CancelledError:
+                log.info("Daily check loop cancelled")
+                break
+            except Exception as e:
+                log.error(f"Error in daily check loop: {e}", exc_info=True)
+                await asyncio.sleep(3600)  # Wait an hour before retrying on error
+
+    async def _check_users_batch(self):
+        """Check a batch of users (approximately 1/24th of users per hour)"""
+        log.info("Starting user batch check")
+        all_mismatches: List[Dict] = []
+
+        for guild in self.bot.guilds:
+            try:
+                enabled = await self.config.guild(guild).enable_daily_check()
+                if not enabled:
+                    log.debug(f"Daily check disabled for guild {guild.name}")
+                    continue
+
+                verified_users = await self.config.guild(guild).verified_users()
+                if not verified_users:
+                    log.debug(f"No verified users in guild {guild.name}")
+                    continue
+
+                # Get users that need checking (haven't been checked in 24 hours)
+                now = datetime.now(timezone.utc).timestamp()
+                users_to_check = []
+
+                for user_id_str, user_data in verified_users.items():
+                    last_checked = user_data.get("last_checked", 0)
+                    # Check if it's been at least 24 hours
+                    if now - last_checked >= 86400:  # 24 hours in seconds
+                        users_to_check.append((user_id_str, user_data))
+
+                if not users_to_check:
+                    log.debug(f"No users need checking in guild {guild.name}")
+                    continue
+
+                log.info(f"Checking {len(users_to_check)} users in guild {guild.name}")
+
+                # Check each user and collect mismatches
+                for user_id_str, user_data in users_to_check:
+                    try:
+                        mismatch = await self._check_single_user(guild, user_id_str, user_data)
+                        if mismatch:
+                            all_mismatches.append(mismatch)
+
+                        # Small delay between checks to avoid rate limiting
+                        await asyncio.sleep(2)
+                    except Exception as e:
+                        log.error(f"Error checking user {user_id_str}: {e}", exc_info=True)
+
+            except Exception as e:
+                log.error(f"Error checking guild {guild.name}: {e}", exc_info=True)
+
+        # Send report if there are any mismatches
+        if all_mismatches:
+            await self._send_mismatch_report(all_mismatches)
+
+    async def _check_single_user(self, guild: discord.Guild, user_id_str: str, user_data: Dict) -> Dict:
+        """Check a single user's name against Albion API
+
+        Returns a mismatch dict if there's an issue, None otherwise
+        """
+        user_id = int(user_id_str)
+        stored_name = user_data.get("name")
+
+        # Get the member from guild
+        member = guild.get_member(user_id)
+        if not member:
+            log.debug(f"User {user_id} not found in guild {guild.name}")
+            # Update last_checked timestamp even if user not found
+            async with self.config.guild(guild).verified_users() as verified_users:
+                if user_id_str in verified_users:
+                    verified_users[user_id_str]["last_checked"] = datetime.now(timezone.utc).timestamp()
+            return None
+
+        # Search for player in Albion API
+        player = await self.search_player(stored_name)
+
+        # Update last_checked timestamp
+        async with self.config.guild(guild).verified_users() as verified_users:
+            if user_id_str in verified_users:
+                verified_users[user_id_str]["last_checked"] = datetime.now(timezone.utc).timestamp()
+
+        if not player:
+            # Player not found in API
+            log.warning(f"Player {stored_name} no longer found in Albion API")
+            return {
+                "guild_name": guild.name,
+                "user_id": user_id,
+                "user_tag": str(member),
+                "discord_nick": member.display_name,
+                "stored_name": stored_name,
+                "current_api_name": None,
+                "issue": "Player not found in Albion API"
+            }
+
+        current_api_name = player.get("Name")
+
+        # Check if names match
+        if member.display_name != current_api_name:
+            log.info(f"Name mismatch for user {member}: '{member.display_name}' vs '{current_api_name}'")
+            return {
+                "guild_name": guild.name,
+                "user_id": user_id,
+                "user_tag": str(member),
+                "discord_nick": member.display_name,
+                "stored_name": stored_name,
+                "current_api_name": current_api_name,
+                "issue": "Discord nickname doesn't match Albion name"
+            }
+
+        log.debug(f"User {member} name matches: {current_api_name}")
+        return None
+
+    async def _send_mismatch_report(self, mismatches: List[Dict]):
+        """Send a DM to the bot owner with the mismatch report"""
+        try:
+            app_info = await self.bot.application_info()
+            owner = app_info.owner
+
+            if not owner:
+                log.error("Could not determine bot owner")
+                return
+
+            # Build the report message
+            report_lines = [
+                "# Albion Auth Daily Check Report",
+                f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+                f"**Total Mismatches:** {len(mismatches)}",
+                "",
+                "## Details",
+                ""
+            ]
+
+            for mismatch in mismatches:
+                report_lines.append(f"**Guild:** {mismatch['guild_name']}")
+                report_lines.append(f"**User:** {mismatch['user_tag']} (ID: {mismatch['user_id']})")
+                report_lines.append(f"**Discord Nick:** {mismatch['discord_nick']}")
+                report_lines.append(f"**Stored Name:** {mismatch['stored_name']}")
+                if mismatch['current_api_name']:
+                    report_lines.append(f"**Current Albion Name:** {mismatch['current_api_name']}")
+                report_lines.append(f"**Issue:** {mismatch['issue']}")
+                report_lines.append("")
+
+            report = "\n".join(report_lines)
+
+            # Send as DM (split if too long)
+            if len(report) <= 2000:
+                await owner.send(report)
+            else:
+                # Split into chunks
+                chunks = []
+                current_chunk = []
+                current_length = 0
+
+                for line in report_lines:
+                    line_length = len(line) + 1  # +1 for newline
+                    if current_length + line_length > 1900:  # Leave some margin
+                        chunks.append("\n".join(current_chunk))
+                        current_chunk = [line]
+                        current_length = line_length
+                    else:
+                        current_chunk.append(line)
+                        current_length += line_length
+
+                if current_chunk:
+                    chunks.append("\n".join(current_chunk))
+
+                for chunk in chunks:
+                    await owner.send(chunk)
+                    await asyncio.sleep(1)  # Rate limit protection
+
+            log.info(f"Sent mismatch report to bot owner with {len(mismatches)} mismatches")
+
+        except discord.Forbidden:
+            log.error("Cannot send DM to bot owner - DMs may be disabled")
+        except Exception as e:
+            log.error(f"Error sending mismatch report: {e}", exc_info=True)
 
     @commands.guild_only()
     @commands.hybrid_command(name="auth")
@@ -89,6 +298,15 @@ class AlbionAuth(commands.Cog):
             try:
                 await ctx.author.edit(nick=player_name)
                 log.info(f"Successfully renamed {ctx.author} to {player_name}")
+
+                # Store verified user information
+                async with self.config.guild(ctx.guild).verified_users() as verified_users:
+                    verified_users[str(ctx.author.id)] = {
+                        "name": player_name,
+                        "last_checked": datetime.now(timezone.utc).timestamp()
+                    }
+                log.info(f"Stored verified user: {ctx.author.id} -> {player_name}")
+
                 success_msg = (
                     f"✅ Successfully authenticated! "
                     f"Your nickname has been changed to **{player_name}**."
@@ -158,3 +376,83 @@ class AlbionAuth(commands.Cog):
             await self.config.guild(ctx.guild).auth_role.set(role.id)
             log.info(f"Auth role set to {role.name} (ID: {role.id}) for guild {ctx.guild.name}")
             await ctx.send(f"✅ Auth role set to **{role.name}**. This role will be assigned when users authenticate.")
+
+    @authset.command(name="dailycheck")
+    async def authset_dailycheck(self, ctx, enabled: bool):
+        """Enable or disable daily name verification checks
+
+        When enabled, the bot will automatically check verified users once per day
+        to ensure their Discord nickname still matches their Albion Online name.
+        The bot owner will receive a DM report of any mismatches found.
+
+        Usage: .authset dailycheck <true/false>
+        Example: .authset dailycheck true
+        """
+        await self.config.guild(ctx.guild).enable_daily_check.set(enabled)
+        log.info(f"Daily check {'enabled' if enabled else 'disabled'} for guild {ctx.guild.name}")
+
+        if enabled:
+            await ctx.send(
+                "✅ Daily name verification checks **enabled**. "
+                "Verified users will be checked once per day, and the bot owner will receive "
+                "a DM report of any mismatches."
+            )
+        else:
+            await ctx.send(
+                "✅ Daily name verification checks **disabled**. "
+                "Automatic checking has been turned off for this server."
+            )
+
+    @authset.command(name="checkuser")
+    async def authset_checkuser(self, ctx, user: discord.Member):
+        """Manually check a specific user's name against Albion API
+
+        This will immediately verify if the user's Discord nickname matches
+        their Albion Online character name.
+
+        Usage: .authset checkuser @user
+        Example: .authset checkuser @JohnDoe
+        """
+        verified_users = await self.config.guild(ctx.guild).verified_users()
+        user_id_str = str(user.id)
+
+        if user_id_str not in verified_users:
+            await ctx.send(f"❌ {user.mention} is not in the verified users list.")
+            return
+
+        user_data = verified_users[user_id_str]
+        stored_name = user_data.get("name")
+
+        async with ctx.typing():
+            # Search for player in Albion API
+            player = await self.search_player(stored_name)
+
+            if not player:
+                await ctx.send(
+                    f"⚠️ **Mismatch Found!**\n"
+                    f"User: {user.mention}\n"
+                    f"Discord Nick: {user.display_name}\n"
+                    f"Stored Name: {stored_name}\n"
+                    f"Issue: Player not found in Albion API"
+                )
+                return
+
+            current_api_name = player.get("Name")
+
+            if user.display_name != current_api_name:
+                await ctx.send(
+                    f"⚠️ **Mismatch Found!**\n"
+                    f"User: {user.mention}\n"
+                    f"Discord Nick: {user.display_name}\n"
+                    f"Stored Name: {stored_name}\n"
+                    f"Current Albion Name: {current_api_name}\n"
+                    f"Issue: Discord nickname doesn't match Albion name"
+                )
+            else:
+                await ctx.send(
+                    f"✅ **No Issues**\n"
+                    f"User: {user.mention}\n"
+                    f"Discord Nick: {user.display_name}\n"
+                    f"Albion Name: {current_api_name}\n"
+                    f"Status: Names match correctly"
+                )
