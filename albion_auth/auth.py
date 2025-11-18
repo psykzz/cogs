@@ -46,7 +46,8 @@ class AlbionAuth(commands.Cog):
         self.config = Config.get_conf(self, identifier=73601, force_registration=True)
         self.config.register_guild(
             auth_role=None,
-            verified_users={},  # {user_id: {"name": str, "last_checked": timestamp}}
+            # {user_id: {"discord_id": int, "albion_id": str, "name": str, "last_checked": timestamp}}
+            verified_users={},
             enable_daily_check=True
         )
         self._check_task = None
@@ -106,17 +107,57 @@ class AlbionAuth(commands.Cog):
                     log.debug(f"Daily check disabled for guild {guild.name}")
                     continue
 
-                verified_users = await self.config.guild(guild).verified_users()
-                if not verified_users:
-                    log.debug(f"No verified users in guild {guild.name}")
+                # Get the auth role
+                auth_role_id = await self.config.guild(guild).auth_role()
+                if not auth_role_id:
+                    log.debug(f"No auth role configured for guild {guild.name}")
                     continue
 
-                # Get users that need checking (haven't been checked in 24 hours)
+                auth_role = guild.get_role(auth_role_id)
+                if not auth_role:
+                    log.warning(f"Configured auth role ID {auth_role_id} not found in guild {guild.name}")
+                    continue
+
+                # Get all members with the auth role
+                members_with_role = [member for member in guild.members if auth_role in member.roles]
+                if not members_with_role:
+                    log.debug(f"No members with auth role in guild {guild.name}")
+                    continue
+
+                verified_users = await self.config.guild(guild).verified_users()
                 now = datetime.now(timezone.utc).timestamp()
                 users_to_check = []
 
-                for user_id_str, user_data in verified_users.items():
+                # Build list of users to check, adding missing ones to config
+                for member in members_with_role:
+                    user_id_str = str(member.id)
+
+                    # If user not in verified_users, add them with their current nickname
+                    if user_id_str not in verified_users:
+                        log.info(
+                            f"Adding previously verified user {member} to config "
+                            f"with nickname {member.display_name}"
+                        )
+                        # Search for the player to get their Albion ID
+                        player = await self.search_player(member.display_name)
+                        albion_id = player.get("Id") if player else None
+                        albion_name = player.get("Name") if player else member.display_name
+
+                        async with self.config.guild(guild).verified_users() as verified_users_dict:
+                            verified_users_dict[user_id_str] = {
+                                "discord_id": member.id,
+                                "albion_id": albion_id,
+                                "name": albion_name,
+                                "last_checked": 0  # Set to 0 to ensure they get checked
+                            }
+                        # Refresh verified_users after update
+                        verified_users = await self.config.guild(guild).verified_users()
+                        # Small delay to avoid rate limiting when adding users
+                        await asyncio.sleep(2)
+
+                    user_data = verified_users[user_id_str]
                     last_checked = user_data.get("last_checked", 0)
+
                     # Check if it's been at least 24 hours
                     if now - last_checked >= 86400:  # 24 hours in seconds
                         users_to_check.append((user_id_str, user_data))
@@ -302,10 +343,12 @@ class AlbionAuth(commands.Cog):
                 # Store verified user information
                 async with self.config.guild(ctx.guild).verified_users() as verified_users:
                     verified_users[str(ctx.author.id)] = {
+                        "discord_id": ctx.author.id,
+                        "albion_id": player_id,
                         "name": player_name,
                         "last_checked": datetime.now(timezone.utc).timestamp()
                     }
-                log.info(f"Stored verified user: {ctx.author.id} -> {player_name}")
+                log.info(f"Stored verified user: {ctx.author.id} -> {player_name} (Albion ID: {player_id})")
 
                 success_msg = (
                     f"✅ Successfully authenticated! "
