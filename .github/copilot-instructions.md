@@ -60,6 +60,7 @@ async def setup(bot):
 **IMPORTANT**: When creating new cogs or updating existing ones, always use the async setup pattern shown above. This is the modern Red-bot convention and ensures compatibility with the bot framework.
 
 ### Key Cogs
+- **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
