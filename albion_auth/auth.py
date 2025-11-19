@@ -63,19 +63,50 @@ class AlbionAuth(commands.Cog):
             self._check_task.cancel()
             log.info("Cancelled daily name check task")
 
-    async def search_player(self, name):
-        """Search for a player by name"""
-        log.info(f"Searching for player: {name}")
-        url = "https://gameinfo-ams.albiononline.com/api/gameinfo/search"
+    async def search_player_in_region(self, name, region_url, region_name):
+        """Search for a player by name in a specific region"""
+        log.info(f"Searching for player '{name}' in {region_name} region")
         params = {"q": name}
-        result = await http_get(url, params)
+        result = await http_get(region_url, params)
 
         if result and result.get("players"):
             player = result["players"][0]
-            log.info(f"Player found: {player.get('Name')} (ID: {player.get('Id')})")
+            log.info(f"Player found in {region_name}: {player.get('Name')} (ID: {player.get('Id')})")
+            return player, region_name
+
+        log.debug(f"Player '{name}' not found in {region_name}")
+        return None, region_name
+
+    async def search_player(self, name):
+        """Search for a player by name, checking EU first, then US and Asia as fallback"""
+        log.info(f"Searching for player: {name}")
+
+        # Define regions to search
+        regions = [
+            ("https://gameinfo-ams.albiononline.com/api/gameinfo/search", "Europe"),
+            ("https://gameinfo.albiononline.com/api/gameinfo/search", "US"),
+            ("https://gameinfo-sgp.albiononline.com/api/gameinfo/search", "Asia"),
+        ]
+
+        # Search in Europe first
+        player, region = await self.search_player_in_region(name, regions[0][0], regions[0][1])
+        if player:
+            log.info(f"Player found in primary region: {player.get('Name')} (ID: {player.get('Id')})")
             return player
 
-        log.warning(f"Player '{name}' not found in search results")
+        # If not found in Europe, check other regions
+        found_in_regions = []
+        for url, region_name in regions[1:]:
+            player, region = await self.search_player_in_region(name, url, region_name)
+            if player:
+                found_in_regions.append(region_name)
+
+        # If found in other regions, return special result
+        if found_in_regions:
+            log.warning(f"Player '{name}' found in {', '.join(found_in_regions)} but not in Europe")
+            return {"_found_in_other_regions": found_in_regions}
+
+        log.warning(f"Player '{name}' not found in any region")
         return None
 
     async def _daily_check_loop(self):
@@ -140,6 +171,9 @@ class AlbionAuth(commands.Cog):
                         )
                         # Search for the player to get their Albion ID
                         player = await self.search_player(member.display_name)
+                        # Handle special case where player found in other regions
+                        if player and isinstance(player, dict) and "_found_in_other_regions" in player:
+                            player = None
                         albion_id = player.get("Id") if player else None
                         albion_name = player.get("Name") if player else member.display_name
 
@@ -212,6 +246,21 @@ class AlbionAuth(commands.Cog):
         async with self.config.guild(guild).verified_users() as verified_users:
             if user_id_str in verified_users:
                 verified_users[user_id_str]["last_checked"] = datetime.now(timezone.utc).timestamp()
+
+        # Handle special case where player found in other regions
+        if player and isinstance(player, dict) and "_found_in_other_regions" in player:
+            regions = player["_found_in_other_regions"]
+            region_list = " or ".join(regions)
+            log.warning(f"Player {stored_name} found in {region_list} but not in Europe")
+            return {
+                "guild_name": guild.name,
+                "user_id": user_id,
+                "user_tag": str(member),
+                "discord_nick": member.display_name,
+                "stored_name": stored_name,
+                "current_api_name": None,
+                "issue": f"Player found on {region_list} server(s), not on European server"
+            }
 
         if not player:
             # Player not found in API
@@ -325,6 +374,25 @@ class AlbionAuth(commands.Cog):
         async with ctx.typing():
             # Search for the player
             player = await self.search_player(name)
+
+            # Check if player was found in other regions
+            if player and isinstance(player, dict) and "_found_in_other_regions" in player:
+                regions = player["_found_in_other_regions"]
+                if len(regions) <= 2:
+                    region_list = " and ".join(regions)
+                else:
+                    region_list = ", ".join(regions[:-1]) + f", and {regions[-1]}"
+                log.warning(
+                    f"Auth command failed: Player '{name}' found in "
+                    f"{region_list} but not in Europe"
+                )
+                await ctx.send(
+                    f"❌ Player '{name}' was found on the **{region_list}** server(s), "
+                    f"but not on the European server.\n"
+                    f"This bot only supports authentication for players on the European server."
+                )
+                return
+
             if not player:
                 log.warning(f"Auth command failed: Player '{name}' not found")
                 await ctx.send(f"❌ Player '{name}' not found in Albion Online.")
@@ -469,6 +537,19 @@ class AlbionAuth(commands.Cog):
         async with ctx.typing():
             # Search for player in Albion API
             player = await self.search_player(stored_name)
+
+            # Handle special case where player found in other regions
+            if player and isinstance(player, dict) and "_found_in_other_regions" in player:
+                regions = player["_found_in_other_regions"]
+                region_list = " or ".join(regions)
+                await ctx.send(
+                    f"⚠️ **Mismatch Found!**\n"
+                    f"User: {user.mention}\n"
+                    f"Discord Nick: {user.display_name}\n"
+                    f"Stored Name: {stored_name}\n"
+                    f"Issue: Player found on {region_list} server(s), not on European server"
+                )
+                return
 
             if not player:
                 await ctx.send(
