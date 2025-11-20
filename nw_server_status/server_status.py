@@ -35,10 +35,10 @@ class ServerStatus(commands.Cog):
 
         self.refresh_queue_data.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.refresh_queue_data.cancel()
         if self._http_client:
-            asyncio.create_task(self._http_client.aclose())
+            await self._http_client.aclose()
 
     @tasks.loop(minutes=5.0)
     async def refresh_queue_data(self):

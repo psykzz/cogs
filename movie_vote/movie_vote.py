@@ -441,9 +441,7 @@ class MovieVote(commands.Cog):
         if not channel:
             channel = await self.bot.fetch_channel(payload.channel_id)
 
-        # Try to get message from cache first
-        message = channel.get_partial_message(payload.message_id)
-        # We need to fetch to get reactions
+        # Fetch message to get reactions
         message = await channel.fetch_message(payload.message_id)
 
         user = self.bot.get_user(payload.user_id)
@@ -470,9 +468,7 @@ class MovieVote(commands.Cog):
         if not channel:
             channel = await self.bot.fetch_channel(payload.channel_id)
 
-        # Try to get message from cache first
-        message = channel.get_partial_message(payload.message_id)
-        # We need to fetch to get reactions
+        # Fetch message to get reactions
         message = await channel.fetch_message(payload.message_id)
 
         user = self.bot.get_user(payload.user_id)
