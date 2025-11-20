@@ -102,7 +102,7 @@ class AlbionBandits(commands.Cog):
 
         return False
 
-    @commands.group()
+    @commands.group(invoke_without_command=True)
     @commands.guild_only()
     async def bandits(self, ctx):
         """Manage bandit tracking"""
