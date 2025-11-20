@@ -61,6 +61,7 @@ async def setup(bot):
 
 ### Key Cogs
 - **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)
+- **albion_bandits/**: Albion Online bandit event tracking with timing predictions (no external deps)
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
