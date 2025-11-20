@@ -36,8 +36,8 @@ async def http_get(url, client=None):
                     return r.json()
                 else:
                     attempt += 1
-                await asyncio.sleep(5)
-            except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
+                    await asyncio.sleep(5)
+            except (httpx.ConnectTimeout, httpx.HTTPError):
                 attempt += 1
                 await asyncio.sleep(5)
         return None
