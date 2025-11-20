@@ -37,7 +37,7 @@ async def http_get(url, client=None):
                 else:
                     attempt += 1
                     await asyncio.sleep(5)
-            except (httpx.ConnectTimeout, httpx.HTTPError):
+            except (httpx.ConnectTimeout, httpx.RequestError):
                 attempt += 1
                 await asyncio.sleep(5)
         return None

@@ -35,6 +35,10 @@ class ServerStatus(commands.Cog):
 
         self.refresh_queue_data.start()
 
+    async def cog_load(self):
+        """Initialize HTTP client when cog loads"""
+        self._http_client = httpx.AsyncClient()
+
     async def cog_unload(self):
         self.refresh_queue_data.cancel()
         if self._http_client:
@@ -44,10 +48,6 @@ class ServerStatus(commands.Cog):
     async def refresh_queue_data(self):
         logger.info("Starting queue task")
         try:
-            # Initialize HTTP client on first run
-            if self._http_client is None:
-                self._http_client = httpx.AsyncClient()
-
             self.queue_data = await self.get_queue_data(worldId=None)
             await self.update_monitor_channels()
         except Exception:
@@ -268,7 +268,7 @@ async def http_get(url, client=None):
                 else:
                     attempt += 1
                     await asyncio.sleep(5)
-            except (httpx.ConnectTimeout, httpx.HTTPError):
+            except (httpx.ConnectTimeout, httpx.RequestError):
                 attempt += 1
                 await asyncio.sleep(5)
         return None
