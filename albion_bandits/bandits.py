@@ -31,6 +31,10 @@ class AlbionBandits(commands.Cog):
         if message.author.bot:
             return
 
+        # Ignore bot commands
+        if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):
+            return
+
         # Only process guild messages
         if not message.guild:
             return
