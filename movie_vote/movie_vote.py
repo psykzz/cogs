@@ -31,6 +31,16 @@ class MovieVote(commands.Cog):
             "notify_episode": [],
         }
         self.config.register_guild(**default_guild)
+        self._http_client = None
+
+    async def cog_load(self):
+        """Initialize HTTP client when cog loads"""
+        self._http_client = httpx.AsyncClient()
+
+    async def cog_unload(self):
+        """Close HTTP client when cog unloads"""
+        if self._http_client:
+            await self._http_client.aclose()
 
     async def red_delete_data_for_user(self, **kwargs):
         """Nothing to delete."""
@@ -39,7 +49,8 @@ class MovieVote(commands.Cog):
     async def get_latest_episodes(self, imdb_id: str) -> Union[Dict[str, Any], None]:
         """Get the latest episodes from vidsrc"""
         response = await http_get(
-                "https://vidsrc.me/episodes/latest/page-1.json"
+                "https://vidsrc.me/episodes/latest/page-1.json",
+                client=self._http_client
             )
         if not response:
             log.info("Response was empty. %s", response)
@@ -421,13 +432,25 @@ class MovieVote(commands.Cog):
         if not await self._is_movie_channel(payload):
             return
 
-        channel = await self.bot.fetch_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        user = await self.bot.fetch_user(payload.user_id)
-        emoji = payload.emoji
-
-        if user.id == self.bot.user.id:
+        # Ignore bot's own reactions
+        if payload.user_id == self.bot.user.id:
             return
+
+        # Use get methods first (cached), fallback to fetch only if needed
+        channel = self.bot.get_channel(payload.channel_id)
+        if not channel:
+            channel = await self.bot.fetch_channel(payload.channel_id)
+
+        # Try to get message from cache first
+        message = channel.get_partial_message(payload.message_id)
+        # We need to fetch to get reactions
+        message = await channel.fetch_message(payload.message_id)
+
+        user = self.bot.get_user(payload.user_id)
+        if not user:
+            user = await self.bot.fetch_user(payload.user_id)
+
+        emoji = payload.emoji
 
         log.info(f"Reaction added. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
@@ -438,13 +461,25 @@ class MovieVote(commands.Cog):
         if not await self._is_movie_channel(payload):
             return
 
-        channel = await self.bot.fetch_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        user = await self.bot.fetch_user(payload.user_id)
-        emoji = payload.emoji
-
-        if user.id == self.bot.user.id:
+        # Ignore bot's own reactions
+        if payload.user_id == self.bot.user.id:
             return
+
+        # Use get methods first (cached), fallback to fetch only if needed
+        channel = self.bot.get_channel(payload.channel_id)
+        if not channel:
+            channel = await self.bot.fetch_channel(payload.channel_id)
+
+        # Try to get message from cache first
+        message = channel.get_partial_message(payload.message_id)
+        # We need to fetch to get reactions
+        message = await channel.fetch_message(payload.message_id)
+
+        user = self.bot.get_user(payload.user_id)
+        if not user:
+            user = await self.bot.fetch_user(payload.user_id)
+
+        emoji = payload.emoji
 
         log.info(f"Reaction removed. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
@@ -578,20 +613,35 @@ class MovieVote(commands.Cog):
         return None
 
 
-async def http_get(url):
+async def http_get(url, client=None):
+    """Make HTTP GET request with retries
+
+    Args:
+        url: URL to fetch
+        client: Optional httpx.AsyncClient to reuse. If None, creates a new one.
+    """
     max_attempts = 3
     attempt = 0
-    while (
-        max_attempts > attempt
-    ):  # httpx doesn't support retries, so we'll build our own basic loop for that
-        try:
-            async with httpx.AsyncClient() as client:
+
+    # Create client if not provided
+    should_close = client is None
+    if should_close:
+        client = httpx.AsyncClient()
+
+    try:
+        while max_attempts > attempt:
+            try:
                 r = await client.get(url, headers={"user-agent": "psykzz-cogs/1.0.0"})
-            if r.status_code == 200:
-                return r.json()
-            else:
+                if r.status_code == 200:
+                    return r.json()
+                else:
+                    attempt += 1
+                await asyncio.sleep(1)
+            except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
                 attempt += 1
-            await asyncio.sleep(1)
-        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
-            attempt += 1
-            await asyncio.sleep(1)
+                await asyncio.sleep(1)
+        return None
+    finally:
+        # Only close if we created it
+        if should_close:
+            await client.aclose()

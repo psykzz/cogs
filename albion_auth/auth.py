@@ -10,32 +10,54 @@ from redbot.core import commands, Config, checks
 log = logging.getLogger("red.cogs.albion_auth")
 
 
-async def http_get(url, params=None):
-    """Make HTTP GET request with retries"""
+async def http_get(url, params=None, client=None):
+    """Make HTTP GET request with retries
+
+    Args:
+        url: URL to fetch
+        params: Query parameters
+        client: Optional httpx.AsyncClient to reuse. If None, creates a new one.
+    """
     max_attempts = 3
     attempt = 0
     log.info(f"Making HTTP GET request to {url} with params: {params}")
-    while attempt < max_attempts:
-        try:
-            async with httpx.AsyncClient() as client:
+
+    # Create client if not provided
+    should_close = client is None
+    if should_close:
+        client = httpx.AsyncClient()
+
+    try:
+        while attempt < max_attempts:
+            try:
                 r = await client.get(url, params=params, timeout=10.0)
 
-            if r.status_code == 200:
-                response_data = r.json()
-                log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
-                log.debug(f"Response data: {response_data}")
-                return response_data
-            else:
+                if r.status_code == 200:
+                    response_data = r.json()
+                    log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
+                    log.debug(f"Response data: {response_data}")
+                    return response_data
+                else:
+                    attempt += 1
+                    log.warning(
+                        f"HTTP GET failed for {url} - Status: {r.status_code}, "
+                        f"Attempt {attempt}/{max_attempts}"
+                    )
+                    await asyncio.sleep(2)
+            except (httpx.ConnectTimeout, httpx.RequestError) as e:
                 attempt += 1
-                log.warning(f"HTTP GET failed for {url} - Status: {r.status_code}, Attempt {attempt}/{max_attempts}")
+                log.warning(
+                    f"HTTP GET error for {url}: {type(e).__name__}: {str(e)}, "
+                    f"Attempt {attempt}/{max_attempts}"
+                )
                 await asyncio.sleep(2)
-        except (httpx.ConnectTimeout, httpx.RequestError) as e:
-            attempt += 1
-            log.warning(f"HTTP GET error for {url}: {type(e).__name__}: {str(e)}, Attempt {attempt}/{max_attempts}")
-            await asyncio.sleep(2)
 
-    log.error(f"HTTP GET failed after {max_attempts} attempts for {url}")
-    return None
+        log.error(f"HTTP GET failed after {max_attempts} attempts for {url}")
+        return None
+    finally:
+        # Only close if we created it
+        if should_close:
+            await client.aclose()
 
 
 class AlbionAuth(commands.Cog):
@@ -51,9 +73,11 @@ class AlbionAuth(commands.Cog):
             enable_daily_check=True
         )
         self._check_task = None
+        self._http_client = None
 
     async def cog_load(self):
         """Start the background task when cog loads"""
+        self._http_client = httpx.AsyncClient()
         self._check_task = self.bot.loop.create_task(self._daily_check_loop())
         log.info("Started daily name check task")
 
@@ -62,12 +86,15 @@ class AlbionAuth(commands.Cog):
         if self._check_task:
             self._check_task.cancel()
             log.info("Cancelled daily name check task")
+        if self._http_client:
+            await self._http_client.aclose()
+            log.info("Closed HTTP client")
 
     async def search_player_in_region(self, name, region_url, region_name):
         """Search for a player by name in a specific region"""
         log.info(f"Searching for player '{name}' in {region_name} region")
         params = {"q": name}
-        result = await http_get(region_url, params)
+        result = await http_get(region_url, params, client=self._http_client)
 
         if result and result.get("players"):
             player = result["players"][0]
