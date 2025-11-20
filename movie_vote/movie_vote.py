@@ -31,10 +31,6 @@ class MovieVote(commands.Cog):
             "notify_episode": [],
         }
         self.config.register_guild(**default_guild)
-        self._http_client = None
-
-    async def cog_load(self):
-        """Initialize HTTP client when cog loads"""
         self._http_client = httpx.AsyncClient()
 
     async def cog_unload(self):

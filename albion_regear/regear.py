@@ -63,10 +63,6 @@ class AlbionRegear(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self._http_client = None
-
-    async def cog_load(self):
-        """Initialize HTTP client when cog loads"""
         self._http_client = httpx.AsyncClient()
 
     async def cog_unload(self):

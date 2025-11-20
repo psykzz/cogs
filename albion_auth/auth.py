@@ -73,11 +73,10 @@ class AlbionAuth(commands.Cog):
             enable_daily_check=True
         )
         self._check_task = None
-        self._http_client = None
+        self._http_client = httpx.AsyncClient()
 
     async def cog_load(self):
         """Start the background task when cog loads"""
-        self._http_client = httpx.AsyncClient()
         self._check_task = self.bot.loop.create_task(self._daily_check_loop())
         log.info("Started daily name check task")
 
