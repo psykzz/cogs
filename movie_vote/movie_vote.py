@@ -441,6 +441,10 @@ class MovieVote(commands.Cog):
         if not channel:
             channel = await self.bot.fetch_channel(payload.channel_id)
 
+        if not channel:
+            log.warning(f"Channel {payload.channel_id} not found for reaction add event")
+            return
+
         # Fetch message to get reactions
         message = await channel.fetch_message(payload.message_id)
 
@@ -467,6 +471,10 @@ class MovieVote(commands.Cog):
         channel = self.bot.get_channel(payload.channel_id)
         if not channel:
             channel = await self.bot.fetch_channel(payload.channel_id)
+
+        if not channel:
+            log.warning(f"Channel {payload.channel_id} not found for reaction remove event")
+            return
 
         # Fetch message to get reactions
         message = await channel.fetch_message(payload.message_id)

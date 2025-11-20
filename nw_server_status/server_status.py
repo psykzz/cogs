@@ -31,13 +31,9 @@ class ServerStatus(commands.Cog):
             self, identifier=IDENTIFIER, force_registration=True
         )
         self.config.register_guild(**default_guild)
-        self._http_client = None
+        self._http_client = httpx.AsyncClient()
 
         self.refresh_queue_data.start()
-
-    async def cog_load(self):
-        """Initialize HTTP client when cog loads"""
-        self._http_client = httpx.AsyncClient()
 
     async def cog_unload(self):
         self.refresh_queue_data.cancel()
