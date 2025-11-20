@@ -106,8 +106,7 @@ class AlbionBandits(commands.Cog):
     @commands.guild_only()
     async def bandits(self, ctx):
         """Manage bandit tracking"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+        await ctx.send_help()
 
     @bandits.command(name="next")
     async def bandits_next(self, ctx):
