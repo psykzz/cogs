@@ -15,8 +15,8 @@ async def http_get(url, params=None):
     """Make HTTP GET request with retries"""
     max_attempts = 3
     attempt = 0
-    log.debug(f"Making HTTP GET request to {url} with params: {params}")
     while attempt < max_attempts:
+        log.debug(f"Making HTTP GET request to {url} (attempt {attempt + 1}/{max_attempts})")
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(url, params=params, timeout=15.0)
@@ -85,7 +85,8 @@ class AlbionHotZones(commands.Cog):
     async def _fetch_recent_kills(self):
         """Fetch recent kill events from the Albion gameinfo API"""
         url = "https://gameinfo-ams.albiononline.com/api/gameinfo/events"
-        params = {"limit": 51}  # Max limit per API call
+        # Fetch a reasonable batch of recent events to scan for new kills
+        params = {"limit": 51}
 
         log.debug("Fetching recent kills from Albion API")
         result = await http_get(url, params)
@@ -104,7 +105,8 @@ class AlbionHotZones(commands.Cog):
             event_id = event.get("EventId")
 
             # Skip if we've already processed this event
-            if self._last_event_id and event_id <= self._last_event_id:
+            # Note: Assumes event IDs are generally increasing; uses >= to be defensive
+            if self._last_event_id and event_id and event_id <= self._last_event_id:
                 continue
 
             # Only track OPEN_WORLD kills (red/black zones)
