@@ -1,10 +1,13 @@
 import datetime
+import logging
 import re
 
 import discord
 from dateutil.relativedelta import relativedelta
 from redbot.core import Config, commands, checks
 from redbot.core.utils.menus import menu
+
+log = logging.getLogger("red.cogs.albion_bandits")
 
 IDENTIFIER = 8472651938472651938  # Random identifier for this cog
 
@@ -51,6 +54,12 @@ class AlbionBandits(commands.Cog):
         if not role or role not in message.role_mentions:
             return
 
+        log.info(
+            f"Detected role mention in guild {message.guild.name} ({message.guild.id}), "
+            f"channel #{message.channel.name} ({message.channel.id}), "
+            f"by user {message.author} ({message.author.id})"
+        )
+
         # Try to extract a time value (number of minutes) from the message
         # Pattern: @role followed by a number (e.g., "@bandits 15")
         # If no time is specified, assume bandits start immediately (0 minutes)
@@ -59,16 +68,25 @@ class AlbionBandits(commands.Cog):
             minutes = int(time_match.group(1))
             # Reasonable range for bandit timing (0-120 minutes)
             if minutes < 0 or minutes > 120:
+                log.debug(
+                    f"Time value {minutes} out of valid range (0-120), ignoring message"
+                )
                 return
+            log.info(f"Extracted time value: {minutes} minutes")
         else:
             # No time specified, assume immediate start
             minutes = 0
+            log.info("No time value specified, assuming immediate start (0 minutes)")
 
         # Calculate the bandit start time
         bandit_time = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
 
         # Check for duplicate within recent timeframe
         if await self._is_duplicate(message.guild, bandit_time):
+            log.info(
+                "Duplicate bandit call detected (within 10 minutes of existing call), "
+                "ignoring message"
+            )
             return
 
         # Store the bandit call
@@ -85,6 +103,18 @@ class AlbionBandits(commands.Cog):
 
         async with guild_config.bandit_calls() as calls:
             calls.append(call_record)
+
+        log.info(
+            f"Successfully recorded bandit call: {minutes} minutes until bandits "
+            f"at {bandit_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        # Add thumbs up reaction to confirm the message was recorded
+        try:
+            await message.add_reaction("👍")
+            log.debug("Added 👍 reaction to message")
+        except discord.HTTPException as e:
+            log.warning(f"Failed to add reaction to message: {e}")
 
     async def _is_duplicate(self, guild: discord.Guild, new_bandit_time: datetime.datetime) -> bool:
         """Check if a similar bandit call exists within 10 minutes"""
