@@ -35,14 +35,14 @@ class AlbionBandits(commands.Cog):
             log.debug(f"Ignoring message from bot: {message.author} ({message.author.id})")
             return
 
-        # Ignore bot commands
-        if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):
-            log.debug(f"Ignoring bot command in guild {message.guild.name} ({message.guild.id})")
-            return
-
         # Only process guild messages
         if not message.guild:
             log.debug("Ignoring non-guild message (DM or other)")
+            return
+
+        # Ignore bot commands
+        if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):
+            log.debug(f"Ignoring bot command in guild {message.guild.name} ({message.guild.id})")
             return
 
         # Get the monitored role ID for this guild
