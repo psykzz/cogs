@@ -74,7 +74,7 @@ class AlbionBandits(commands.Cog):
         # Try to extract a time value (number of minutes) from the message
         # Pattern: @role followed by a number (e.g., "@bandits 15")
         # If no time is specified, assume bandits start immediately (0 minutes)
-        time_match = re.search(r'\b(\d+)\b', message.content)
+        time_match = re.search(r'\b(\d+)\b', message.clean_content) # Use clean content to avoid matching on snowflake ids
         if time_match:
             minutes = int(time_match.group(1))
             # Reasonable range for bandit timing (0-120 minutes)
