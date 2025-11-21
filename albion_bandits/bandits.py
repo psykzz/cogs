@@ -8,6 +8,7 @@ from redbot.core import Config, commands, checks
 from redbot.core.utils.menus import menu
 
 log = logging.getLogger("red.cogs.albion_bandits")
+log.setLevel(logging.DEBUG)
 
 IDENTIFIER = 8472651938472651938  # Random identifier for this cog
 
