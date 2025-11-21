@@ -32,14 +32,17 @@ class AlbionBandits(commands.Cog):
         """Listen for role mentions with time indicators"""
         # Ignore bot messages
         if message.author.bot:
+            log.debug(f"Ignoring message from bot: {message.author} ({message.author.id})")
             return
 
         # Ignore bot commands
         if message.content.startswith(tuple(await self.bot.get_valid_prefixes())):
+            log.debug(f"Ignoring bot command in guild {message.guild.name} ({message.guild.id})")
             return
 
         # Only process guild messages
         if not message.guild:
+            log.debug("Ignoring non-guild message (DM or other)")
             return
 
         # Get the monitored role ID for this guild
@@ -47,11 +50,18 @@ class AlbionBandits(commands.Cog):
         role_id = await guild_config.monitored_role_id()
 
         if not role_id:
+            log.debug(
+                f"No monitored role configured for guild {message.guild.name} ({message.guild.id})"
+            )
             return
 
         # Check if the message mentions the monitored role
         role = message.guild.get_role(role_id)
         if not role or role not in message.role_mentions:
+            log.debug(
+                f"Message in guild {message.guild.name} ({message.guild.id}) does not mention "
+                f"monitored role (role_id: {role_id})"
+            )
             return
 
         log.info(
@@ -68,11 +78,11 @@ class AlbionBandits(commands.Cog):
             minutes = int(time_match.group(1))
             # Reasonable range for bandit timing (0-120 minutes)
             if minutes < 0 or minutes > 120:
-                log.debug(
+                log.info(
                     f"Time value {minutes} out of valid range (0-120), ignoring message"
                 )
                 return
-            log.info(f"Extracted time value: {minutes} minutes")
+            log.info(f"Extracted time value: {minutes} minutes (within valid range)")
         else:
             # No time specified, assume immediate start
             minutes = 0
@@ -80,6 +90,10 @@ class AlbionBandits(commands.Cog):
 
         # Calculate the bandit start time
         bandit_time = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
+        log.info(
+            f"Calculated bandit start time: {bandit_time.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"({minutes} minutes from now)"
+        )
 
         # Check for duplicate within recent timeframe
         if await self._is_duplicate(message.guild, bandit_time):
@@ -112,7 +126,7 @@ class AlbionBandits(commands.Cog):
         # Add thumbs up reaction to confirm the message was recorded
         try:
             await message.add_reaction("👍")
-            log.debug("Added 👍 reaction to message")
+            log.info("Successfully added 👍 reaction to confirm message was recorded")
         except discord.HTTPException as e:
             log.warning(f"Failed to add reaction to message: {e}")
 
