@@ -1,0 +1,15 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Albion Hot Zones",
+    "short": "Track combat hot zones in Albion Online red/black zones",
+    "description": "Polls the Albion Online gameinfo API to track recent kills and identify hot zones for PvP combat in red and black zones. Shows the most active battle zones based on kills in the last 14 minutes.",
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
+    "tags": [
+        "Albion Online",
+        "PvP",
+        "Tracking",
+        "API"
+    ]
+}
