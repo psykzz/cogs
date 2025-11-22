@@ -74,7 +74,8 @@ class AlbionBandits(commands.Cog):
         # Try to extract a time value (number of minutes) from the message
         # Pattern: @role followed by a number (e.g., "@bandits 15")
         # If no time is specified, assume bandits start immediately (0 minutes)
-        time_match = re.search(r'\b(\d+)\b', message.clean_content) # Use clean content to avoid matching on snowflake ids
+        # Use clean content to avoid matching on snowflake ids
+        time_match = re.search(r'\b(\d+)\b', message.clean_content)
         if time_match:
             minutes = int(time_match.group(1))
             # Reasonable range for bandit timing (0-120 minutes)
@@ -104,6 +105,24 @@ class AlbionBandits(commands.Cog):
             )
             return
 
+        # Check if we need to add estimated calls for missed events
+        calls = await guild_config.bandit_calls()
+        if calls:
+            last_call = calls[-1]
+            last_bandit_time = datetime.datetime.fromisoformat(last_call["bandit_time"])
+
+            # Create estimated calls if there's a significant gap
+            estimated_calls = await self._create_estimated_calls(
+                message.guild,
+                last_bandit_time,
+                bandit_time
+            )
+
+            if estimated_calls:
+                async with guild_config.bandit_calls() as calls_list:
+                    calls_list.extend(estimated_calls)
+                    log.info(f"Added {len(estimated_calls)} estimated call(s)")
+
         # Store the bandit call
         call_record = {
             "user_id": message.author.id,
@@ -114,6 +133,7 @@ class AlbionBandits(commands.Cog):
             "call_time": datetime.datetime.now().isoformat(),
             "bandit_time": bandit_time.isoformat(),
             "message_content": message.content[:200],  # Truncate long messages
+            "is_estimated": False,  # Actual call, not estimated
         }
 
         async with guild_config.bandit_calls() as calls:
@@ -146,6 +166,69 @@ class AlbionBandits(commands.Cog):
                 return True
 
         return False
+
+    async def _create_estimated_calls(
+        self,
+        guild: discord.Guild,
+        last_bandit_time: datetime.datetime,
+        new_bandit_time: datetime.datetime
+    ) -> list:
+        """Create estimated calls for missed bandit events between last and new call.
+
+        Args:
+            guild: The Discord guild
+            last_bandit_time: The timestamp of the last recorded bandit event
+            new_bandit_time: The timestamp of the new bandit call
+
+        Returns:
+            List of estimated call records
+        """
+        estimated_calls = []
+
+        # Calculate hours between last and new call
+        hours_gap = (new_bandit_time - last_bandit_time).total_seconds() / 3600
+
+        # If gap is more than 6 hours (past the expected window), add estimates
+        if hours_gap > 6:
+            # Estimate number of missed events (using 5 hour intervals)
+            estimated_count = int((hours_gap - 3) / 5)  # Start from 3 hours in
+
+            log.info(
+                f"Gap of {hours_gap:.1f} hours detected. "
+                f"Creating {estimated_count} estimated call(s)"
+            )
+
+            # Create estimated calls with 5-hour spacing
+            for i in range(estimated_count):
+                estimated_time = last_bandit_time + datetime.timedelta(hours=5 * (i + 1))
+
+                # Don't create an estimate if it's too close to the new call
+                time_to_new = (new_bandit_time - estimated_time).total_seconds() / 3600
+                if time_to_new < 4:
+                    log.info(
+                        f"Skipping estimated call at {estimated_time} "
+                        f"(too close to new call)"
+                    )
+                    break
+
+                estimated_call = {
+                    "user_id": 0,  # System generated
+                    "user_name": "System (Estimated)",
+                    "channel_id": 0,
+                    "message_id": 0,
+                    "minutes_until": 0,
+                    "call_time": estimated_time.isoformat(),
+                    "bandit_time": estimated_time.isoformat(),
+                    "message_content": "Auto-generated estimate for missed event",
+                    "is_estimated": True,  # Flag to mark this as an estimate
+                }
+
+                estimated_calls.append(estimated_call)
+                log.info(
+                    f"Created estimated call for {estimated_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+
+        return estimated_calls
 
     @commands.group(invoke_without_command=True)
     @commands.guild_only()
@@ -253,8 +336,12 @@ class AlbionBandits(commands.Cog):
             for call in page_calls:
                 call_time = datetime.datetime.fromisoformat(call["call_time"])
                 bandit_time = datetime.datetime.fromisoformat(call["bandit_time"])
+                is_estimated = call.get("is_estimated", False)
 
-                field_name = f"{call_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                # Add indicator for estimated calls
+                prefix = "📊 " if is_estimated else ""
+                field_name = f"{prefix}{call_time.strftime('%Y-%m-%d %H:%M:%S')}"
+
                 field_value = (
                     f"**Called by:** {call['user_name']}\n"
                     f"**Time until start:** {call['minutes_until']} minutes\n"

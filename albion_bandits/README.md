@@ -8,7 +8,8 @@ Track Albion Online bandit event role mentions and predict next occurrence times
 - Stores all bandit call records with timestamps and user information
 - Deduplicates similar messages within a 10-minute window
 - Predicts next bandit spawn based on 4-6 hour cooldown
-- Paginated history view of all previous bandit calls
+- **Automatically estimates missed events** when calls come in after the expected 6-hour window
+- Paginated history view of all previous bandit calls with estimated events marked
 
 ## Commands
 
@@ -38,7 +39,8 @@ When a user mentions the configured role, the cog:
 2. If no time is specified, assumes bandits start immediately (0 minutes)
 3. Calculates when the bandits will start
 4. Checks if this is a duplicate (within 10 minutes of a recent call)
-5. If not a duplicate, stores the call with full details
+5. **If the gap from the last call is more than 6 hours, automatically creates estimated calls for missed events** (spaced 5 hours apart)
+6. If not a duplicate, stores the call with full details
 
 The `next` command shows:
 - When the last bandits occurred
@@ -73,3 +75,4 @@ Bot: [Paginated embed showing all previous calls]
 - Time values are optional; if omitted, assumes bandits start immediately
 - When provided, time values are expected to be in minutes (0-120 range)
 - All times are stored in the server's local timezone
+- **Missed Event Handling**: When a call comes in after more than 6 hours since the last recorded event, the system automatically creates estimated calls at 5-hour intervals to fill the gap. These estimated calls are marked with a 📊 icon in the history list.
