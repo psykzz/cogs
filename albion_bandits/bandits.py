@@ -1,5 +1,6 @@
 import datetime
 import logging
+import math
 import re
 
 import discord
@@ -16,8 +17,10 @@ IDENTIFIER = 8472651938472651938  # Random identifier for this cog
 MIN_BANDIT_COOLDOWN_HOURS = 4
 MAX_BANDIT_COOLDOWN_HOURS = 6
 ESTIMATED_BANDIT_INTERVAL_HOURS = 5  # Midpoint of 4-6 hour window
-MISSED_EVENT_THRESHOLD_HOURS = 6  # When to start creating estimates
-MIN_TIME_BETWEEN_CALLS_HOURS = 4  # Min spacing for estimated calls
+# Missed event threshold: start creating estimates after max cooldown window
+MISSED_EVENT_THRESHOLD_HOURS = MAX_BANDIT_COOLDOWN_HOURS
+# Minimum spacing between calls: use min cooldown as the threshold
+MIN_TIME_BETWEEN_CALLS_HOURS = MIN_BANDIT_COOLDOWN_HOURS
 GRACE_PERIOD_HOURS = 3  # Starting offset for first estimate
 
 # Estimated call identifiers
@@ -201,7 +204,8 @@ class AlbionBandits(commands.Cog):
         # If gap is past the expected window, add estimates
         if hours_gap > MISSED_EVENT_THRESHOLD_HOURS:
             # Estimate number of missed events (using regular interval)
-            estimated_count = max(0, int((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS))
+            # Use floor to ensure we only create estimates for complete intervals
+            estimated_count = max(0, math.floor((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS))
 
             log.info(
                 f"Gap of {hours_gap:.1f} hours detected. "
@@ -215,7 +219,7 @@ class AlbionBandits(commands.Cog):
                 )
 
                 # Don't create an estimate if it's too close to the new call
-                time_to_new = (new_bandit_time - estimated_time).total_seconds() / 3600
+                time_to_new = abs((new_bandit_time - estimated_time).total_seconds() / 3600)
                 if time_to_new < MIN_TIME_BETWEEN_CALLS_HOURS:
                     log.info(
                         f"Skipping estimated call at {estimated_time} "
