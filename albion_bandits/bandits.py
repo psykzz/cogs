@@ -117,25 +117,7 @@ class AlbionBandits(commands.Cog):
             )
             return
 
-        # Check if we need to add estimated calls for missed events
-        calls = await guild_config.bandit_calls()
-        if calls:
-            last_call = calls[-1]
-            last_bandit_time = datetime.datetime.fromisoformat(last_call["bandit_time"])
-
-            # Create estimated calls if there's a significant gap
-            estimated_calls = await self._create_estimated_calls(
-                message.guild,
-                last_bandit_time,
-                bandit_time
-            )
-
-            if estimated_calls:
-                async with guild_config.bandit_calls() as calls_list:
-                    calls_list.extend(estimated_calls)
-                    log.info(f"Added {len(estimated_calls)} estimated call(s)")
-
-        # Store the bandit call
+        # Check if we need to add estimated calls for missed events and store the new call
         call_record = {
             "user_id": message.author.id,
             "user_name": str(message.author),
@@ -148,8 +130,24 @@ class AlbionBandits(commands.Cog):
             "is_estimated": False,  # Actual call, not estimated
         }
 
-        async with guild_config.bandit_calls() as calls:
-            calls.append(call_record)
+        async with guild_config.bandit_calls() as calls_list:
+            if calls_list:
+                last_call = calls_list[-1]
+                last_bandit_time = datetime.datetime.fromisoformat(last_call["bandit_time"])
+
+                # Create estimated calls if there's a significant gap
+                estimated_calls = await self._create_estimated_calls(
+                    message.guild,
+                    last_bandit_time,
+                    bandit_time
+                )
+
+                if estimated_calls:
+                    calls_list.extend(estimated_calls)
+                    log.info(f"Added {len(estimated_calls)} estimated call(s)")
+
+            # Add the new call
+            calls_list.append(call_record)
 
         log.info(
             f"Successfully recorded bandit call: {minutes} minutes until bandits "
@@ -203,7 +201,7 @@ class AlbionBandits(commands.Cog):
         # If gap is past the expected window, add estimates
         if hours_gap > MISSED_EVENT_THRESHOLD_HOURS:
             # Estimate number of missed events (using regular interval)
-            estimated_count = int((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS)
+            estimated_count = max(0, int((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS))
 
             log.info(
                 f"Gap of {hours_gap:.1f} hours detected. "
