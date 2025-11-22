@@ -166,7 +166,7 @@ Focus on syntax validation and logic testing instead.
 
 ### GitHub Actions
 The repository uses `.github/workflows/lint.yml` which:
-- Runs on Python 3.13
+- Runs on Python 3.12
 - Uses flake8 for linting via py-actions/flake8@v2
 
 ### Pre-commit Validation
