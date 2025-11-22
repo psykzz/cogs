@@ -12,6 +12,18 @@ log.setLevel(logging.DEBUG)
 
 IDENTIFIER = 8472651938472651938  # Random identifier for this cog
 
+# Bandit timing constants (in hours)
+MIN_BANDIT_COOLDOWN_HOURS = 4
+MAX_BANDIT_COOLDOWN_HOURS = 6
+ESTIMATED_BANDIT_INTERVAL_HOURS = 5  # Midpoint of 4-6 hour window
+MISSED_EVENT_THRESHOLD_HOURS = 6  # When to start creating estimates
+MIN_TIME_BETWEEN_CALLS_HOURS = 4  # Min spacing for estimated calls
+GRACE_PERIOD_HOURS = 3  # Starting offset for first estimate
+
+# Estimated call identifiers
+ESTIMATED_CALL_USER_NAME = "System (Estimated)"
+ESTIMATED_CALL_MESSAGE = "Auto-generated estimate for missed event"
+
 default_guild = {
     "monitored_role_id": None,  # Role ID to monitor for pings
     "bandit_calls": [],  # List of bandit call records
@@ -188,47 +200,59 @@ class AlbionBandits(commands.Cog):
         # Calculate hours between last and new call
         hours_gap = (new_bandit_time - last_bandit_time).total_seconds() / 3600
 
-        # If gap is more than 6 hours (past the expected window), add estimates
-        if hours_gap > 6:
-            # Estimate number of missed events (using 5 hour intervals)
-            estimated_count = int((hours_gap - 3) / 5)  # Start from 3 hours in
+        # If gap is past the expected window, add estimates
+        if hours_gap > MISSED_EVENT_THRESHOLD_HOURS:
+            # Estimate number of missed events (using regular interval)
+            estimated_count = int((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS)
 
             log.info(
                 f"Gap of {hours_gap:.1f} hours detected. "
                 f"Creating {estimated_count} estimated call(s)"
             )
 
-            # Create estimated calls with 5-hour spacing
+            # Create estimated calls with regular spacing
             for i in range(estimated_count):
-                estimated_time = last_bandit_time + datetime.timedelta(hours=5 * (i + 1))
+                estimated_time = last_bandit_time + datetime.timedelta(
+                    hours=ESTIMATED_BANDIT_INTERVAL_HOURS * (i + 1)
+                )
 
                 # Don't create an estimate if it's too close to the new call
                 time_to_new = (new_bandit_time - estimated_time).total_seconds() / 3600
-                if time_to_new < 4:
+                if time_to_new < MIN_TIME_BETWEEN_CALLS_HOURS:
                     log.info(
                         f"Skipping estimated call at {estimated_time} "
                         f"(too close to new call)"
                     )
                     break
 
-                estimated_call = {
-                    "user_id": 0,  # System generated
-                    "user_name": "System (Estimated)",
-                    "channel_id": 0,
-                    "message_id": 0,
-                    "minutes_until": 0,
-                    "call_time": estimated_time.isoformat(),
-                    "bandit_time": estimated_time.isoformat(),
-                    "message_content": "Auto-generated estimate for missed event",
-                    "is_estimated": True,  # Flag to mark this as an estimate
-                }
-
+                estimated_call = self._create_estimated_call_record(estimated_time)
                 estimated_calls.append(estimated_call)
                 log.info(
                     f"Created estimated call for {estimated_time.strftime('%Y-%m-%d %H:%M:%S')}"
                 )
 
         return estimated_calls
+
+    def _create_estimated_call_record(self, estimated_time: datetime.datetime) -> dict:
+        """Create a standardized estimated call record.
+
+        Args:
+            estimated_time: The estimated timestamp for the bandit event
+
+        Returns:
+            Dictionary containing the estimated call record
+        """
+        return {
+            "user_id": 0,  # System generated
+            "user_name": ESTIMATED_CALL_USER_NAME,
+            "channel_id": 0,
+            "message_id": 0,
+            "minutes_until": 0,
+            "call_time": estimated_time.isoformat(),
+            "bandit_time": estimated_time.isoformat(),
+            "message_content": ESTIMATED_CALL_MESSAGE,
+            "is_estimated": True,  # Flag to mark this as an estimate
+        }
 
     @commands.group(invoke_without_command=True)
     @commands.guild_only()
@@ -254,9 +278,9 @@ class AlbionBandits(commands.Cog):
         now = datetime.datetime.now()
         time_since = relativedelta(now, last_bandit_time)
 
-        # Calculate next possible bandit times (4-6 hours after last)
-        earliest_next = last_bandit_time + datetime.timedelta(hours=4)
-        latest_next = last_bandit_time + datetime.timedelta(hours=6)
+        # Calculate next possible bandit times (using cooldown constants)
+        earliest_next = last_bandit_time + datetime.timedelta(hours=MIN_BANDIT_COOLDOWN_HOURS)
+        latest_next = last_bandit_time + datetime.timedelta(hours=MAX_BANDIT_COOLDOWN_HOURS)
 
         embed = discord.Embed(
             title="🏴‍☠️ Albion Bandits Timing",
