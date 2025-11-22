@@ -31,11 +31,14 @@ class ServerStatus(commands.Cog):
             self, identifier=IDENTIFIER, force_registration=True
         )
         self.config.register_guild(**default_guild)
+        self._http_client = httpx.AsyncClient()
 
         self.refresh_queue_data.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.refresh_queue_data.cancel()
+        if self._http_client:
+            await self._http_client.aclose()
 
     @tasks.loop(minutes=5.0)
     async def refresh_queue_data(self):
@@ -52,9 +55,10 @@ class ServerStatus(commands.Cog):
         try:
             extra_qs = f"worldId={worldId}" if worldId else ""
             response = await http_get(
-                f"https://nwdb.info/server-status/servers.json?{extra_qs}"
+                f"https://nwdb.info/server-status/servers.json?{extra_qs}",
+                client=self._http_client
             )
-            if not response.get("success"):
+            if not response or not response.get("success"):
                 logger.error("Failed to get server status data")
                 return
             servers = response.get("data", {}).get("servers", [])
@@ -131,7 +135,7 @@ class ServerStatus(commands.Cog):
     async def update_monitor_channels(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
-            self.update_guild_channel(guild)
+            await self.update_guild_channel(guild)
 
     async def get_server_status(self, server_name, data=None):
         if not data:
@@ -236,21 +240,35 @@ class ServerStatus(commands.Cog):
         await ctx.send(f"Server updated to '{server}'.")
 
 
-async def http_get(url):
+async def http_get(url, client=None):
+    """Make HTTP GET request with retries
+
+    Args:
+        url: URL to fetch
+        client: Optional httpx.AsyncClient to reuse. If None, creates a new one.
+    """
     max_attempts = 3
     attempt = 0
-    while (
-        max_attempts > attempt
-    ):  # httpx doesn't support retries, so we'll build our own basic loop for that
-        try:
-            async with httpx.AsyncClient() as client:
+
+    # Create client if not provided
+    should_close = client is None
+    if should_close:
+        client = httpx.AsyncClient()
+
+    try:
+        while max_attempts > attempt:
+            try:
                 r = await client.get(url, headers={"user-agent": "psykzz-cogs/1.0.0"})
-            if r.status_code == 200:
-                return r.json()
-            else:
+                if r.status_code == 200:
+                    return r.json()
+                else:
+                    attempt += 1
+                    await asyncio.sleep(5)
+            except (httpx.ConnectTimeout, httpx.RequestError):
                 attempt += 1
-            await asyncio.sleep(5)
-        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
-            attempt += 1
-            await asyncio.sleep(5)
-            pass
+                await asyncio.sleep(5)
+        return None
+    finally:
+        # Only close if we created it
+        if should_close:
+            await client.aclose()

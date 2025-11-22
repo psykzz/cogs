@@ -81,27 +81,29 @@ class ActivityStats(commands.Cog):
             duration = timestamp - start_time
 
             if duration > 0:
-                # Update global game stats
-                async with guild_config.game_stats() as game_stats:
+                # Batch all config updates in a single context manager access
+                async with guild_config.all() as all_data:
+                    # Update global game stats
+                    game_stats = all_data.setdefault("game_stats", {})
                     if game_name not in game_stats:
                         game_stats[game_name] = 0
                     game_stats[game_name] += duration
 
-                # Update user game stats
-                async with guild_config.user_game_stats() as user_game_stats:
+                    # Update user game stats
+                    user_game_stats = all_data.setdefault("user_game_stats", {})
                     if user_id_str not in user_game_stats:
                         user_game_stats[user_id_str] = {}
                     if game_name not in user_game_stats[user_id_str]:
                         user_game_stats[user_id_str][game_name] = 0
                     user_game_stats[user_id_str][game_name] += duration
 
-            # Remove from last_activity
-            async with guild_config.last_activity() as last_activity_update:
-                if user_id_str in last_activity_update and game_name in last_activity_update[user_id_str]:
-                    del last_activity_update[user_id_str][game_name]
-                    # Clean up empty user entries
-                    if not last_activity_update[user_id_str]:
-                        del last_activity_update[user_id_str]
+                    # Remove from last_activity
+                    last_activity_update = all_data.setdefault("last_activity", {})
+                    if user_id_str in last_activity_update and game_name in last_activity_update[user_id_str]:
+                        del last_activity_update[user_id_str][game_name]
+                        # Clean up empty user entries
+                        if not last_activity_update[user_id_str]:
+                            del last_activity_update[user_id_str]
 
     @commands.guild_only()
     @commands.group(name="activity", invoke_without_command=True)

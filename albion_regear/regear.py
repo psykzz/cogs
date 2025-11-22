@@ -8,32 +8,54 @@ from redbot.core import commands
 log = logging.getLogger("red.cogs.albion_regear")
 
 
-async def http_get(url, params=None):
-    """Make HTTP GET request with retries"""
+async def http_get(url, params=None, client=None):
+    """Make HTTP GET request with retries
+
+    Args:
+        url: URL to fetch
+        params: Query parameters
+        client: Optional httpx.AsyncClient to reuse. If None, creates a new one.
+    """
     max_attempts = 3
     attempt = 0
     log.info(f"Making HTTP GET request to {url} with params: {params}")
-    while attempt < max_attempts:
-        try:
-            async with httpx.AsyncClient() as client:
+
+    # Create client if not provided
+    should_close = client is None
+    if should_close:
+        client = httpx.AsyncClient()
+
+    try:
+        while attempt < max_attempts:
+            try:
                 r = await client.get(url, params=params, timeout=10.0)
 
-            if r.status_code == 200:
-                response_data = r.json()
-                log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
-                log.debug(f"Response data: {response_data}")
-                return response_data
-            else:
+                if r.status_code == 200:
+                    response_data = r.json()
+                    log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
+                    log.debug(f"Response data: {response_data}")
+                    return response_data
+                else:
+                    attempt += 1
+                    log.warning(
+                        f"HTTP GET failed for {url} - Status: {r.status_code}, "
+                        f"Attempt {attempt}/{max_attempts}"
+                    )
+                    await asyncio.sleep(2)
+            except (httpx.ConnectTimeout, httpx.RequestError) as e:
                 attempt += 1
-                log.warning(f"HTTP GET failed for {url} - Status: {r.status_code}, Attempt {attempt}/{max_attempts}")
+                log.warning(
+                    f"HTTP GET error for {url}: {type(e).__name__}: {str(e)}, "
+                    f"Attempt {attempt}/{max_attempts}"
+                )
                 await asyncio.sleep(2)
-        except (httpx.ConnectTimeout, httpx.RequestError) as e:
-            attempt += 1
-            log.warning(f"HTTP GET error for {url}: {type(e).__name__}: {str(e)}, Attempt {attempt}/{max_attempts}")
-            await asyncio.sleep(2)
 
-    log.error(f"HTTP GET failed after {max_attempts} attempts for {url}")
-    return None
+        log.error(f"HTTP GET failed after {max_attempts} attempts for {url}")
+        return None
+    finally:
+        # Only close if we created it
+        if should_close:
+            await client.aclose()
 
 
 class AlbionRegear(commands.Cog):
@@ -41,6 +63,12 @@ class AlbionRegear(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self._http_client = httpx.AsyncClient()
+
+    async def cog_unload(self):
+        """Close HTTP client when cog unloads"""
+        if self._http_client:
+            await self._http_client.aclose()
 
     def normalize_quality(self, quality):
         """Normalize quality value for price lookups
@@ -81,7 +109,7 @@ class AlbionRegear(commands.Cog):
         log.info(f"Searching for player: {name}")
         url = "https://gameinfo-ams.albiononline.com/api/gameinfo/search"
         params = {"q": name}
-        result = await http_get(url, params)
+        result = await http_get(url, params, client=self._http_client)
 
         if result and result.get("players"):
             player = result["players"][0]
@@ -95,7 +123,7 @@ class AlbionRegear(commands.Cog):
         """Get the latest death event for a player"""
         log.info(f"Fetching latest death for player ID: {player_id}")
         url = f"https://gameinfo-ams.albiononline.com/api/gameinfo/players/{player_id}/deaths"
-        result = await http_get(url)
+        result = await http_get(url, client=self._http_client)
 
         if result and len(result) > 0:
             death = result[0]
@@ -127,7 +155,7 @@ class AlbionRegear(commands.Cog):
         item_list = ",".join(items_with_quality.keys())
         log.info(f"Fetching prices for {len(items_with_quality)} items: {list(items_with_quality.keys())}")
         url = f"https://europe.albion-online-data.com/api/v2/stats/prices/{item_list}?locations=Bridgewatch"
-        result = await http_get(url)
+        result = await http_get(url, client=self._http_client)
 
         if not result:
             log.error("Failed to fetch item prices - API returned no data")
