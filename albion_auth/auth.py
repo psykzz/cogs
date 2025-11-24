@@ -360,16 +360,30 @@ class AlbionAuth(commands.Cog):
 
     @commands.guild_only()
     @commands.hybrid_command(name="auth")
-    async def auth(self, ctx, name: str):
+    async def auth(self, ctx, name: str, target_user: discord.Member = None):
         """Authenticate with your Albion Online character name
 
         The bot will search for the player name in Albion Online and rename you to match.
         If an auth role is configured, it will also be assigned to you.
 
-        Usage: .auth <player_name>
+        Admins can optionally specify a target user to run the command on their behalf.
+
+        Usage: .auth <player_name> [target_user]
         Example: .auth MyCharacter
+        Example (admin): .auth PsyKzz @Matt
         """
-        log.info(f"Auth command invoked by {ctx.author} for player: {name}")
+        # Determine the target member (either the invoker or the specified target)
+        if target_user is not None:
+            # Check if the invoker has admin permissions
+            if not ctx.author.guild_permissions.administrator and not await ctx.bot.is_owner(ctx.author):
+                log.warning(f"Non-admin {ctx.author} tried to auth on behalf of {target_user}")
+                await ctx.send("❌ Only administrators can run this command on behalf of another user.")
+                return
+            member = target_user
+            log.info(f"Auth command invoked by admin {ctx.author} on behalf of {member} for player: {name}")
+        else:
+            member = ctx.author
+            log.info(f"Auth command invoked by {ctx.author} for player: {name}")
 
         async with ctx.typing():
             # Search for the player
@@ -405,23 +419,29 @@ class AlbionAuth(commands.Cog):
 
             # Try to rename the user
             try:
-                await ctx.author.edit(nick=player_name)
-                log.info(f"Successfully renamed {ctx.author} to {player_name}")
+                await member.edit(nick=player_name)
+                log.info(f"Successfully renamed {member} to {player_name}")
 
                 # Store verified user information
                 async with self.config.guild(ctx.guild).verified_users() as verified_users:
-                    verified_users[str(ctx.author.id)] = {
-                        "discord_id": ctx.author.id,
+                    verified_users[str(member.id)] = {
+                        "discord_id": member.id,
                         "albion_id": player_id,
                         "name": player_name,
                         "last_checked": datetime.now(timezone.utc).timestamp()
                     }
-                log.info(f"Stored verified user: {ctx.author.id} -> {player_name} (Albion ID: {player_id})")
+                log.info(f"Stored verified user: {member.id} -> {player_name} (Albion ID: {player_id})")
 
-                success_msg = (
-                    f"✅ Successfully authenticated! "
-                    f"Your nickname has been changed to **{player_name}**."
-                )
+                if target_user is not None:
+                    success_msg = (
+                        f"✅ Successfully authenticated {member.mention}! "
+                        f"Their nickname has been changed to **{player_name}**."
+                    )
+                else:
+                    success_msg = (
+                        f"✅ Successfully authenticated! "
+                        f"Your nickname has been changed to **{player_name}**."
+                    )
 
                 # Check if auth role is configured and assign it
                 auth_role_id = await self.config.guild(ctx.guild).auth_role()
@@ -429,20 +449,20 @@ class AlbionAuth(commands.Cog):
                     auth_role = ctx.guild.get_role(auth_role_id)
                     if auth_role:
                         try:
-                            await ctx.author.add_roles(auth_role)
+                            await member.add_roles(auth_role)
                             success_msg += f"\n✅ Assigned the **{auth_role.name}** role."
-                            log.info(f"Assigned role {auth_role.name} to {ctx.author}")
+                            log.info(f"Assigned role {auth_role.name} to {member}")
                         except discord.Forbidden:
                             log.error(
                                 f"Permission denied: Cannot assign role "
-                                f"{auth_role.name} to {ctx.author}"
+                                f"{auth_role.name} to {member}"
                             )
                             success_msg += (
                                 f"\n⚠️ Could not assign the **{auth_role.name}** role "
                                 "(insufficient permissions)."
                             )
                         except discord.HTTPException as e:
-                            log.error(f"Failed to assign role {auth_role.name} to {ctx.author}: {e}")
+                            log.error(f"Failed to assign role {auth_role.name} to {member}: {e}")
                             success_msg += f"\n⚠️ Failed to assign the **{auth_role.name}** role: {e}"
                     else:
                         log.warning(f"Configured auth role ID {auth_role_id} not found in guild")
@@ -453,14 +473,22 @@ class AlbionAuth(commands.Cog):
 
                 await ctx.send(success_msg)
             except discord.Forbidden:
-                log.error(f"Permission denied: Cannot rename {ctx.author}")
-                await ctx.send(
-                    "❌ I don't have permission to change your nickname. "
-                    "Please contact a server administrator."
-                )
+                log.error(f"Permission denied: Cannot rename {member}")
+                if target_user is not None:
+                    await ctx.send(
+                        f"❌ I don't have permission to change {member.mention}'s nickname."
+                    )
+                else:
+                    await ctx.send(
+                        "❌ I don't have permission to change your nickname. "
+                        "Please contact a server administrator."
+                    )
             except discord.HTTPException as e:
-                log.error(f"Failed to rename {ctx.author}: {e}")
-                await ctx.send(f"❌ Failed to change your nickname: {e}")
+                log.error(f"Failed to rename {member}: {e}")
+                if target_user is not None:
+                    await ctx.send(f"❌ Failed to change {member.mention}'s nickname: {e}")
+                else:
+                    await ctx.send(f"❌ Failed to change your nickname: {e}")
 
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
