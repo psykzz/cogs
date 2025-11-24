@@ -373,9 +373,15 @@ class AlbionAuth(commands.Cog):
         Example (admin): .auth PsyKzz @Matt
         """
         # Determine the target member (either the invoker or the specified target)
-        if target_user is not None:
-            # Check if the invoker has admin permissions
-            if not ctx.author.guild_permissions.administrator and not await ctx.bot.is_owner(ctx.author):
+        is_admin_auth = target_user is not None
+        if is_admin_auth:
+            # Check if the invoker has admin permissions (administrator or manage_guild)
+            has_permission = (
+                ctx.author.guild_permissions.administrator
+                or ctx.author.guild_permissions.manage_guild
+                or await ctx.bot.is_owner(ctx.author)
+            )
+            if not has_permission:
                 log.warning(f"Non-admin {ctx.author} tried to auth on behalf of {target_user}")
                 await ctx.send("❌ Only administrators can run this command on behalf of another user.")
                 return
@@ -432,7 +438,7 @@ class AlbionAuth(commands.Cog):
                     }
                 log.info(f"Stored verified user: {member.id} -> {player_name} (Albion ID: {player_id})")
 
-                if target_user is not None:
+                if is_admin_auth:
                     success_msg = (
                         f"✅ Successfully authenticated {member.mention}! "
                         f"Their nickname has been changed to **{player_name}**."
@@ -474,7 +480,7 @@ class AlbionAuth(commands.Cog):
                 await ctx.send(success_msg)
             except discord.Forbidden:
                 log.error(f"Permission denied: Cannot rename {member}")
-                if target_user is not None:
+                if is_admin_auth:
                     await ctx.send(
                         f"❌ I don't have permission to change {member.mention}'s nickname."
                     )
@@ -485,7 +491,7 @@ class AlbionAuth(commands.Cog):
                     )
             except discord.HTTPException as e:
                 log.error(f"Failed to rename {member}: {e}")
-                if target_user is not None:
+                if is_admin_auth:
                     await ctx.send(f"❌ Failed to change {member.mention}'s nickname: {e}")
                 else:
                     await ctx.send(f"❌ Failed to change your nickname: {e}")
