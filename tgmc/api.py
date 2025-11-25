@@ -12,34 +12,55 @@ SOM_MAJOR_VICTORY = "Sons of Mars Major Victory"
 SOM_MINOR_VICTORY = "Sons of Mars Minor Victory"
 
 
-async def http_get(url):
+async def http_get(url, client=None):
+    """Make HTTP GET request with retries
+
+    Args:
+        url: URL to fetch
+        client: Optional httpx.AsyncClient to reuse. If None, creates a new one.
+    """
     max_attempts = 3
     attempt = 0
-    while (
-        max_attempts > attempt
-    ):  # httpx doesn't support retries, so we'll build our own basic loop for that
-        try:
-            async with httpx.AsyncClient() as client:
+
+    # Create client if not provided
+    should_close = client is None
+    if should_close:
+        client = httpx.AsyncClient()
+
+    try:
+        while max_attempts > attempt:
+            try:
                 r = await client.get(url)
 
-            if r.status_code == 200:
-                return r.json()
-            else:
+                if r.status_code == 200:
+                    return r.json()
+                else:
+                    attempt += 1
+                    await asyncio.sleep(5)
+            except (httpx.ConnectTimeout, httpx.RequestError):
                 attempt += 1
-            await asyncio.sleep(5)
-        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
-            attempt += 1
-            await asyncio.sleep(5)
-            pass
+                await asyncio.sleep(5)
+        return None
+    finally:
+        # Only close if we created it
+        if should_close:
+            await client.aclose()
 
 
 class TGMC(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._http_client = httpx.AsyncClient()
+
+    async def cog_unload(self):
+        """Close HTTP client when cog unloads"""
+        if self._http_client:
+            await self._http_client.aclose()
 
     async def get_winrate(self, ctx, delta="14", gamemode=None, custom_conditions=None):
         raw_data = await http_get(
-            f"https://statbus.psykzz.com/api/winrate?delta={delta}"
+            f"https://statbus.psykzz.com/api/winrate?delta={delta}",
+            client=self._http_client
         )
         if not raw_data:
             return await ctx.send(
