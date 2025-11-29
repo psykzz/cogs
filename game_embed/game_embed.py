@@ -60,7 +60,7 @@ class GameEmbed(commands.Cog):
     def cog_unload(self):
         self.refresh_server_data.cancel()
 
-    @tasks.loop(minutes=2.0)
+    @tasks.loop(seconds=15.0)
     async def refresh_server_data(self):
         """Periodically refresh server data and update embeds."""
         logger.info("Starting server refresh task")
