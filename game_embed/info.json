@@ -1,0 +1,17 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Game Embed",
+    "short": "Monitor Steam game servers and display status embeds.",
+    "description": "Monitor Steam game servers using the A2S protocol. Displays server name, game, player count, and provides a quick-join button. Supports any Steam server compatible with python-a2s.",
+    "permissions": ["Send Messages", "Embed Links"],
+    "requirements": [
+        "python-a2s>=1.3.0"
+    ],
+    "tags": [
+        "Steam",
+        "Server",
+        "Status",
+        "Gaming",
+        "Monitoring"
+    ]
+}
