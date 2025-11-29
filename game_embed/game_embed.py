@@ -25,9 +25,9 @@ class JoinServerButton(discord.ui.View):
 
         # Build the steam connect URL
         if password:
-            url = f"steam://connect/{ip}:{port}/{password}"
+            url = f"https://psykzz.github.io/steam-redirector/#steam://connect/{ip}:{port}/{password}"
         else:
-            url = f"steam://connect/{ip}:{port}"
+            url = f"https://psykzz.github.io/steam-redirector/#steam://connect/{ip}:{port}"
 
         # Add a link button (doesn't need callback as it redirects directly)
         self.add_item(
