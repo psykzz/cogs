@@ -86,7 +86,6 @@ class GameEmbed(commands.Cog):
                 "game": info.game,
                 "player_count": info.player_count,
                 "max_players": info.max_players,
-                "map": info.map_name,
                 "online": True,
             }
         except Exception as e:
@@ -96,7 +95,6 @@ class GameEmbed(commands.Cog):
                 "game": "Unknown",
                 "player_count": 0,
                 "max_players": 0,
-                "map": "Unknown",
                 "online": False,
             }
 
@@ -133,11 +131,6 @@ class GameEmbed(commands.Cog):
         embed.add_field(
             name="Players",
             value=f"{server_info.get('player_count', 0)}/{server_info.get('max_players', 0)}",
-            inline=True
-        )
-        embed.add_field(
-            name="Map",
-            value=server_info.get("map", "Unknown"),
             inline=True
         )
         embed.add_field(
