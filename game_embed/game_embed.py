@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Optional
 
@@ -80,10 +79,8 @@ class GameEmbed(commands.Cog):
         """Query a Steam server for its info using A2S protocol."""
         try:
             address = (ip, port)
-            info = await asyncio.wait_for(
-                a2s.ainfo(address),
-                timeout=10.0
-            )
+            # ainfo is async and has built-in timeout support
+            info = await a2s.ainfo(address, timeout=10.0)
             return {
                 "server_name": info.server_name,
                 "game": info.game,
