@@ -66,6 +66,7 @@ async def setup(bot):
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
+- **game_embed/**: Steam game server monitoring with status embeds and quick-join buttons (requires: python-a2s>=1.3.0)
 - **misc/**: Miscellaneous utilities (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
@@ -95,6 +96,9 @@ pip3 install cinemagoer==2022.12.27
 
 # For albion_regear and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
+
+# For game_embed cog (Steam server monitoring)
+pip3 install python-a2s>=1.3.0
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py
@@ -152,6 +156,15 @@ When making changes to cogs, validate functionality by:
    import discord
    print('Discord.py import successful')
    print('discord.py version:', discord.__version__)"
+   ```
+
+5. **For game_embed changes**: Test A2S protocol and server query patterns
+   ```bash
+   # Test python-a2s module import and basic functionality
+   python3 -c "
+   import a2s
+   print('python-a2s import successful')
+   print('Available functions:', [f for f in dir(a2s) if not f.startswith('_')])"
    ```
 
 ### Red-bot Framework
