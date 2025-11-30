@@ -1,4 +1,3 @@
-import datetime
 import logging
 from typing import Optional
 
@@ -147,7 +146,7 @@ class GameEmbed(commands.Cog):
             )
 
         embed.set_footer(text="Use the button below to connect directly via Steam")
-        embed.timestamp = datetime.datetime.now(datetime.timezone.utc)
+        embed.timestamp = discord.utils.utcnow()
 
         return embed
 
@@ -372,7 +371,7 @@ class GameEmbed(commands.Cog):
                 except discord.NotFound:
                     pass  # Message already deleted
                 except discord.Forbidden:
-                    logger.warning(f"Missing permissions to delete previous embed for {server_key}")
+                    logger.warning(f"Missing permissions to delete previous embed for {server_key} in {ctx.guild.name}")
 
         # Get current server info
         server_info = self.server_cache.get(server_key)
