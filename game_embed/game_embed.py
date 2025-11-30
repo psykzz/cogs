@@ -80,7 +80,7 @@ class GameEmbed(commands.Cog):
         try:
             address = (ip, port)
             # ainfo is async and has built-in timeout support
-            info = await a2s.ainfo(address, timeout=10.0)
+            info = await a2s.ainfo(address, timeout=5.0)
             return {
                 "server_name": info.server_name,
                 "game": info.game,
@@ -146,6 +146,7 @@ class GameEmbed(commands.Cog):
             )
 
         embed.set_footer(text="Use the button below to connect directly via Steam")
+        embed.timestamp = discord.utils.utcnow()
 
         return embed
 
@@ -256,7 +257,8 @@ class GameEmbed(commands.Cog):
             }
 
         # Query the server immediately to verify it's reachable
-        server_info = await self.query_server(ip, port)
+        async with ctx.typing():
+            server_info = await self.query_server(ip, port)
         self.server_cache[server_key] = server_info
 
         if server_info.get("online"):
@@ -356,10 +358,26 @@ class GameEmbed(commands.Cog):
         server_data = servers[server_key]
         password = server_data.get("password")
 
+        # Remove previous embed if one exists
+        embeds_config = await guild_config.embeds()
+        if server_key in embeds_config:
+            old_embed_data = embeds_config[server_key]
+            old_channel = ctx.guild.get_channel(old_embed_data.get("channel_id"))
+            if old_channel:
+                try:
+                    old_message = await old_channel.fetch_message(old_embed_data.get("message_id"))
+                    await old_message.delete()
+                    logger.info(f"Deleted previous embed for {server_key}")
+                except discord.NotFound:
+                    pass  # Message already deleted
+                except discord.Forbidden:
+                    logger.warning(f"Missing permissions to delete previous embed for {server_key} in {ctx.guild.name}")
+
         # Get current server info
         server_info = self.server_cache.get(server_key)
         if not server_info:
-            server_info = await self.query_server(ip, port)
+            async with ctx.typing():
+                server_info = await self.query_server(ip, port)
             self.server_cache[server_key] = server_info
 
         # Create and send the embed
@@ -381,7 +399,8 @@ class GameEmbed(commands.Cog):
     async def refresh_servers(self, ctx):
         """Manually refresh all server data and update embeds."""
         await ctx.send("🔄 Refreshing server data...")
-        await self.update_guild_servers(ctx.guild)
+        async with ctx.typing():
+            await self.update_guild_servers(ctx.guild)
         await ctx.send("✅ Server data refreshed!")
 
     @gameserver_group.command(name="status")
@@ -398,12 +417,14 @@ class GameEmbed(commands.Cog):
 
         if server_key not in servers:
             # Still allow querying non-monitored servers
-            server_info = await self.query_server(ip, port)
+            async with ctx.typing():
+                server_info = await self.query_server(ip, port)
             password = None
         else:
             server_info = self.server_cache.get(server_key)
             if not server_info:
-                server_info = await self.query_server(ip, port)
+                async with ctx.typing():
+                    server_info = await self.query_server(ip, port)
             password = servers[server_key].get("password")
 
         embed = self.create_server_embed(server_info, ip, port, password)
