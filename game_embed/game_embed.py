@@ -77,6 +77,9 @@ class GameEmbed(commands.Cog):
 
     async def query_server(self, ip: str, port: int) -> Optional[dict]:
         """Query a Steam server for its info using A2S protocol."""
+        server_key = f"{ip}:{port}"
+        cached_info = self.server_cache.get(server_key, {})
+
         try:
             address = (ip, port)
             # ainfo is async and has built-in timeout support
@@ -90,9 +93,10 @@ class GameEmbed(commands.Cog):
             }
         except Exception as e:
             logger.warning(f"Failed to query server {ip}:{port}: {e}")
+            # Use cached server_name and game when offline
             return {
-                "server_name": "Unknown",
-                "game": "Unknown",
+                "server_name": cached_info.get("server_name", "Unknown"),
+                "game": cached_info.get("game", "Unknown"),
                 "player_count": 0,
                 "max_players": 0,
                 "online": False,
