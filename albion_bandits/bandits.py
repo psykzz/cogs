@@ -9,7 +9,6 @@ from redbot.core import Config, commands, checks
 from redbot.core.utils.menus import menu
 
 log = logging.getLogger("red.cogs.albion_bandits")
-log.setLevel(logging.DEBUG)
 
 IDENTIFIER = 8472651938472651938  # Random identifier for this cog
 
@@ -80,7 +79,7 @@ class AlbionBandits(commands.Cog):
             )
             return
 
-        log.info(
+        log.debug(
             f"Detected role mention in guild {message.guild.name} ({message.guild.id}), "
             f"channel #{message.channel.name} ({message.channel.id}), "
             f"by user {message.author} ({message.author.id})"
@@ -95,26 +94,26 @@ class AlbionBandits(commands.Cog):
             minutes = int(time_match.group(1))
             # Reasonable range for bandit timing (0-120 minutes)
             if minutes < 0 or minutes > 120:
-                log.info(
+                log.debug(
                     f"Time value {minutes} out of valid range (0-120), ignoring message"
                 )
                 return
-            log.info(f"Extracted time value: {minutes} minutes (within valid range)")
+            log.debug(f"Extracted time value: {minutes} minutes (within valid range)")
         else:
             # No time specified, assume immediate start
             minutes = 0
-            log.info("No time value specified, assuming immediate start (0 minutes)")
+            log.debug("No time value specified, assuming immediate start (0 minutes)")
 
         # Calculate the bandit start time
         bandit_time = datetime.datetime.now() + datetime.timedelta(minutes=minutes)
-        log.info(
+        log.debug(
             f"Calculated bandit start time: {bandit_time.strftime('%Y-%m-%d %H:%M:%S')} "
             f"({minutes} minutes from now)"
         )
 
         # Check for duplicate within recent timeframe
         if await self._is_duplicate(message.guild, bandit_time):
-            log.info(
+            log.debug(
                 "Duplicate bandit call detected (within 10 minutes of existing call), "
                 "ignoring message"
             )
@@ -147,12 +146,12 @@ class AlbionBandits(commands.Cog):
 
                 if estimated_calls:
                     calls_list.extend(estimated_calls)
-                    log.info(f"Added {len(estimated_calls)} estimated call(s)")
+                    log.debug(f"Added {len(estimated_calls)} estimated call(s)")
 
             # Add the new call
             calls_list.append(call_record)
 
-        log.info(
+        log.debug(
             f"Successfully recorded bandit call: {minutes} minutes until bandits "
             f"at {bandit_time.strftime('%Y-%m-%d %H:%M:%S')}"
         )
@@ -160,7 +159,7 @@ class AlbionBandits(commands.Cog):
         # Add thumbs up reaction to confirm the message was recorded
         try:
             await message.add_reaction("👍")
-            log.info("Successfully added 👍 reaction to confirm message was recorded")
+            log.debug("Successfully added 👍 reaction to confirm message was recorded")
         except discord.HTTPException as e:
             log.warning(f"Failed to add reaction to message: {e}")
 
@@ -207,7 +206,7 @@ class AlbionBandits(commands.Cog):
             # Use floor to ensure we only create estimates for complete intervals
             estimated_count = max(0, math.floor((hours_gap - GRACE_PERIOD_HOURS) / ESTIMATED_BANDIT_INTERVAL_HOURS))
 
-            log.info(
+            log.debug(
                 f"Gap of {hours_gap:.1f} hours detected. "
                 f"Creating {estimated_count} estimated call(s)"
             )
@@ -221,7 +220,7 @@ class AlbionBandits(commands.Cog):
                 # Don't create an estimate if it's too close to the new call
                 time_to_new = abs((new_bandit_time - estimated_time).total_seconds() / 3600)
                 if time_to_new < MIN_TIME_BETWEEN_CALLS_HOURS:
-                    log.info(
+                    log.debug(
                         f"Skipping estimated call at {estimated_time} "
                         f"(too close to new call)"
                     )
@@ -229,7 +228,7 @@ class AlbionBandits(commands.Cog):
 
                 estimated_call = self._create_estimated_call_record(estimated_time)
                 estimated_calls.append(estimated_call)
-                log.info(
+                log.debug(
                     f"Created estimated call for {estimated_time.strftime('%Y-%m-%d %H:%M:%S')}"
                 )
 

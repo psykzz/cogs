@@ -14,7 +14,6 @@ default_guild = {
 }
 
 logger = logging.getLogger("red.psykzz.game_embed")
-logger.setLevel(logging.DEBUG)
 
 
 class JoinServerButton(discord.ui.View):
@@ -63,12 +62,12 @@ class GameEmbed(commands.Cog):
     @tasks.loop(seconds=15.0)
     async def refresh_server_data(self):
         """Periodically refresh server data and update embeds."""
-        logger.info("Starting server refresh task")
+        logger.debug("Starting server refresh task")
         try:
             await self.update_all_servers()
         except Exception:
             logger.exception("Error in refresh task")
-        logger.info("Finished server refresh task")
+        logger.debug("Finished server refresh task")
 
     @refresh_server_data.before_loop
     async def before_refresh(self):
@@ -371,7 +370,7 @@ class GameEmbed(commands.Cog):
                 try:
                     old_message = await old_channel.fetch_message(old_embed_data.get("message_id"))
                     await old_message.delete()
-                    logger.info(f"Deleted previous embed for {server_key}")
+                    logger.debug(f"Deleted previous embed for {server_key}")
                 except discord.NotFound:
                     pass  # Message already deleted
                 except discord.Forbidden:
@@ -396,7 +395,7 @@ class GameEmbed(commands.Cog):
                 "message_id": message.id,
             }
 
-        logger.info(f"Posted embed for {server_key} in {ctx.guild.name}")
+        logger.debug(f"Posted embed for {server_key} in {ctx.guild.name}")
 
     @gameserver_group.command(name="refresh")
     @commands.admin_or_permissions(manage_guild=True)

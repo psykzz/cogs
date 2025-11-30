@@ -14,7 +14,7 @@ async def http_get(url, params=None):
     """Make HTTP GET request with retries"""
     max_attempts = 3
     attempt = 0
-    log.info(f"Making HTTP GET request to {url} with params: {params}")
+    log.debug(f"Making HTTP GET request to {url} with params: {params}")
     while attempt < max_attempts:
         try:
             async with httpx.AsyncClient() as client:
@@ -22,7 +22,7 @@ async def http_get(url, params=None):
 
             if r.status_code == 200:
                 response_data = r.json()
-                log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
+                log.debug(f"HTTP GET successful for {url} - Status: {r.status_code}")
                 log.debug(f"Response data: {response_data}")
                 return response_data
             else:
@@ -55,23 +55,23 @@ class AlbionAuth(commands.Cog):
     async def cog_load(self):
         """Start the background task when cog loads"""
         self._check_task = self.bot.loop.create_task(self._daily_check_loop())
-        log.info("Started daily name check task")
+        log.debug("Started daily name check task")
 
     async def cog_unload(self):
         """Cancel the background task when cog unloads"""
         if self._check_task:
             self._check_task.cancel()
-            log.info("Cancelled daily name check task")
+            log.debug("Cancelled daily name check task")
 
     async def search_player_in_region(self, name, region_url, region_name):
         """Search for a player by name in a specific region"""
-        log.info(f"Searching for player '{name}' in {region_name} region")
+        log.debug(f"Searching for player '{name}' in {region_name} region")
         params = {"q": name}
         result = await http_get(region_url, params)
 
         if result and result.get("players"):
             player = result["players"][0]
-            log.info(f"Player found in {region_name}: {player.get('Name')} (ID: {player.get('Id')})")
+            log.debug(f"Player found in {region_name}: {player.get('Name')} (ID: {player.get('Id')})")
             return player, region_name
 
         log.debug(f"Player '{name}' not found in {region_name}")
@@ -79,7 +79,7 @@ class AlbionAuth(commands.Cog):
 
     async def search_player(self, name):
         """Search for a player by name, checking EU first, then US and Asia as fallback"""
-        log.info(f"Searching for player: {name}")
+        log.debug(f"Searching for player: {name}")
 
         # Define regions to search
         regions = [
@@ -91,7 +91,7 @@ class AlbionAuth(commands.Cog):
         # Search in Europe first
         player, region = await self.search_player_in_region(name, regions[0][0], regions[0][1])
         if player:
-            log.info(f"Player found in primary region: {player.get('Name')} (ID: {player.get('Id')})")
+            log.debug(f"Player found in primary region: {player.get('Name')} (ID: {player.get('Id')})")
             return player
 
         # If not found in Europe, check other regions
@@ -112,7 +112,7 @@ class AlbionAuth(commands.Cog):
     async def _daily_check_loop(self):
         """Background task to check verified users periodically"""
         await self.bot.wait_until_ready()
-        log.info("Daily check loop started")
+        log.debug("Daily check loop started")
 
         while True:
             try:
@@ -120,7 +120,7 @@ class AlbionAuth(commands.Cog):
                 await asyncio.sleep(3600)
                 await self._check_users_batch()
             except asyncio.CancelledError:
-                log.info("Daily check loop cancelled")
+                log.debug("Daily check loop cancelled")
                 break
             except Exception as e:
                 log.error(f"Error in daily check loop: {e}", exc_info=True)
@@ -128,7 +128,7 @@ class AlbionAuth(commands.Cog):
 
     async def _check_users_batch(self):
         """Check a batch of users (approximately 1/24th of users per hour)"""
-        log.info("Starting user batch check")
+        log.debug("Starting user batch check")
         all_mismatches: List[Dict] = []
 
         for guild in self.bot.guilds:
@@ -165,7 +165,7 @@ class AlbionAuth(commands.Cog):
 
                     # If user not in verified_users, add them with their current nickname
                     if user_id_str not in verified_users:
-                        log.info(
+                        log.debug(
                             f"Adding previously verified user {member} to config "
                             f"with nickname {member.display_name}"
                         )
@@ -200,7 +200,7 @@ class AlbionAuth(commands.Cog):
                     log.debug(f"No users need checking in guild {guild.name}")
                     continue
 
-                log.info(f"Checking {len(users_to_check)} users in guild {guild.name}")
+                log.debug(f"Checking {len(users_to_check)} users in guild {guild.name}")
 
                 # Check each user and collect mismatches
                 for user_id_str, user_data in users_to_check:
@@ -279,7 +279,7 @@ class AlbionAuth(commands.Cog):
 
         # Check if names match
         if member.display_name != current_api_name:
-            log.info(f"Name mismatch for user {member}: '{member.display_name}' vs '{current_api_name}'")
+            log.debug(f"Name mismatch for user {member}: '{member.display_name}' vs '{current_api_name}'")
             return {
                 "guild_name": guild.name,
                 "user_id": user_id,
@@ -351,7 +351,7 @@ class AlbionAuth(commands.Cog):
                     await owner.send(chunk)
                     await asyncio.sleep(1)  # Rate limit protection
 
-            log.info(f"Sent mismatch report to bot owner with {len(mismatches)} mismatches")
+            log.debug(f"Sent mismatch report to bot owner with {len(mismatches)} mismatches")
 
         except discord.Forbidden:
             log.error("Cannot send DM to bot owner - DMs may be disabled")
@@ -386,10 +386,10 @@ class AlbionAuth(commands.Cog):
                 await ctx.send("❌ Only administrators can run this command on behalf of another user.")
                 return
             member = target_user
-            log.info(f"Auth command invoked by admin {ctx.author} on behalf of {member} for player: {name}")
+            log.debug(f"Auth command invoked by admin {ctx.author} on behalf of {member} for player: {name}")
         else:
             member = ctx.author
-            log.info(f"Auth command invoked by {ctx.author} for player: {name}")
+            log.debug(f"Auth command invoked by {ctx.author} for player: {name}")
 
         async with ctx.typing():
             # Search for the player
@@ -421,12 +421,12 @@ class AlbionAuth(commands.Cog):
             player_name = player.get("Name", name)
             player_id = player.get("Id")
 
-            log.info(f"Found player: {player_name} (ID: {player_id})")
+            log.debug(f"Found player: {player_name} (ID: {player_id})")
 
             # Try to rename the user
             try:
                 await member.edit(nick=player_name)
-                log.info(f"Successfully renamed {member} to {player_name}")
+                log.debug(f"Successfully renamed {member} to {player_name}")
 
                 # Store verified user information
                 async with self.config.guild(ctx.guild).verified_users() as verified_users:
@@ -436,7 +436,7 @@ class AlbionAuth(commands.Cog):
                         "name": player_name,
                         "last_checked": datetime.now(timezone.utc).timestamp()
                     }
-                log.info(f"Stored verified user: {member.id} -> {player_name} (Albion ID: {player_id})")
+                log.debug(f"Stored verified user: {member.id} -> {player_name} (Albion ID: {player_id})")
 
                 if is_admin_auth:
                     success_msg = (
@@ -457,7 +457,7 @@ class AlbionAuth(commands.Cog):
                         try:
                             await member.add_roles(auth_role)
                             success_msg += f"\n✅ Assigned the **{auth_role.name}** role."
-                            log.info(f"Assigned role {auth_role.name} to {member}")
+                            log.debug(f"Assigned role {auth_role.name} to {member}")
                         except discord.Forbidden:
                             log.error(
                                 f"Permission denied: Cannot assign role "
@@ -515,11 +515,11 @@ class AlbionAuth(commands.Cog):
         """
         if role is None:
             await self.config.guild(ctx.guild).auth_role.set(None)
-            log.info(f"Auth role cleared for guild {ctx.guild.name}")
+            log.debug(f"Auth role cleared for guild {ctx.guild.name}")
             await ctx.send("✅ Auth role has been cleared. No role will be assigned on authentication.")
         else:
             await self.config.guild(ctx.guild).auth_role.set(role.id)
-            log.info(f"Auth role set to {role.name} (ID: {role.id}) for guild {ctx.guild.name}")
+            log.debug(f"Auth role set to {role.name} (ID: {role.id}) for guild {ctx.guild.name}")
             await ctx.send(f"✅ Auth role set to **{role.name}**. This role will be assigned when users authenticate.")
 
     @authset.command(name="dailycheck")
@@ -534,7 +534,7 @@ class AlbionAuth(commands.Cog):
         Example: .authset dailycheck true
         """
         await self.config.guild(ctx.guild).enable_daily_check.set(enabled)
-        log.info(f"Daily check {'enabled' if enabled else 'disabled'} for guild {ctx.guild.name}")
+        log.debug(f"Daily check {'enabled' if enabled else 'disabled'} for guild {ctx.guild.name}")
 
         if enabled:
             await ctx.send(
