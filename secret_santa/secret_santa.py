@@ -1,7 +1,9 @@
 import datetime
 import logging
 import random
-from typing import List, Optional
+import secrets
+import string
+from typing import List, Optional, Tuple
 
 import discord
 from redbot.core import Config, checks, commands
@@ -9,6 +11,12 @@ from redbot.core import Config, checks, commands
 log = logging.getLogger("red.cog.secret_santa")
 
 IDENTIFIER = 8472916358274916
+
+
+def generate_event_id() -> str:
+    """Generate a random 8-character alphanumeric event ID."""
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
 class SecretSanta(commands.Cog):
@@ -21,7 +29,11 @@ class SecretSanta(commands.Cog):
         default_guild = {
             "events": {},  # event_name -> event data
         }
+        default_global = {
+            "event_lookup": {},  # event_id -> {"guild_id": int, "event_name": str}
+        }
         self.config.register_guild(**default_guild)
+        self.config.register_global(**default_global)
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -37,6 +49,37 @@ class SecretSanta(commands.Cog):
                     modified = True
             if modified:
                 await self.config.guild_from_id(guild_id).events.set(events)
+
+    async def _lookup_event_by_id(
+        self, event_id: str
+    ) -> Optional[Tuple[int, str, dict]]:
+        """Look up an event by its unique event ID.
+
+        Returns (guild_id, event_name, event_data) or None if not found.
+        """
+        event_lookup = await self.config.event_lookup()
+        if event_id not in event_lookup:
+            return None
+
+        lookup_data = event_lookup[event_id]
+        guild_id = lookup_data["guild_id"]
+        event_name = lookup_data["event_name"]
+
+        events = await self.config.guild_from_id(guild_id).events()
+        if event_name not in events:
+            return None
+
+        return (guild_id, event_name, events[event_name])
+
+    async def _generate_unique_event_id(self) -> str:
+        """Generate a unique event ID that doesn't conflict with existing ones."""
+        event_lookup = await self.config.event_lookup()
+        for _ in range(100):  # Prevent infinite loop
+            event_id = generate_event_id()
+            if event_id not in event_lookup:
+                return event_id
+        # Fallback: use a longer ID
+        return generate_event_id() + generate_event_id()
 
     @commands.group(autohelp=False)
     @commands.guild_only()
@@ -92,6 +135,9 @@ class SecretSanta(commands.Cog):
             )
             return
 
+        # Generate unique event ID for DM-based messaging
+        event_id = await self._generate_unique_event_id()
+
         # Create participant data
         participant_data = {}
         for member in participants:
@@ -99,11 +145,13 @@ class SecretSanta(commands.Cog):
                 "matched_to": None,
                 "sent_gift": False,
                 "received_gift": False,
+                "wishlist": None,
             }
 
         # Create the event
         event = {
             "name": event_name,
+            "event_id": event_id,
             "target_date": target_date,
             "max_price": max_price,
             "participants": participant_data,
@@ -115,17 +163,57 @@ class SecretSanta(commands.Cog):
         async with self.config.guild(ctx.guild).events() as events:
             events[event_name] = event
 
+        # Register the event ID in the global lookup
+        async with self.config.event_lookup() as lookup:
+            lookup[event_id] = {
+                "guild_id": ctx.guild.id,
+                "event_name": event_name,
+            }
+
+        # Send DMs to participants asking for their wishlist
+        dm_success = 0
+        dm_failed = 0
+        for member in participants:
+            try:
+                embed = discord.Embed(
+                    title="🎅 You've Been Added to a Secret Santa Event!",
+                    description=(
+                        f"You've been added to **{event_name}** in **{ctx.guild.name}**!"
+                    ),
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="Target Date", value=parsed_date.strftime("%B %d, %Y"), inline=True)
+                embed.add_field(name="Max Price", value=max_price, inline=True)
+                embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+                embed.add_field(
+                    name="📝 Set Your Wishlist",
+                    value=(
+                        f"Please set your wishlist so your Secret Santa knows what you'd like!\n"
+                        f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`\n\n"
+                        f"Example: `[p]santadm wishlist {event_id} "
+                        f"I'd love a book, some chocolates, or a cozy sweater!`"
+                    ),
+                    inline=False
+                )
+                embed.set_footer(text="Your wishlist will be shared with your Secret Santa after matching!")
+                await member.send(embed=embed)
+                dm_success += 1
+            except discord.Forbidden:
+                dm_failed += 1
+
         participant_names = ", ".join(p.display_name for p in participants)
         embed = discord.Embed(
             title="🎅 Secret Santa Event Created!",
             description=f"Event **{event_name}** has been created.",
             color=discord.Color.red()
         )
+        embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
         embed.add_field(name="Target Date", value=parsed_date.strftime("%B %d, %Y"), inline=True)
         embed.add_field(name="Max Price", value=max_price, inline=True)
         embed.add_field(name="Participants", value=f"{len(participants)} people", inline=True)
+        embed.add_field(name="DMs Sent", value=f"{dm_success} ✅ / {dm_failed} ❌", inline=True)
         embed.add_field(name="Participant List", value=participant_names, inline=False)
-        embed.set_footer(text="Use [p]santa match to assign pairs!")
+        embed.set_footer(text="Participants have been asked for wishlists. Use [p]santa match to assign pairs!")
 
         await ctx.send(embed=embed)
 
@@ -220,15 +308,20 @@ class SecretSanta(commands.Cog):
                 "matched_to": None,
                 "sent_gift": False,
                 "received_gift": False,
+                "wishlist": None,
             }
 
         # Apply pairings
         for giver_id, receiver_id in parsed_pairings:
             participant_data[str(giver_id)]["matched_to"] = receiver_id
 
+        # Generate unique event ID for DM-based messaging
+        event_id = await self._generate_unique_event_id()
+
         # Create the event
         event = {
             "name": event_name,
+            "event_id": event_id,
             "target_date": target_date,
             "max_price": max_price,
             "participants": participant_data,
@@ -240,15 +333,65 @@ class SecretSanta(commands.Cog):
         async with self.config.guild(ctx.guild).events() as events:
             events[event_name] = event
 
+        # Register the event ID in the global lookup
+        async with self.config.event_lookup() as lookup:
+            lookup[event_id] = {
+                "guild_id": ctx.guild.id,
+                "event_name": event_name,
+            }
+
+        # Send DMs to participants with their match info and ask for wishlist
+        dm_success = 0
+        dm_failed = 0
+        for giver_id, receiver_id in parsed_pairings:
+            giver = self.bot.get_user(giver_id)
+            receiver = self.bot.get_user(receiver_id)
+            if giver and receiver:
+                try:
+                    embed = discord.Embed(
+                        title="🎅 Secret Santa Match!",
+                        description=f"You have been matched for **{event_name}** in **{ctx.guild.name}**!",
+                        color=discord.Color.red()
+                    )
+                    embed.add_field(name="Your Giftee", value=receiver.display_name, inline=True)
+                    embed.add_field(name="Max Price", value=max_price, inline=True)
+                    embed.add_field(name="Target Date", value=parsed_date.strftime("%B %d, %Y"), inline=True)
+                    embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+                    embed.add_field(
+                        name="📝 Set Your Wishlist",
+                        value=(
+                            f"Set your wishlist so your Santa knows what you'd like!\n"
+                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                        ),
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="Anonymous Messaging",
+                        value=(
+                            f"Send anonymous messages to your giftee via DM:\n"
+                            f"`[p]santadm message {event_id} <your message>`\n\n"
+                            f"Reply to your Santa via DM:\n"
+                            f"`[p]santadm reply {event_id} <your message>`"
+                        ),
+                        inline=False
+                    )
+                    embed.set_footer(text="Remember to keep it a secret! 🤫")
+                    await giver.send(embed=embed)
+                    dm_success += 1
+                except discord.Forbidden:
+                    dm_failed += 1
+
         embed = discord.Embed(
             title="🎅 Secret Santa Event Imported!",
             description=f"Event **{event_name}** has been imported with {len(parsed_pairings)} pairings.",
             color=discord.Color.green()
         )
+        embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
         embed.add_field(name="Target Date", value=parsed_date.strftime("%B %d, %Y"), inline=True)
         embed.add_field(name="Max Price", value=max_price, inline=True)
         embed.add_field(name="Participants", value=f"{len(all_participants)} people", inline=True)
-        embed.set_footer(text="Participants can now use [p]santa message to contact their match!")
+        embed.add_field(name="DMs Sent", value=f"{dm_success} ✅ / {dm_failed} ❌", inline=True)
+        embed.set_footer(text="Participants can use [p]santadm commands in DMs to message their match!")
 
         await ctx.send(embed=embed)
 
@@ -269,6 +412,7 @@ class SecretSanta(commands.Cog):
             return
 
         event = events[event_name]
+        event_id = event.get("event_id")
 
         if event["matched"]:
             await ctx.send(
@@ -295,6 +439,10 @@ class SecretSanta(commands.Cog):
                 events[event_name]["participants"][str(giver_id)]["matched_to"] = receiver_id
             events[event_name]["matched"] = True
 
+        # Reload event data to get wishlists
+        events = await self.config.guild(ctx.guild).events()
+        event = events[event_name]
+
         # Send DMs to participants
         success_count = 0
         fail_count = 0
@@ -303,6 +451,9 @@ class SecretSanta(commands.Cog):
             receiver = self.bot.get_user(receiver_id)
             if giver and receiver:
                 try:
+                    # Get the receiver's wishlist
+                    receiver_wishlist = event["participants"].get(str(receiver_id), {}).get("wishlist")
+
                     embed = discord.Embed(
                         title="🎅 Secret Santa Match!",
                         description=f"You have been matched for **{event_name}** in **{ctx.guild.name}**!",
@@ -311,14 +462,43 @@ class SecretSanta(commands.Cog):
                     embed.add_field(name="Your Giftee", value=receiver.display_name, inline=True)
                     embed.add_field(name="Max Price", value=event["max_price"], inline=True)
                     embed.add_field(name="Target Date", value=event["target_date"], inline=True)
-                    embed.add_field(
-                        name="Anonymous Messaging",
-                        value=(
-                            f"Use `[p]santa message {event_name} <your message>` "
-                            "in the server to send an anonymous message to your giftee!"
-                        ),
-                        inline=False
-                    )
+                    if event_id:
+                        embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+
+                    # Include the giftee's wishlist if available
+                    if receiver_wishlist:
+                        embed.add_field(
+                            name="🎁 Your Giftee's Wishlist",
+                            value=receiver_wishlist[:1024],  # Limit to embed field max
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name="🎁 Your Giftee's Wishlist",
+                            value="No wishlist set yet. You can ask them via anonymous message!",
+                            inline=False
+                        )
+
+                    if event_id:
+                        embed.add_field(
+                            name="Anonymous Messaging (via DM)",
+                            value=(
+                                f"Send anonymous messages to your giftee:\n"
+                                f"`[p]santadm message {event_id} <your message>`\n\n"
+                                f"Reply to your Santa:\n"
+                                f"`[p]santadm reply {event_id} <your message>`"
+                            ),
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name="Anonymous Messaging",
+                            value=(
+                                f"Use `[p]santa message {event_name} <your message>` "
+                                "in the server to send an anonymous message to your giftee!"
+                            ),
+                            inline=False
+                        )
                     embed.set_footer(text="Remember to keep it a secret! 🤫")
                     await giver.send(embed=embed)
                     success_count += 1
@@ -332,6 +512,8 @@ class SecretSanta(commands.Cog):
         )
         embed.add_field(name="DMs Sent", value=str(success_count), inline=True)
         embed.add_field(name="DMs Failed", value=str(fail_count), inline=True)
+        if event_id:
+            embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
         if fail_count > 0:
             embed.set_footer(text="Some users have DMs disabled. They can check their match with [p]santa whoami")
 
@@ -711,8 +893,17 @@ class SecretSanta(commands.Cog):
             await ctx.send(f"Event `{event_name}` not found.")
             return
 
+        # Get the event_id before deletion to clean up the lookup
+        event_id = events[event_name].get("event_id")
+
         async with self.config.guild(ctx.guild).events() as events:
             del events[event_name]
+
+        # Clean up the global event lookup
+        if event_id:
+            async with self.config.event_lookup() as lookup:
+                if event_id in lookup:
+                    del lookup[event_id]
 
         await ctx.send(f"🗑️ Event `{event_name}` has been deleted.")
 
@@ -737,8 +928,14 @@ class SecretSanta(commands.Cog):
             await ctx.send("Please mention at least one member to add.")
             return
 
+        event = events[event_name]
+        event_id = event.get("event_id")
+        max_price = event.get("max_price", "Not specified")
+        target_date = event.get("target_date", "Not specified")
+
         added = []
         already_in = []
+        added_members = []
 
         async with self.config.guild(ctx.guild).events() as events:
             for member in members:
@@ -750,12 +947,47 @@ class SecretSanta(commands.Cog):
                         "matched_to": None,
                         "sent_gift": False,
                         "received_gift": False,
+                        "wishlist": None,
                     }
                     added.append(member.display_name)
+                    added_members.append(member)
+
+        # Send DMs to newly added members asking for their wishlist
+        dm_success = 0
+        dm_failed = 0
+        for member in added_members:
+            try:
+                embed = discord.Embed(
+                    title="🎅 You've Been Added to a Secret Santa Event!",
+                    description=(
+                        f"You've been added to **{event_name}** in **{ctx.guild.name}**!"
+                    ),
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="Target Date", value=target_date, inline=True)
+                embed.add_field(name="Max Price", value=max_price, inline=True)
+                if event_id:
+                    embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+                    embed.add_field(
+                        name="📝 Set Your Wishlist",
+                        value=(
+                            f"Please set your wishlist so your Secret Santa knows what you'd like!\n"
+                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`\n\n"
+                            f"Example: `[p]santadm wishlist {event_id} "
+                            f"I'd love a book, some chocolates, or a cozy sweater!`"
+                        ),
+                        inline=False
+                    )
+                embed.set_footer(text="Your wishlist will be shared with your Secret Santa after matching!")
+                await member.send(embed=embed)
+                dm_success += 1
+            except discord.Forbidden:
+                dm_failed += 1
 
         msg = ""
         if added:
             msg += f"✅ Added: {', '.join(added)}\n"
+            msg += f"📬 DMs sent: {dm_success} ✅ / {dm_failed} ❌\n"
         if already_in:
             msg += f"ℹ️ Already in event: {', '.join(already_in)}"
 
@@ -801,3 +1033,303 @@ class SecretSanta(commands.Cog):
             msg += f"ℹ️ Not in event: {', '.join(not_in)}"
 
         await ctx.send(msg or "No changes made.")
+
+    # DM-only commands using event_id for anonymity
+    @commands.group(autohelp=False)
+    @commands.dm_only()
+    async def santadm(self, ctx):
+        """Secret Santa DM commands for anonymous messaging.
+
+        These commands can only be used in DMs with the bot to preserve anonymity.
+        Use the Event ID provided when you joined the event.
+        """
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
+
+    @santadm.command(name="message")
+    async def santadm_message(self, ctx, event_id: str, *, message: str):
+        """Send an anonymous message to your Secret Santa giftee (DM only).
+
+        Your identity is kept secret - the bot relays the message.
+        Use the Event ID provided when you joined the event.
+
+        Example: [p]santadm message ABC12345 What's your favorite color?
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        if not event["matched"]:
+            await ctx.send("This event hasn't been matched yet. Please wait for the matching to complete.")
+            return
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        matched_to = event["participants"][user_id_str]["matched_to"]
+        if not matched_to:
+            await ctx.send("You haven't been matched to anyone yet.")
+            return
+
+        recipient = self.bot.get_user(matched_to)
+        if not recipient:
+            await ctx.send("Could not find your giftee. They may have left the server.")
+            return
+
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Unknown Server"
+
+        try:
+            embed = discord.Embed(
+                title="🎅 Anonymous Secret Santa Message!",
+                description=message,
+                color=discord.Color.red()
+            )
+            embed.add_field(name="Event", value=event_name, inline=True)
+            embed.add_field(name="Server", value=guild_name, inline=True)
+            embed.add_field(name="Event ID", value=f"`{event_id.upper()}`", inline=True)
+            embed.add_field(
+                name="Reply",
+                value=f"Reply anonymously via DM: `[p]santadm reply {event_id.upper()} <message>`",
+                inline=False
+            )
+            embed.set_footer(text="This is from your Secret Santa! 🎁")
+            await recipient.send(embed=embed)
+
+            await ctx.send("✅ Your message to your Secret Santa giftee was sent successfully!")
+
+        except discord.Forbidden:
+            await ctx.send("Could not send message to your giftee. They may have DMs disabled.")
+
+    @santadm.command(name="reply")
+    async def santadm_reply(self, ctx, event_id: str, *, message: str):
+        """Send an anonymous reply to your Secret Santa (DM only).
+
+        This allows you to respond to questions from your Secret Santa.
+        Use the Event ID provided when you joined the event.
+
+        Example: [p]santadm reply ABC12345 My favorite color is blue!
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        if not event["matched"]:
+            await ctx.send("This event hasn't been matched yet.")
+            return
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        # Find who is giving a gift to this user
+        santa_id = None
+        for giver_id, data in event["participants"].items():
+            if data["matched_to"] == ctx.author.id:
+                santa_id = int(giver_id)
+                break
+
+        if not santa_id:
+            await ctx.send("Could not find your Secret Santa. This might be a configuration error.")
+            return
+
+        santa = self.bot.get_user(santa_id)
+        if not santa:
+            await ctx.send("Could not find your Secret Santa. They may have left the server.")
+            return
+
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Unknown Server"
+
+        try:
+            embed = discord.Embed(
+                title="🎁 Reply from Your Giftee!",
+                description=message,
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Event", value=event_name, inline=True)
+            embed.add_field(name="Server", value=guild_name, inline=True)
+            embed.add_field(name="Event ID", value=f"`{event_id.upper()}`", inline=True)
+            embed.set_footer(text="This is from the person you're buying a gift for! 🎄")
+            await santa.send(embed=embed)
+
+            await ctx.send("✅ Your reply to your Secret Santa was sent successfully!")
+
+        except discord.Forbidden:
+            await ctx.send("Could not send reply to your Secret Santa. They may have DMs disabled.")
+
+    @santadm.command(name="wishlist")
+    async def santadm_wishlist(self, ctx, event_id: str, *, wishlist: str):
+        """Set your wishlist for a Secret Santa event (DM only).
+
+        Your wishlist will be shared with your Secret Santa when matching occurs.
+        If matching already happened, your Santa will be notified of the update.
+
+        Example: [p]santadm wishlist ABC12345 I'd love a book, some chocolates, or a cozy sweater!
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        # Update the wishlist
+        async with self.config.guild_from_id(guild_id).events() as events:
+            events[event_name]["participants"][user_id_str]["wishlist"] = wishlist
+
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Unknown Server"
+
+        await ctx.send(
+            f"✅ Your wishlist for **{event_name}** in **{guild_name}** has been saved!\n\n"
+            f"**Your wishlist:**\n{wishlist}"
+        )
+
+        # If the event is already matched, notify the Santa of the wishlist update
+        if event["matched"]:
+            # Find who is giving a gift to this user
+            santa_id = None
+            for giver_id, data in event["participants"].items():
+                if data["matched_to"] == ctx.author.id:
+                    santa_id = int(giver_id)
+                    break
+
+            if santa_id:
+                santa = self.bot.get_user(santa_id)
+                if santa:
+                    try:
+                        embed = discord.Embed(
+                            title="📝 Your Giftee Updated Their Wishlist!",
+                            description="Your giftee has updated their wishlist.",
+                            color=discord.Color.blue()
+                        )
+                        embed.add_field(name="Event", value=event_name, inline=True)
+                        embed.add_field(name="Server", value=guild_name, inline=True)
+                        embed.add_field(
+                            name="🎁 Updated Wishlist",
+                            value=wishlist[:1024],  # Limit to embed field max
+                            inline=False
+                        )
+                        embed.set_footer(text="Use this information to pick the perfect gift! 🎄")
+                        await santa.send(embed=embed)
+                    except discord.Forbidden:
+                        pass  # Silently fail if we can't DM the Santa
+
+    @santadm.command(name="info")
+    async def santadm_info(self, ctx, event_id: str):
+        """Get information about your Secret Santa event (DM only).
+
+        Shows your assignment, wishlist, and event details.
+
+        Example: [p]santadm info ABC12345
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Unknown Server"
+
+        participant_data = event["participants"][user_id_str]
+
+        embed = discord.Embed(
+            title="🎅 Your Secret Santa Info",
+            description=f"Event **{event_name}** in **{guild_name}**",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="Event ID", value=f"`{event_id.upper()}`", inline=True)
+        embed.add_field(name="Target Date", value=event.get("target_date", "Not set"), inline=True)
+        embed.add_field(name="Max Price", value=event.get("max_price", "Not set"), inline=True)
+
+        if event["matched"]:
+            matched_to = participant_data.get("matched_to")
+            if matched_to:
+                recipient = self.bot.get_user(matched_to)
+                giftee_name = recipient.display_name if recipient else f"User {matched_to}"
+                embed.add_field(name="Your Giftee", value=giftee_name, inline=True)
+
+                # Get the recipient's wishlist
+                recipient_data = event["participants"].get(str(matched_to), {})
+                recipient_wishlist = recipient_data.get("wishlist")
+                if recipient_wishlist:
+                    embed.add_field(
+                        name="🎁 Your Giftee's Wishlist",
+                        value=recipient_wishlist[:1024],
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="🎁 Your Giftee's Wishlist",
+                        value="No wishlist set yet.",
+                        inline=False
+                    )
+        else:
+            embed.add_field(name="Status", value="⏳ Not matched yet", inline=True)
+
+        # Show user's own wishlist
+        my_wishlist = participant_data.get("wishlist")
+        if my_wishlist:
+            embed.add_field(
+                name="📝 Your Wishlist",
+                value=my_wishlist[:1024],
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📝 Your Wishlist",
+                value=f"Not set. Use `[p]santadm wishlist {event_id.upper()} <your wishlist>` to set it!",
+                inline=False
+            )
+
+        embed.add_field(
+            name="Gift Status",
+            value="✅ Sent" if participant_data.get("sent_gift") else "⏳ Not yet sent",
+            inline=True
+        )
+        embed.add_field(
+            name="Received",
+            value="✅ Yes" if participant_data.get("received_gift") else "⏳ Not yet",
+            inline=True
+        )
+
+        embed.set_footer(text="Keep it a secret! 🤫")
+        await ctx.send(embed=embed)
