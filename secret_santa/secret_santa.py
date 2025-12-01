@@ -12,11 +12,18 @@ log = logging.getLogger("red.cog.secret_santa")
 
 IDENTIFIER = 8472916358274916
 
+# Constants for event ID generation
+EVENT_ID_LENGTH = 8
+MAX_EVENT_ID_RETRIES = 100
+
+# Discord embed field character limit
+EMBED_FIELD_MAX_LENGTH = 1024
+
 
 def generate_event_id() -> str:
-    """Generate a random 8-character alphanumeric event ID."""
+    """Generate a random alphanumeric event ID."""
     alphabet = string.ascii_uppercase + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(8))
+    return "".join(secrets.choice(alphabet) for _ in range(EVENT_ID_LENGTH))
 
 
 class SecretSanta(commands.Cog):
@@ -74,7 +81,7 @@ class SecretSanta(commands.Cog):
     async def _generate_unique_event_id(self) -> str:
         """Generate a unique event ID that doesn't conflict with existing ones."""
         event_lookup = await self.config.event_lookup()
-        for _ in range(100):  # Prevent infinite loop
+        for _ in range(MAX_EVENT_ID_RETRIES):
             event_id = generate_event_id()
             if event_id not in event_lookup:
                 return event_id
@@ -469,7 +476,7 @@ class SecretSanta(commands.Cog):
                     if receiver_wishlist:
                         embed.add_field(
                             name="🎁 Your Giftee's Wishlist",
-                            value=receiver_wishlist[:1024],  # Limit to embed field max
+                            value=receiver_wishlist[:EMBED_FIELD_MAX_LENGTH],
                             inline=False
                         )
                     else:
@@ -841,11 +848,16 @@ class SecretSanta(commands.Cog):
         if participant_lines:
             # Split into multiple fields if needed
             participant_text = "\n".join(participant_lines)
-            if len(participant_text) <= 1024:
+            if len(participant_text) <= EMBED_FIELD_MAX_LENGTH:
                 embed.add_field(name="Participant Details", value=participant_text, inline=False)
             else:
                 # Truncate if too long
-                embed.add_field(name="Participant Details", value=participant_text[:1020] + "...", inline=False)
+                truncate_at = EMBED_FIELD_MAX_LENGTH - 4
+                embed.add_field(
+                    name="Participant Details",
+                    value=participant_text[:truncate_at] + "...",
+                    inline=False
+                )
 
         await ctx.send(embed=embed)
 
@@ -1234,13 +1246,16 @@ class SecretSanta(commands.Cog):
                         embed.add_field(name="Server", value=guild_name, inline=True)
                         embed.add_field(
                             name="🎁 Updated Wishlist",
-                            value=wishlist[:1024],  # Limit to embed field max
+                            value=wishlist[:EMBED_FIELD_MAX_LENGTH],
                             inline=False
                         )
                         embed.set_footer(text="Use this information to pick the perfect gift! 🎄")
                         await santa.send(embed=embed)
                     except discord.Forbidden:
-                        pass  # Silently fail if we can't DM the Santa
+                        log.debug(
+                            "Failed to DM Santa %s about wishlist update for event %s",
+                            santa_id, event_name
+                        )
 
     @santadm.command(name="info")
     async def santadm_info(self, ctx, event_id: str):
@@ -1293,7 +1308,7 @@ class SecretSanta(commands.Cog):
                 if recipient_wishlist:
                     embed.add_field(
                         name="🎁 Your Giftee's Wishlist",
-                        value=recipient_wishlist[:1024],
+                        value=recipient_wishlist[:EMBED_FIELD_MAX_LENGTH],
                         inline=False
                     )
                 else:
@@ -1310,7 +1325,7 @@ class SecretSanta(commands.Cog):
         if my_wishlist:
             embed.add_field(
                 name="📝 Your Wishlist",
-                value=my_wishlist[:1024],
+                value=my_wishlist[:EMBED_FIELD_MAX_LENGTH],
                 inline=False
             )
         else:
