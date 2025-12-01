@@ -73,6 +73,7 @@ async def setup(bot):
 - **nw_timers/**: New World war timers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
+- **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
 
