@@ -196,9 +196,17 @@ class SecretSanta(commands.Cog):
                     name="📝 Set Your Wishlist",
                     value=(
                         f"Please set your wishlist so your Secret Santa knows what you'd like!\n"
-                        f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`\n\n"
-                        f"Example: `[p]santadm wishlist {event_id} "
+                        f"DM me: `{ctx.prefix}santadm wishlist {event_id} <your wishlist>`\n\n"
+                        f"Example: `{ctx.prefix}santadm wishlist {event_id} "
                         f"I'd love a book, some chocolates, or a cozy sweater!`"
+                    ),
+                    inline=False
+                )
+                embed.add_field(
+                    name="💬 Anonymous Messaging",
+                    value=(
+                        f"After matching, you can send anonymous messages via DM!\n"
+                        f"`{ctx.prefix}santadm message {event_id} <your message>`"
                     ),
                     inline=False
                 )
@@ -220,7 +228,9 @@ class SecretSanta(commands.Cog):
         embed.add_field(name="Participants", value=f"{len(participants)} people", inline=True)
         embed.add_field(name="DMs Sent", value=f"{dm_success} ✅ / {dm_failed} ❌", inline=True)
         embed.add_field(name="Participant List", value=participant_names, inline=False)
-        embed.set_footer(text="Participants have been asked for wishlists. Use [p]santa match to assign pairs!")
+        embed.set_footer(
+            text=f"Participants have been asked for wishlists. Use {ctx.prefix}santa match to assign pairs!"
+        )
 
         await ctx.send(embed=embed)
 
@@ -368,7 +378,7 @@ class SecretSanta(commands.Cog):
                         name="📝 Set Your Wishlist",
                         value=(
                             f"Set your wishlist so your Santa knows what you'd like!\n"
-                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                            f"DM me: `{ctx.prefix}santadm wishlist {event_id} <your wishlist>`"
                         ),
                         inline=False
                     )
@@ -376,9 +386,9 @@ class SecretSanta(commands.Cog):
                         name="Anonymous Messaging",
                         value=(
                             f"Send anonymous messages to your giftee via DM:\n"
-                            f"`[p]santadm message {event_id} <your message>`\n\n"
+                            f"`{ctx.prefix}santadm message {event_id} <your message>`\n\n"
                             f"Reply to your Santa via DM:\n"
-                            f"`[p]santadm reply {event_id} <your message>`"
+                            f"`{ctx.prefix}santadm reply {event_id} <your message>`"
                         ),
                         inline=False
                     )
@@ -398,7 +408,7 @@ class SecretSanta(commands.Cog):
         embed.add_field(name="Max Price", value=max_price, inline=True)
         embed.add_field(name="Participants", value=f"{len(all_participants)} people", inline=True)
         embed.add_field(name="DMs Sent", value=f"{dm_success} ✅ / {dm_failed} ❌", inline=True)
-        embed.set_footer(text="Participants can use [p]santadm commands in DMs to message their match!")
+        embed.set_footer(text=f"Participants can use {ctx.prefix}santadm commands in DMs to message their match!")
 
         await ctx.send(embed=embed)
 
@@ -424,7 +434,7 @@ class SecretSanta(commands.Cog):
         if event["matched"]:
             await ctx.send(
                 f"Event `{event_name}` has already been matched. "
-                "Use `[p]santa rematch` to redo the matching."
+                f"Use `{ctx.prefix}santa rematch` to redo the matching."
             )
             return
 
@@ -491,9 +501,9 @@ class SecretSanta(commands.Cog):
                             name="Anonymous Messaging (via DM)",
                             value=(
                                 f"Send anonymous messages to your giftee:\n"
-                                f"`[p]santadm message {event_id} <your message>`\n\n"
+                                f"`{ctx.prefix}santadm message {event_id} <your message>`\n\n"
                                 f"Reply to your Santa:\n"
-                                f"`[p]santadm reply {event_id} <your message>`"
+                                f"`{ctx.prefix}santadm reply {event_id} <your message>`"
                             ),
                             inline=False
                         )
@@ -501,7 +511,7 @@ class SecretSanta(commands.Cog):
                         embed.add_field(
                             name="Anonymous Messaging",
                             value=(
-                                f"Use `[p]santa message {event_name} <your message>` "
+                                f"Use `{ctx.prefix}santa message {event_name} <your message>` "
                                 "in the server to send an anonymous message to your giftee!"
                             ),
                             inline=False
@@ -522,7 +532,9 @@ class SecretSanta(commands.Cog):
         if event_id:
             embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
         if fail_count > 0:
-            embed.set_footer(text="Some users have DMs disabled. They can check their match with [p]santa whoami")
+            embed.set_footer(
+                text=f"Some users have DMs disabled. They can check their match with {ctx.prefix}santadm info"
+            )
 
         await ctx.send(embed=embed)
 
@@ -549,7 +561,7 @@ class SecretSanta(commands.Cog):
 
         await ctx.send(
             f"Pairings for `{event_name}` have been reset. "
-            f"Use `[p]santa match {event_name}` to create new pairings."
+            f"Use `{ctx.prefix}santa match {event_name}` to create new pairings."
         )
 
     def _generate_pairings(self, participants: List[int]) -> Optional[List[tuple]]:
@@ -609,11 +621,19 @@ class SecretSanta(commands.Cog):
             )
             embed.add_field(name="Event", value=event_name, inline=True)
             embed.add_field(name="Server", value=ctx.guild.name, inline=True)
-            embed.add_field(
-                name="Reply",
-                value=f"Use `[p]santa reply {event_name} <message>` in the server to reply anonymously!",
-                inline=False
-            )
+            event_id = events[event_name].get("event_id")
+            if event_id:
+                embed.add_field(
+                    name="Reply",
+                    value=f"Reply anonymously via DM: `{ctx.prefix}santadm reply {event_id} <message>`",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Reply",
+                    value=f"Use `{ctx.prefix}santa reply {event_name} <message>` in the server to reply anonymously!",
+                    inline=False
+                )
             embed.set_footer(text="This is from your Secret Santa! 🎁")
             await recipient.send(embed=embed)
 
@@ -969,7 +989,7 @@ class SecretSanta(commands.Cog):
                         name="📝 Your Wishlist",
                         value=(
                             f"You have a wishlist set! You can update it anytime.\n"
-                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                            f"DM me: `{ctx.prefix}santadm wishlist {event_id} <your wishlist>`"
                             if event_id else "You have a wishlist set!"
                         ),
                         inline=False
@@ -979,7 +999,7 @@ class SecretSanta(commands.Cog):
                         name="📝 Set Your Wishlist",
                         value=(
                             f"You haven't set a wishlist yet! Help your Santa out.\n"
-                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                            f"DM me: `{ctx.prefix}santadm wishlist {event_id} <your wishlist>`"
                             if event_id else "You haven't set a wishlist yet!"
                         ),
                         inline=False
@@ -998,7 +1018,7 @@ class SecretSanta(commands.Cog):
                             name="🎁 Gift Sent",
                             value=(
                                 f"⏳ Don't forget to mark your gift as sent!\n"
-                                f"Use: `[p]santa sent {event_name}` in the server"
+                                f"DM me: `{ctx.prefix}santadm sent {event_id}`"
                             ),
                             inline=True
                         )
@@ -1015,7 +1035,7 @@ class SecretSanta(commands.Cog):
                             name="🎄 Gift Received",
                             value=(
                                 f"⏳ Remember to mark when you receive your gift!\n"
-                                f"Use: `[p]santa received {event_name}` in the server"
+                                f"DM me: `{ctx.prefix}santadm received {event_id}`"
                             ),
                             inline=True
                         )
@@ -1027,9 +1047,9 @@ class SecretSanta(commands.Cog):
                         value=(
                             f"You can send anonymous messages via DM!\n\n"
                             f"**Message your giftee:**\n"
-                            f"`[p]santadm message {event_id} <your message>`\n\n"
+                            f"`{ctx.prefix}santadm message {event_id} <your message>`\n\n"
                             f"**Reply to your Santa:**\n"
-                            f"`[p]santadm reply {event_id} <your message>`"
+                            f"`{ctx.prefix}santadm reply {event_id} <your message>`"
                         ),
                         inline=False
                     )
@@ -1066,7 +1086,9 @@ class SecretSanta(commands.Cog):
             return
 
         if events[event_name]["matched"]:
-            await ctx.send("Cannot add participants after matching. Use `[p]santa rematch` to reset matching first.")
+            await ctx.send(
+                f"Cannot add participants after matching. Use `{ctx.prefix}santa rematch` to reset matching first."
+            )
             return
 
         if not members:
@@ -1113,13 +1135,24 @@ class SecretSanta(commands.Cog):
                 embed.add_field(name="Max Price", value=max_price, inline=True)
                 if event_id:
                     embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+                embed.add_field(
+                    name="📝 Set Your Wishlist",
+                    value=(
+                        f"Please set your wishlist so your Secret Santa knows what you'd like!\n"
+                        f"DM me: `{ctx.prefix}santadm wishlist {event_id} <your wishlist>`\n\n"
+                        f"Example: `{ctx.prefix}santadm wishlist {event_id} "
+                        f"I'd love a book, some chocolates, or a cozy sweater!`"
+                    ) if event_id else (
+                        "Please set your wishlist so your Secret Santa knows what you'd like!"
+                    ),
+                    inline=False
+                )
+                if event_id:
                     embed.add_field(
-                        name="📝 Set Your Wishlist",
+                        name="💬 Anonymous Messaging",
                         value=(
-                            f"Please set your wishlist so your Secret Santa knows what you'd like!\n"
-                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`\n\n"
-                            f"Example: `[p]santadm wishlist {event_id} "
-                            f"I'd love a book, some chocolates, or a cozy sweater!`"
+                            f"After matching, you can send anonymous messages via DM!\n"
+                            f"`{ctx.prefix}santadm message {event_id} <your message>`"
                         ),
                         inline=False
                     )
@@ -1152,7 +1185,10 @@ class SecretSanta(commands.Cog):
             return
 
         if events[event_name]["matched"]:
-            await ctx.send("Cannot remove participants after matching. Use `[p]santa rematch` to reset matching first.")
+            await ctx.send(
+                f"Cannot remove participants after matching. "
+                f"Use `{ctx.prefix}santa rematch` to reset matching first."
+            )
             return
 
         if not members:
@@ -1244,7 +1280,7 @@ class SecretSanta(commands.Cog):
             embed.add_field(name="Event ID", value=f"`{event_id.upper()}`", inline=True)
             embed.add_field(
                 name="Reply",
-                value=f"Reply anonymously via DM: `[p]santadm reply {event_id.upper()} <message>`",
+                value=f"Reply anonymously via DM: `{ctx.prefix}santadm reply {event_id.upper()} <message>`",
                 inline=False
             )
             embed.set_footer(text="This is from your Secret Santa! 🎁")
@@ -1464,7 +1500,7 @@ class SecretSanta(commands.Cog):
         else:
             embed.add_field(
                 name="📝 Your Wishlist",
-                value=f"Not set. Use `[p]santadm wishlist {event_id.upper()} <your wishlist>` to set it!",
+                value=f"Not set. Use `{ctx.prefix}santadm wishlist {event_id.upper()} <your wishlist>` to set it!",
                 inline=False
             )
 
@@ -1481,3 +1517,61 @@ class SecretSanta(commands.Cog):
 
         embed.set_footer(text="Keep it a secret! 🤫")
         await ctx.send(embed=embed)
+
+    @santadm.command(name="sent")
+    async def santadm_sent(self, ctx, event_id: str):
+        """Mark that you have sent your gift (DM only).
+
+        Use the Event ID provided when you joined the event.
+
+        Example: [p]santadm sent ABC12345
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        async with self.config.guild_from_id(guild_id).events() as events:
+            events[event_name]["participants"][user_id_str]["sent_gift"] = True
+
+        await ctx.send("🎁 You've marked your gift as **sent**! Thank you!")
+
+    @santadm.command(name="received")
+    async def santadm_received(self, ctx, event_id: str):
+        """Mark that you have received your gift (DM only).
+
+        Use the Event ID provided when you joined the event.
+
+        Example: [p]santadm received ABC12345
+        """
+        result = await self._lookup_event_by_id(event_id.upper())
+
+        if not result:
+            await ctx.send(
+                f"Event with ID `{event_id}` not found. "
+                "Please check the Event ID from your Secret Santa notification."
+            )
+            return
+
+        guild_id, event_name, event = result
+
+        user_id_str = str(ctx.author.id)
+        if user_id_str not in event["participants"]:
+            await ctx.send("You are not a participant in this event.")
+            return
+
+        async with self.config.guild_from_id(guild_id).events() as events:
+            events[event_name]["participants"][user_id_str]["received_gift"] = True
+
+        await ctx.send("🎄 You've marked your gift as **received**! Enjoy your present!")
