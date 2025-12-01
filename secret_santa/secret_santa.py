@@ -919,6 +919,139 @@ class SecretSanta(commands.Cog):
 
         await ctx.send(f"🗑️ Event `{event_name}` has been deleted.")
 
+    @santa.command(name="remind")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def santa_remind(self, ctx, event_name: str):
+        """Send reminder DMs to all participants in a Secret Santa event.
+
+        Reminds participants to:
+        - Update their wishlist
+        - Mark their gift as sent (if not already)
+        - Mark their gift as received (if not already)
+        - Use anonymous DM messaging
+
+        Example: [p]santa remind xmas2024
+        """
+        events = await self.config.guild(ctx.guild).events()
+
+        if event_name not in events:
+            await ctx.send(f"Event `{event_name}` not found.")
+            return
+
+        event = events[event_name]
+        event_id = event.get("event_id")
+        target_date = event.get("target_date", "Not specified")
+        max_price = event.get("max_price", "Not specified")
+
+        dm_success = 0
+        dm_failed = 0
+
+        for user_id_str, participant_data in event["participants"].items():
+            user = self.bot.get_user(int(user_id_str))
+            if not user:
+                dm_failed += 1
+                continue
+
+            try:
+                embed = discord.Embed(
+                    title="🎅 Secret Santa Reminder!",
+                    description=f"A friendly reminder about **{event_name}** in **{ctx.guild.name}**!",
+                    color=discord.Color.red()
+                )
+                embed.add_field(name="Target Date", value=target_date, inline=True)
+                embed.add_field(name="Max Price", value=max_price, inline=True)
+                if event_id:
+                    embed.add_field(name="Event ID", value=f"`{event_id}`", inline=True)
+
+                # Wishlist reminder
+                if participant_data.get("wishlist"):
+                    embed.add_field(
+                        name="📝 Your Wishlist",
+                        value=(
+                            f"You have a wishlist set! You can update it anytime.\n"
+                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                            if event_id else "You have a wishlist set!"
+                        ),
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="📝 Set Your Wishlist",
+                        value=(
+                            f"You haven't set a wishlist yet! Help your Santa out.\n"
+                            f"DM me: `[p]santadm wishlist {event_id} <your wishlist>`"
+                            if event_id else "You haven't set a wishlist yet!"
+                        ),
+                        inline=False
+                    )
+
+                # Gift sent reminder (only if matched)
+                if event["matched"]:
+                    if participant_data.get("sent_gift"):
+                        embed.add_field(
+                            name="🎁 Gift Sent",
+                            value="✅ You've marked your gift as sent!",
+                            inline=True
+                        )
+                    else:
+                        embed.add_field(
+                            name="🎁 Gift Sent",
+                            value=(
+                                f"⏳ Don't forget to mark your gift as sent!\n"
+                                f"Use: `[p]santa sent {event_name}` in the server"
+                            ),
+                            inline=True
+                        )
+
+                    # Gift received reminder
+                    if participant_data.get("received_gift"):
+                        embed.add_field(
+                            name="🎄 Gift Received",
+                            value="✅ You've marked your gift as received!",
+                            inline=True
+                        )
+                    else:
+                        embed.add_field(
+                            name="🎄 Gift Received",
+                            value=(
+                                f"⏳ Remember to mark when you receive your gift!\n"
+                                f"Use: `[p]santa received {event_name}` in the server"
+                            ),
+                            inline=True
+                        )
+
+                # Anonymous messaging reminder (only if matched and event_id exists)
+                if event["matched"] and event_id:
+                    embed.add_field(
+                        name="💬 Anonymous Messaging",
+                        value=(
+                            f"You can send anonymous messages via DM!\n\n"
+                            f"**Message your giftee:**\n"
+                            f"`[p]santadm message {event_id} <your message>`\n\n"
+                            f"**Reply to your Santa:**\n"
+                            f"`[p]santadm reply {event_id} <your message>`"
+                        ),
+                        inline=False
+                    )
+
+                embed.set_footer(text="Happy gifting! 🎁")
+                await user.send(embed=embed)
+                dm_success += 1
+            except discord.Forbidden:
+                dm_failed += 1
+
+        embed = discord.Embed(
+            title="🎅 Reminders Sent!",
+            description=f"Reminder DMs have been sent for **{event_name}**.",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="DMs Sent", value=f"{dm_success} ✅", inline=True)
+        embed.add_field(name="DMs Failed", value=f"{dm_failed} ❌", inline=True)
+        if dm_failed > 0:
+            embed.set_footer(text="Some users have DMs disabled or couldn't be found.")
+
+        await ctx.send(embed=embed)
+
     @santa.command(name="add")
     @checks.admin_or_permissions(manage_guild=True)
     async def santa_add(self, ctx, event_name: str, *members: discord.Member):
