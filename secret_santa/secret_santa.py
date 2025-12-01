@@ -33,7 +33,7 @@ class SecretSanta(commands.Cog):
                 participants = event.get("participants", {})
                 user_id_str = str(user_id)
                 if user_id_str in participants:
-                    del participants[user_id_str]
+                    del events[event_name]["participants"][user_id_str]
                     modified = True
             if modified:
                 await self.config.guild_from_id(guild_id).events.set(events)
@@ -190,9 +190,28 @@ class SecretSanta(commands.Cog):
             if giver_id in all_givers:
                 await ctx.send(f"User {giver_id} is listed as a giver more than once.")
                 return
+            if giver_id == receiver_id:
+                await ctx.send(
+                    f"User {giver_id} cannot give a gift to themselves. "
+                    "Please fix the pairing."
+                )
+                return
             all_givers.add(giver_id)
             all_receivers.add(receiver_id)
             parsed_pairings.append((giver_id, receiver_id))
+
+        # Validate that pairings form a complete exchange
+        # Every participant should both give and receive
+        if all_givers != all_receivers:
+            missing_givers = all_receivers - all_givers
+            missing_receivers = all_givers - all_receivers
+            msg = "Incomplete pairings detected. "
+            if missing_givers:
+                msg += f"Users {missing_givers} receive but don't give. "
+            if missing_receivers:
+                msg += f"Users {missing_receivers} give but don't receive."
+            await ctx.send(msg)
+            return
 
         # Create participant data from pairings
         all_participants = all_givers | all_receivers
