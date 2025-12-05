@@ -343,7 +343,6 @@ class Hat(commands.Cog):
             else:
                 msg = await ctx.send(embed=embed)
 
-            self._create_cleanup_task(msg, CLEANUP_DELAY * 3)  # Keep list longer
 
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
