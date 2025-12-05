@@ -134,6 +134,10 @@ class Hat(commands.Cog):
             # Open the hat and convert to RGBA
             hat = Image.open(hat_path).convert("RGBA")
 
+            # Validate hat dimensions
+            if hat.width == 0 or hat.height == 0:
+                raise ValueError("Invalid hat image dimensions")
+
             # Scale the hat relative to avatar width
             hat_width = int(avatar_width * scale)
             hat_height = int(hat.height * (hat_width / hat.width))
@@ -161,7 +165,7 @@ class Hat(commands.Cog):
             return output.getvalue()
 
         # Run in executor to avoid blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, process_image)
 
     async def _get_avatar_bytes(self, user: discord.User) -> Optional[bytes]:
@@ -568,10 +572,10 @@ class Hat(commands.Cog):
             await ctx.send("❌ Hat images must be PNG files with transparency.")
             return
 
-        # Validate name
+        # Validate name (allow alphanumeric, hyphens, and underscores)
         hat_name_clean = hat_name.lower().strip()
-        if not hat_name_clean.isalnum():
-            await ctx.send("❌ Hat name must be alphanumeric (letters and numbers only).")
+        if not hat_name_clean.replace("-", "").replace("_", "").isalnum():
+            await ctx.send("❌ Hat name must contain only letters, numbers, hyphens, and underscores.")
             return
 
         # Check if hat already exists

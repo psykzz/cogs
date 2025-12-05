@@ -67,7 +67,7 @@ async def setup(bot):
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
 - **game_embed/**: Steam game server monitoring with status embeds and quick-join buttons (requires: python-a2s>=1.3.0)
-- **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=9.0.0)
+- **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **misc/**: Miscellaneous utilities (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
@@ -103,7 +103,7 @@ pip3 install httpx>=0.14.1
 pip3 install python-a2s>=1.3.0
 
 # For hat cog (avatar image manipulation)
-pip3 install Pillow>=9.0.0
+pip3 install Pillow>=10.2.0
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py

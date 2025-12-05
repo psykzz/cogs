@@ -197,7 +197,7 @@ Monitor Steam game servers and display status embeds with quick-join buttons.
 
 Add festive Christmas hats to your avatar! Users can select from multiple hats, adjust scale, rotation, and position, then save settings for reuse.
 
-**Requirements:** `Pillow>=9.0.0`
+**Requirements:** `Pillow>=10.2.0`
 
 **Installation:**
 ```
