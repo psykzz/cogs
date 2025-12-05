@@ -67,6 +67,7 @@ async def setup(bot):
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
 - **game_embed/**: Steam game server monitoring with status embeds and quick-join buttons (requires: python-a2s>=1.3.0)
+- **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **misc/**: Miscellaneous utilities (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
@@ -100,6 +101,9 @@ pip3 install httpx>=0.14.1
 
 # For game_embed cog (Steam server monitoring)
 pip3 install python-a2s>=1.3.0
+
+# For hat cog (avatar image manipulation)
+pip3 install Pillow>=10.2.0
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py
@@ -166,6 +170,20 @@ When making changes to cogs, validate functionality by:
    import a2s
    print('python-a2s import successful')
    print('Available functions:', [f for f in dir(a2s) if not f.startswith('_')])"
+   ```
+
+6. **For hat changes**: Test Pillow image manipulation
+   ```bash
+   # Test Pillow module import and basic functionality
+   python3 -c "
+   from PIL import Image
+   import io
+   print('Pillow import successful')
+   # Test basic image creation
+   img = Image.new('RGBA', (100, 100), (255, 0, 0, 128))
+   output = io.BytesIO()
+   img.save(output, format='PNG')
+   print('Image creation test: OK')"
    ```
 
 ### Red-bot Framework

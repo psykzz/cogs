@@ -193,6 +193,48 @@ Monitor Steam game servers and display status embeds with quick-join buttons.
 
 ---
 
+### Hat
+
+Add festive Christmas hats to your avatar! Users can select from multiple hats, adjust scale, rotation, and position. All commands show a live preview automatically and settings are saved implicitly.
+
+**Requirements:** `Pillow>=10.2.0`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs hat
+[p]load hat
+```
+
+**User Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]hat list` | List all available hats |
+| `[p]hat select <name>` | Select a hat and see a live preview |
+| `[p]hat scale <value>` | Adjust hat size (0.1 to 2.0) with live preview |
+| `[p]hat rotate <degrees>` | Adjust hat rotation (-180 to 180) with live preview |
+| `[p]hat position <x> <y>` | Adjust hat position (0.0 to 1.0) with live preview |
+| `[p]hat reset` | Reset settings to defaults with live preview |
+| `[p]hat show` | Refresh the preview (e.g., after changing your avatar) |
+
+**Admin Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]sethat upload <name>` | Upload a new hat image (attach PNG) |
+| `[p]sethat remove <name>` | Remove a hat |
+| `[p]sethat list` | List all hats with admin details |
+| `[p]sethat default <name>` | Set the default hat |
+
+**Features:**
+- Live previews after every command
+- Auto-cleanup of command messages after 3 seconds
+- Previous previews are replaced when new ones are shown
+- Settings are saved automatically
+- Works in both guilds and DMs
+
+---
+
 ### Misc
 
 Miscellaneous utility commands for your server.
