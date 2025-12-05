@@ -24,6 +24,9 @@ MAX_SCALE = 2.0
 MIN_ROTATION = -180
 MAX_ROTATION = 180
 
+# Cleanup delay in seconds
+CLEANUP_DELAY = 3
+
 
 class Hat(commands.Cog):
     """Add festive Christmas hats to your avatar!"""
@@ -42,13 +45,20 @@ class Hat(commands.Cog):
             "rotation": DEFAULT_ROTATION,
             "x_offset": DEFAULT_X_OFFSET,
             "y_offset": DEFAULT_Y_OFFSET,
-            "saved_settings": {},  # hat_name -> {"scale", "rotation", "x_offset", "y_offset"}
         }
         self.config.register_global(**default_global)
         self.config.register_user(**default_user)
 
-        # Track recent command messages for cleanup
-        self._recent_commands = {}
+        # Track recent preview messages for cleanup (per user per channel)
+        self._preview_messages = {}
+        # Track cleanup tasks for proper cancellation on cog unload
+        self._cleanup_tasks = set()
+
+    def cog_unload(self):
+        """Cancel all pending cleanup tasks when cog is unloaded."""
+        for task in self._cleanup_tasks:
+            task.cancel()
+        self._cleanup_tasks.clear()
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -87,33 +97,46 @@ class Hat(commands.Cog):
 
         return None
 
-    async def _cleanup_previous_commands(self, ctx, user_id: int):
-        """Delete previous command messages from this user in this channel."""
-        key = (ctx.channel.id, user_id)
-        if key in self._recent_commands:
+    async def _cleanup_previous_preview(self, ctx):
+        """Delete previous preview message from this user in this channel."""
+        key = (ctx.channel.id, ctx.author.id)
+        if key in self._preview_messages:
             try:
-                old_messages = self._recent_commands[key]
-                for msg in old_messages:
-                    try:
-                        await msg.delete()
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
+                old_msg = self._preview_messages[key]
+                if old_msg:
+                    await old_msg.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
             except Exception:
                 pass
-        self._recent_commands[key] = []
+            del self._preview_messages[key]
 
-    async def _track_message(self, ctx, message: discord.Message):
-        """Track a message for later cleanup."""
-        key = (ctx.channel.id, ctx.author.id)
-        if key not in self._recent_commands:
-            self._recent_commands[key] = []
-        self._recent_commands[key].append(message)
-
-        # Also track the command message itself
+    async def _schedule_message_cleanup(self, message: discord.Message, delay: int = CLEANUP_DELAY):
+        """Schedule a message to be deleted after a delay."""
         try:
-            self._recent_commands[key].append(ctx.message)
+            await asyncio.sleep(delay)
+            await message.delete()
+        except asyncio.CancelledError:
+            pass  # Task was cancelled during cog unload
+        except (discord.NotFound, discord.Forbidden):
+            pass
         except Exception:
             pass
+
+    def _create_cleanup_task(self, message: discord.Message, delay: int = CLEANUP_DELAY):
+        """Create a tracked cleanup task for a message."""
+        task = asyncio.create_task(self._schedule_message_cleanup(message, delay))
+        self._cleanup_tasks.add(task)
+        task.add_done_callback(self._cleanup_tasks.discard)
+
+    async def _delete_command_after_delay(self, ctx, delay: int = CLEANUP_DELAY):
+        """Delete the user's command message after a delay."""
+        self._create_cleanup_task(ctx.message, delay)
+
+    async def _track_preview_message(self, ctx, message: discord.Message):
+        """Track a preview message for cleanup when a new preview is shown."""
+        key = (ctx.channel.id, ctx.author.id)
+        self._preview_messages[key] = message
 
     async def _apply_hat_to_avatar(
         self,
@@ -176,25 +199,102 @@ class Hat(commands.Cog):
         except Exception:
             return None
 
+    async def _send_live_preview(self, ctx, error_msg: Optional[str] = None):
+        """Generate and send a live preview of the hat on the user's avatar.
+
+        Also handles cleanup of previous preview and command messages.
+        """
+        # Clean up previous preview
+        await self._cleanup_previous_preview(ctx)
+
+        # Delete command message after delay
+        await self._delete_command_after_delay(ctx)
+
+        # If there's an error, just send the error message
+        if error_msg:
+            msg = await ctx.send(error_msg)
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
+            return
+
+        user_data = await self.config.user(ctx.author).all()
+        selected_hat = user_data["selected_hat"]
+
+        # If no hat selected, try to use default
+        if not selected_hat:
+            selected_hat = await self.config.default_hat()
+
+        if not selected_hat:
+            msg = await ctx.send("❌ No hat selected! Use `.hat list` to see available hats, then `.hat select <name>`.")
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
+            return
+
+        hat_path = await self._get_hat_path(selected_hat)
+        if not hat_path:
+            msg = await ctx.send(f"❌ Hat `{selected_hat}` not found. It may have been removed.")
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
+            return
+
+        # Get avatar
+        avatar_bytes = await self._get_avatar_bytes(ctx.author)
+        if not avatar_bytes:
+            msg = await ctx.send("❌ Could not fetch your avatar.")
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
+            return
+
+        # Apply hat
+        try:
+            result = await self._apply_hat_to_avatar(
+                avatar_bytes,
+                hat_path,
+                user_data["scale"],
+                user_data["rotation"],
+                user_data["x_offset"],
+                user_data["y_offset"],
+            )
+        except Exception as e:
+            log.exception("Error applying hat to avatar")
+            msg = await ctx.send(f"❌ Error applying hat: {e}")
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
+            return
+
+        # Create embed with preview
+        embed = discord.Embed(
+            title="🎅 Hat Preview",
+            description="Right-click the image to save it!",
+            color=discord.Color.red(),
+        )
+        embed.add_field(name="Hat", value=selected_hat, inline=True)
+        embed.add_field(name="Scale", value=f"{user_data['scale']}", inline=True)
+        embed.add_field(name="Rotation", value=f"{user_data['rotation']}°", inline=True)
+        embed.add_field(name="Position", value=f"({user_data['x_offset']}, {user_data['y_offset']})", inline=True)
+        embed.set_footer(text="Adjust: .hat scale, .hat rotate, .hat position | Refresh: .hat show")
+
+        file = discord.File(io.BytesIO(result), filename="hat_preview.png")
+        embed.set_image(url="attachment://hat_preview.png")
+
+        msg = await ctx.send(embed=embed, file=file)
+        await self._track_preview_message(ctx, msg)
+
     @commands.group(name="hat", invoke_without_command=True)
     async def _hat(self, ctx):
         """Add a festive Christmas hat to your avatar!
 
-        Use `.hat preview` to see how it looks, and `.hat apply` to save.
+        Commands automatically show a live preview and save your settings.
+        Use `.hat show` to refresh the preview with your current avatar.
         """
         await ctx.send_help(ctx.command)
 
     @_hat.command(name="list")
     async def _hat_list(self, ctx):
         """List all available hats."""
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
+        await self._delete_command_after_delay(ctx)
 
         hats = await self.config.hats()
         default_hat = await self.config.default_hat()
 
         if not hats:
             msg = await ctx.send("❌ No hats available. Ask an admin to upload some!")
-            await self._track_message(ctx, msg)
+            self._create_cleanup_task(msg, CLEANUP_DELAY)
             return
 
         embed = discord.Embed(
@@ -212,16 +312,14 @@ class Hat(commands.Cog):
         embed.set_footer(text="⭐ = Default hat")
 
         msg = await ctx.send(embed=embed)
-        await self._track_message(ctx, msg)
+        self._create_cleanup_task(msg, CLEANUP_DELAY * 3)  # Keep list longer
 
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
-        """Select a hat to use.
+        """Select a hat and see a live preview.
 
         Example: `.hat select santa`
         """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
         hats = await self.config.hats()
         hat_name_lower = hat_name.lower()
 
@@ -234,316 +332,82 @@ class Hat(commands.Cog):
 
         if not found_hat:
             available = ", ".join(hats.keys()) if hats else "None available"
-            msg = await ctx.send(f"❌ Hat `{hat_name}` not found. Available hats: {available}")
-            await self._track_message(ctx, msg)
+            await self._send_live_preview(ctx, f"❌ Hat `{hat_name}` not found. Available hats: {available}")
             return
 
-        # Load saved settings for this hat if they exist
-        saved_settings = await self.config.user(ctx.author).saved_settings()
-        if found_hat in saved_settings:
-            settings = saved_settings[found_hat]
-            await self.config.user(ctx.author).scale.set(settings.get("scale", DEFAULT_SCALE))
-            await self.config.user(ctx.author).rotation.set(settings.get("rotation", DEFAULT_ROTATION))
-            await self.config.user(ctx.author).x_offset.set(settings.get("x_offset", DEFAULT_X_OFFSET))
-            await self.config.user(ctx.author).y_offset.set(settings.get("y_offset", DEFAULT_Y_OFFSET))
-
         await self.config.user(ctx.author).selected_hat.set(found_hat)
-        msg = await ctx.send(f"🎩 Selected hat: **{found_hat}**. Use `.hat preview` to see it!")
-        await self._track_message(ctx, msg)
+
+        # Show live preview
+        await self._send_live_preview(ctx)
 
     @_hat.command(name="scale")
     async def _hat_scale(self, ctx, scale: float):
-        """Adjust the hat size (0.1 to 2.0).
+        """Adjust the hat size (0.1 to 2.0) and see a live preview.
 
         Example: `.hat scale 0.7`
         """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
         if scale < MIN_SCALE or scale > MAX_SCALE:
-            msg = await ctx.send(f"❌ Scale must be between {MIN_SCALE} and {MAX_SCALE}.")
-            await self._track_message(ctx, msg)
+            await self._send_live_preview(ctx, f"❌ Scale must be between {MIN_SCALE} and {MAX_SCALE}.")
             return
 
         await self.config.user(ctx.author).scale.set(scale)
-        msg = await ctx.send(f"📏 Hat scale set to **{scale}**. Use `.hat preview` to see the result!")
-        await self._track_message(ctx, msg)
+
+        # Show live preview
+        await self._send_live_preview(ctx)
 
     @_hat.command(name="rotate")
     async def _hat_rotate(self, ctx, degrees: float):
-        """Adjust the hat rotation (-180 to 180 degrees).
+        """Adjust the hat rotation (-180 to 180 degrees) and see a live preview.
 
         Example: `.hat rotate 15`
         """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
         if degrees < MIN_ROTATION or degrees > MAX_ROTATION:
-            msg = await ctx.send(f"❌ Rotation must be between {MIN_ROTATION} and {MAX_ROTATION} degrees.")
-            await self._track_message(ctx, msg)
+            await self._send_live_preview(ctx, f"❌ Rotation must be between {MIN_ROTATION} and {MAX_ROTATION} degrees.")
             return
 
         await self.config.user(ctx.author).rotation.set(degrees)
-        msg = await ctx.send(f"🔄 Hat rotation set to **{degrees}°**. Use `.hat preview` to see the result!")
-        await self._track_message(ctx, msg)
+
+        # Show live preview
+        await self._send_live_preview(ctx)
 
     @_hat.command(name="position")
     async def _hat_position(self, ctx, x: float, y: float):
-        """Adjust the hat position (0.0 to 1.0 for both x and y).
+        """Adjust the hat position and see a live preview.
 
         x: 0.0 = left, 0.5 = center, 1.0 = right
         y: 0.0 = top, 0.5 = center, 1.0 = bottom
 
         Example: `.hat position 0.5 0.1`
         """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
         if x < 0.0 or x > 1.0 or y < 0.0 or y > 1.0:
-            msg = await ctx.send("❌ Position values must be between 0.0 and 1.0.")
-            await self._track_message(ctx, msg)
+            await self._send_live_preview(ctx, "❌ Position values must be between 0.0 and 1.0.")
             return
 
         await self.config.user(ctx.author).x_offset.set(x)
         await self.config.user(ctx.author).y_offset.set(y)
-        msg = await ctx.send(f"📍 Hat position set to **({x}, {y})**. Use `.hat preview` to see the result!")
-        await self._track_message(ctx, msg)
+
+        # Show live preview
+        await self._send_live_preview(ctx)
 
     @_hat.command(name="reset")
     async def _hat_reset(self, ctx):
-        """Reset hat settings to defaults."""
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
+        """Reset hat settings to defaults and see a live preview."""
         await self.config.user(ctx.author).scale.set(DEFAULT_SCALE)
         await self.config.user(ctx.author).rotation.set(DEFAULT_ROTATION)
         await self.config.user(ctx.author).x_offset.set(DEFAULT_X_OFFSET)
         await self.config.user(ctx.author).y_offset.set(DEFAULT_Y_OFFSET)
 
-        msg = await ctx.send("🔄 Hat settings reset to defaults!")
-        await self._track_message(ctx, msg)
+        # Show live preview
+        await self._send_live_preview(ctx)
 
-    @_hat.command(name="save")
-    async def _hat_save(self, ctx):
-        """Save current hat settings for future use."""
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
+    @_hat.command(name="show")
+    async def _hat_show(self, ctx):
+        """Show a fresh preview with your current avatar.
 
-        user_data = await self.config.user(ctx.author).all()
-        selected_hat = user_data["selected_hat"]
-
-        if not selected_hat:
-            msg = await ctx.send("❌ No hat selected. Use `.hat select <name>` first!")
-            await self._track_message(ctx, msg)
-            return
-
-        settings = {
-            "scale": user_data["scale"],
-            "rotation": user_data["rotation"],
-            "x_offset": user_data["x_offset"],
-            "y_offset": user_data["y_offset"],
-        }
-
-        async with self.config.user(ctx.author).saved_settings() as saved:
-            saved[selected_hat] = settings
-
-        msg = await ctx.send(f"💾 Settings saved for hat **{selected_hat}**!")
-        await self._track_message(ctx, msg)
-
-    @_hat.command(name="load")
-    async def _hat_load(self, ctx, hat_name: Optional[str] = None):
-        """Load previously saved hat settings.
-
-        If no hat name is given, loads settings for the currently selected hat.
-
-        Example: `.hat load santa`
+        Use this to refresh the preview after changing your Discord avatar,
+        or if some time has passed and you want to see the hat again.
         """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
-        user_data = await self.config.user(ctx.author).all()
-
-        if hat_name is None:
-            hat_name = user_data["selected_hat"]
-
-        if not hat_name:
-            msg = await ctx.send("❌ No hat specified or selected. Use `.hat select <name>` first!")
-            await self._track_message(ctx, msg)
-            return
-
-        saved_settings = user_data["saved_settings"]
-        if hat_name not in saved_settings:
-            msg = await ctx.send(f"❌ No saved settings for hat **{hat_name}**. Use `.hat save` first!")
-            await self._track_message(ctx, msg)
-            return
-
-        settings = saved_settings[hat_name]
-        await self.config.user(ctx.author).scale.set(settings.get("scale", DEFAULT_SCALE))
-        await self.config.user(ctx.author).rotation.set(settings.get("rotation", DEFAULT_ROTATION))
-        await self.config.user(ctx.author).x_offset.set(settings.get("x_offset", DEFAULT_X_OFFSET))
-        await self.config.user(ctx.author).y_offset.set(settings.get("y_offset", DEFAULT_Y_OFFSET))
-        await self.config.user(ctx.author).selected_hat.set(hat_name)
-
-        msg = await ctx.send(f"📂 Loaded saved settings for hat **{hat_name}**!")
-        await self._track_message(ctx, msg)
-
-    @_hat.command(name="preview")
-    async def _hat_preview(self, ctx):
-        """Preview your avatar with the selected hat."""
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
-        user_data = await self.config.user(ctx.author).all()
-        selected_hat = user_data["selected_hat"]
-
-        # If no hat selected, try to use default
-        if not selected_hat:
-            selected_hat = await self.config.default_hat()
-
-        if not selected_hat:
-            msg = await ctx.send("❌ No hat selected! Use `.hat list` to see available hats, then `.hat select <name>`.")
-            await self._track_message(ctx, msg)
-            return
-
-        hat_path = await self._get_hat_path(selected_hat)
-        if not hat_path:
-            msg = await ctx.send(f"❌ Hat `{selected_hat}` not found. It may have been removed.")
-            await self._track_message(ctx, msg)
-            return
-
-        # Get avatar
-        avatar_bytes = await self._get_avatar_bytes(ctx.author)
-        if not avatar_bytes:
-            msg = await ctx.send("❌ Could not fetch your avatar.")
-            await self._track_message(ctx, msg)
-            return
-
-        # Apply hat
-        try:
-            result = await self._apply_hat_to_avatar(
-                avatar_bytes,
-                hat_path,
-                user_data["scale"],
-                user_data["rotation"],
-                user_data["x_offset"],
-                user_data["y_offset"],
-            )
-        except Exception as e:
-            log.exception("Error applying hat to avatar")
-            msg = await ctx.send(f"❌ Error applying hat: {e}")
-            await self._track_message(ctx, msg)
-            return
-
-        # Create embed with preview
-        embed = discord.Embed(
-            title="🎅 Hat Preview",
-            description="Use `.hat apply` to save this as your avatar!",
-            color=discord.Color.red(),
-        )
-        embed.add_field(name="Hat", value=selected_hat, inline=True)
-        embed.add_field(name="Scale", value=f"{user_data['scale']}", inline=True)
-        embed.add_field(name="Rotation", value=f"{user_data['rotation']}°", inline=True)
-        embed.add_field(name="Position", value=f"({user_data['x_offset']}, {user_data['y_offset']})", inline=True)
-        embed.set_footer(text="Adjust with .hat scale, .hat rotate, .hat position")
-
-        file = discord.File(io.BytesIO(result), filename="hat_preview.png")
-        embed.set_image(url="attachment://hat_preview.png")
-
-        msg = await ctx.send(embed=embed, file=file)
-        await self._track_message(ctx, msg)
-
-    @_hat.command(name="apply")
-    async def _hat_apply(self, ctx):
-        """Apply the hat to your avatar and get the final image.
-
-        This generates the final hatted avatar that you can download and use.
-        """
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
-        user_data = await self.config.user(ctx.author).all()
-        selected_hat = user_data["selected_hat"]
-
-        # If no hat selected, try to use default
-        if not selected_hat:
-            selected_hat = await self.config.default_hat()
-
-        if not selected_hat:
-            msg = await ctx.send("❌ No hat selected! Use `.hat list` to see available hats, then `.hat select <name>`.")
-            await self._track_message(ctx, msg)
-            return
-
-        hat_path = await self._get_hat_path(selected_hat)
-        if not hat_path:
-            msg = await ctx.send(f"❌ Hat `{selected_hat}` not found. It may have been removed.")
-            await self._track_message(ctx, msg)
-            return
-
-        # Get avatar
-        avatar_bytes = await self._get_avatar_bytes(ctx.author)
-        if not avatar_bytes:
-            msg = await ctx.send("❌ Could not fetch your avatar.")
-            await self._track_message(ctx, msg)
-            return
-
-        # Apply hat
-        try:
-            result = await self._apply_hat_to_avatar(
-                avatar_bytes,
-                hat_path,
-                user_data["scale"],
-                user_data["rotation"],
-                user_data["x_offset"],
-                user_data["y_offset"],
-            )
-        except Exception as e:
-            log.exception("Error applying hat to avatar")
-            msg = await ctx.send(f"❌ Error applying hat: {e}")
-            await self._track_message(ctx, msg)
-            return
-
-        # Save current settings for this hat
-        settings = {
-            "scale": user_data["scale"],
-            "rotation": user_data["rotation"],
-            "x_offset": user_data["x_offset"],
-            "y_offset": user_data["y_offset"],
-        }
-        async with self.config.user(ctx.author).saved_settings() as saved:
-            saved[selected_hat] = settings
-
-        # Send final image
-        embed = discord.Embed(
-            title="🎄 Your Festive Avatar!",
-            description="Right-click the image to save it, then set it as your Discord avatar!",
-            color=discord.Color.green(),
-        )
-        embed.set_footer(text="Happy Holidays! 🎅")
-
-        file = discord.File(io.BytesIO(result), filename="festive_avatar.png")
-        embed.set_image(url="attachment://festive_avatar.png")
-
-        msg = await ctx.send(embed=embed, file=file)
-        await self._track_message(ctx, msg)
-
-    @_hat.command(name="settings")
-    async def _hat_settings(self, ctx):
-        """Show your current hat settings."""
-        await self._cleanup_previous_commands(ctx, ctx.author.id)
-
-        user_data = await self.config.user(ctx.author).all()
-
-        embed = discord.Embed(
-            title="⚙️ Your Hat Settings",
-            color=discord.Color.blue(),
-        )
-        embed.add_field(name="Selected Hat", value=user_data["selected_hat"] or "None", inline=True)
-        embed.add_field(name="Scale", value=f"{user_data['scale']}", inline=True)
-        embed.add_field(name="Rotation", value=f"{user_data['rotation']}°", inline=True)
-        embed.add_field(name="Position X", value=f"{user_data['x_offset']}", inline=True)
-        embed.add_field(name="Position Y", value=f"{user_data['y_offset']}", inline=True)
-
-        saved_hats = list(user_data["saved_settings"].keys())
-        embed.add_field(
-            name="Saved Settings",
-            value=", ".join(saved_hats) if saved_hats else "None",
-            inline=False,
-        )
-
-        msg = await ctx.send(embed=embed)
-        await self._track_message(ctx, msg)
+        await self._send_live_preview(ctx)
 
     # Admin commands
     @commands.group(name="sethat", invoke_without_command=True)
