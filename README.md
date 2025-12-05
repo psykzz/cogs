@@ -193,6 +193,47 @@ Monitor Steam game servers and display status embeds with quick-join buttons.
 
 ---
 
+### Hat
+
+Add festive Christmas hats to your avatar! Users can select from multiple hats, adjust scale, rotation, and position, then save settings for reuse.
+
+**Requirements:** `Pillow>=9.0.0`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs hat
+[p]load hat
+```
+
+**User Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]hat list` | List all available hats |
+| `[p]hat select <name>` | Select a hat to use |
+| `[p]hat preview` | Preview your avatar with the selected hat |
+| `[p]hat apply` | Generate the final hatted avatar image |
+| `[p]hat scale <value>` | Adjust hat size (0.1 to 2.0) |
+| `[p]hat rotate <degrees>` | Adjust hat rotation (-180 to 180) |
+| `[p]hat position <x> <y>` | Adjust hat position (0.0 to 1.0) |
+| `[p]hat reset` | Reset settings to defaults |
+| `[p]hat save` | Save current settings for the selected hat |
+| `[p]hat load [name]` | Load previously saved settings |
+| `[p]hat settings` | Show your current hat settings |
+
+**Admin Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]sethat upload <name>` | Upload a new hat image (attach PNG) |
+| `[p]sethat remove <name>` | Remove a hat |
+| `[p]sethat list` | List all hats with admin details |
+| `[p]sethat default <name>` | Set the default hat |
+
+**Usage:** Works in both guilds and DMs. The bot attempts to clean up previous command messages to keep channels tidy.
+
+---
+
 ### Misc
 
 Miscellaneous utility commands for your server.

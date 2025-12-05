@@ -1,0 +1,10 @@
+{
+    "name": "Hat",
+    "author": ["psykzz"],
+    "short": "Add festive Christmas hats to avatars",
+    "description": "A cog that helps users create festive versions of their avatars by overlaying Christmas hats. Users can select from multiple hats, adjust scale, rotation, and position. Admins can upload and manage hat images. Supports both guild and DM usage.",
+    "tags": ["christmas", "hat", "avatar", "festive", "holiday", "image"],
+    "permissions": ["send_messages", "embed_links", "attach_files", "manage_messages"],
+    "requirements": ["Pillow>=9.0.0"],
+    "end_user_data_statement": "This cog stores user IDs and their hat preferences (selected hat, scale, rotation, position) for future use."
+}
