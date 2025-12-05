@@ -343,7 +343,6 @@ class Hat(commands.Cog):
             else:
                 msg = await ctx.send(embed=embed)
 
-
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
         """Select a hat and see a live preview.
