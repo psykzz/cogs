@@ -17,6 +17,8 @@ DEFAULT_SCALE = 0.5
 DEFAULT_ROTATION = 0
 DEFAULT_X_OFFSET = 0.5  # Center horizontally (0.0 = left, 1.0 = right)
 DEFAULT_Y_OFFSET = 0.0  # Top of image (0.0 = top, 1.0 = bottom)
+DEFAULT_FLIP_X = False
+DEFAULT_FLIP_Y = False
 
 # Limits
 MIN_SCALE = 0.1
@@ -45,6 +47,8 @@ class Hat(commands.Cog):
             "rotation": DEFAULT_ROTATION,
             "x_offset": DEFAULT_X_OFFSET,
             "y_offset": DEFAULT_Y_OFFSET,
+            "flip_x": DEFAULT_FLIP_X,
+            "flip_y": DEFAULT_FLIP_Y,
         }
         self.config.register_global(**default_global)
         self.config.register_user(**default_user)
@@ -146,6 +150,8 @@ class Hat(commands.Cog):
         rotation: float,
         x_offset: float,
         y_offset: float,
+        flip_x: bool = False,
+        flip_y: bool = False,
     ) -> bytes:
         """Apply a hat overlay to an avatar image."""
 
@@ -161,6 +167,12 @@ class Hat(commands.Cog):
             if hat.width == 0 or hat.height == 0:
                 raise ValueError("Invalid hat image dimensions")
 
+            # Flip the hat if requested
+            if flip_x:
+                hat = hat.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            if flip_y:
+                hat = hat.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+
             # Scale the hat relative to avatar width
             hat_width = int(avatar_width * scale)
             hat_height = int(hat.height * (hat_width / hat.width))
@@ -173,6 +185,7 @@ class Hat(commands.Cog):
             # Calculate position
             # x_offset: 0.0 = left edge, 0.5 = center, 1.0 = right edge
             # y_offset: 0.0 = top edge, 0.5 = center, 1.0 = bottom edge
+            # Negative values or values > 1.0 will position the hat partially off-screen
             x = int((avatar_width - hat.width) * x_offset)
             y = int((avatar_height - hat.height) * y_offset)
 
@@ -250,6 +263,8 @@ class Hat(commands.Cog):
                 user_data["rotation"],
                 user_data["x_offset"],
                 user_data["y_offset"],
+                user_data.get("flip_x", DEFAULT_FLIP_X),
+                user_data.get("flip_y", DEFAULT_FLIP_Y),
             )
         except Exception as e:
             log.exception("Error applying hat to avatar")
@@ -258,6 +273,13 @@ class Hat(commands.Cog):
             return
 
         # Create embed with preview
+        flip_status = []
+        if user_data.get("flip_x", DEFAULT_FLIP_X):
+            flip_status.append("X")
+        if user_data.get("flip_y", DEFAULT_FLIP_Y):
+            flip_status.append("Y")
+        flip_text = ", ".join(flip_status) if flip_status else "None"
+
         embed = discord.Embed(
             title="🎅 Hat Preview",
             description="Right-click the image to save it!",
@@ -267,7 +289,8 @@ class Hat(commands.Cog):
         embed.add_field(name="Scale", value=f"{user_data['scale']}", inline=True)
         embed.add_field(name="Rotation", value=f"{user_data['rotation']}°", inline=True)
         embed.add_field(name="Position", value=f"({user_data['x_offset']}, {user_data['y_offset']})", inline=True)
-        embed.set_footer(text="Adjust: .hat scale, .hat rotate, .hat position | Refresh: .hat show")
+        embed.add_field(name="Flip", value=flip_text, inline=True)
+        embed.set_footer(text="Adjust: .hat scale, .hat rotate, .hat position, .hat flip | Refresh: .hat show")
 
         file = discord.File(io.BytesIO(result), filename="hat_preview.png")
         embed.set_image(url="attachment://hat_preview.png")
@@ -385,14 +408,41 @@ class Hat(commands.Cog):
         x: 0.0 = left, 0.5 = center, 1.0 = right
         y: 0.0 = top, 0.5 = center, 1.0 = bottom
 
-        Example: `.hat position 0.5 0.1`
-        """
-        if x < 0.0 or x > 1.0 or y < 0.0 or y > 1.0:
-            await self._send_live_preview(ctx, "❌ Position values must be between 0.0 and 1.0.")
-            return
+        Negative values or values > 1.0 will position the hat partially off-screen.
 
+        Example: `.hat position 0.5 0.1`
+        Example: `.hat position -0.2 0.0` (hat partially off left side)
+        """
         await self.config.user(ctx.author).x_offset.set(x)
         await self.config.user(ctx.author).y_offset.set(y)
+
+        # Show live preview
+        await self._send_live_preview(ctx)
+
+    @_hat.command(name="flip")
+    async def _hat_flip(self, ctx, axis: str):
+        """Flip the hat on the X or Y axis and see a live preview.
+
+        axis: 'x' for horizontal flip, 'y' for vertical flip, 'none' to reset
+
+        Example: `.hat flip x` (flip horizontally)
+        Example: `.hat flip y` (flip vertically)
+        Example: `.hat flip none` (reset flips)
+        """
+        axis_lower = axis.lower()
+        if axis_lower not in ("x", "y", "none"):
+            await self._send_live_preview(ctx, "❌ Axis must be 'x', 'y', or 'none'.")
+            return
+
+        if axis_lower == "x":
+            current = await self.config.user(ctx.author).flip_x()
+            await self.config.user(ctx.author).flip_x.set(not current)
+        elif axis_lower == "y":
+            current = await self.config.user(ctx.author).flip_y()
+            await self.config.user(ctx.author).flip_y.set(not current)
+        else:  # none
+            await self.config.user(ctx.author).flip_x.set(DEFAULT_FLIP_X)
+            await self.config.user(ctx.author).flip_y.set(DEFAULT_FLIP_Y)
 
         # Show live preview
         await self._send_live_preview(ctx)
@@ -404,6 +454,8 @@ class Hat(commands.Cog):
         await self.config.user(ctx.author).rotation.set(DEFAULT_ROTATION)
         await self.config.user(ctx.author).x_offset.set(DEFAULT_X_OFFSET)
         await self.config.user(ctx.author).y_offset.set(DEFAULT_Y_OFFSET)
+        await self.config.user(ctx.author).flip_x.set(DEFAULT_FLIP_X)
+        await self.config.user(ctx.author).flip_y.set(DEFAULT_FLIP_Y)
 
         # Show live preview
         await self._send_live_preview(ctx)
