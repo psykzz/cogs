@@ -286,7 +286,7 @@ class Hat(commands.Cog):
 
     @_hat.command(name="list")
     async def _hat_list(self, ctx):
-        """List all available hats."""
+        """List all available hats with a preview of the default hat."""
         await self._delete_command_after_delay(ctx)
 
         hats = await self.config.hats()
@@ -311,7 +311,19 @@ class Hat(commands.Cog):
         embed.add_field(name="Hats", value="\n".join(hat_list) or "None", inline=False)
         embed.set_footer(text="⭐ = Default hat")
 
-        msg = await ctx.send(embed=embed)
+        # Add a preview image of the default hat (or first available hat)
+        preview_hat = default_hat if default_hat else next(iter(hats.keys()), None)
+        file = None
+        if preview_hat:
+            hat_path = await self._get_hat_path(preview_hat)
+            if hat_path:
+                file = discord.File(hat_path, filename="hat_preview.png")
+                embed.set_image(url="attachment://hat_preview.png")
+
+        if file:
+            msg = await ctx.send(embed=embed, file=file)
+        else:
+            msg = await ctx.send(embed=embed)
         self._create_cleanup_task(msg, CLEANUP_DELAY * 3)  # Keep list longer
 
     @_hat.command(name="select")
