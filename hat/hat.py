@@ -286,7 +286,7 @@ class Hat(commands.Cog):
 
     @_hat.command(name="list")
     async def _hat_list(self, ctx):
-        """List all available hats with a preview of the default hat."""
+        """List all available hats with preview images."""
         await self._delete_command_after_delay(ctx)
 
         hats = await self.config.hats()
@@ -297,34 +297,30 @@ class Hat(commands.Cog):
             self._create_cleanup_task(msg, CLEANUP_DELAY)
             return
 
-        embed = discord.Embed(
-            title="🎅 Available Hats",
-            description="Use `.hat select <name>` to choose a hat!",
-            color=discord.Color.red(),
-        )
+        # Send a preview for each hat
+        hat_names = list(hats.keys())
+        for idx, name in enumerate(hat_names):
+            is_default = " ⭐" if name == default_hat else ""
+            is_last = idx == len(hat_names) - 1
 
-        hat_list = []
-        for name, data in hats.items():
-            is_default = "⭐ " if name == default_hat else ""
-            hat_list.append(f"{is_default}**{name}**")
+            embed = discord.Embed(
+                title=f"🎅 {name}{is_default}",
+                description="Use `.hat select <name>` to choose a hat!" if idx == 0 else None,
+                color=discord.Color.red(),
+            )
 
-        embed.add_field(name="Hats", value="\n".join(hat_list) or "None", inline=False)
-        embed.set_footer(text="⭐ = Default hat")
+            if is_last:
+                embed.set_footer(text="⭐ = Default hat")
 
-        # Add a preview image of the default hat (or first available hat)
-        preview_hat = default_hat if default_hat else next(iter(hats.keys()), None)
-        file = None
-        if preview_hat:
-            hat_path = await self._get_hat_path(preview_hat)
+            hat_path = await self._get_hat_path(name)
             if hat_path:
                 file = discord.File(hat_path, filename="hat_preview.png")
                 embed.set_image(url="attachment://hat_preview.png")
+                msg = await ctx.send(embed=embed, file=file)
+            else:
+                msg = await ctx.send(embed=embed)
 
-        if file:
-            msg = await ctx.send(embed=embed, file=file)
-        else:
-            msg = await ctx.send(embed=embed)
-        self._create_cleanup_task(msg, CLEANUP_DELAY * 3)  # Keep list longer
+            self._create_cleanup_task(msg, CLEANUP_DELAY * 3)  # Keep list longer
 
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
