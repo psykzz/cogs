@@ -9,6 +9,28 @@ class User(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def _detect_image_format(self, image_bytes: bytes) -> str:
+        """Detect image format from bytes.
+
+        Args:
+            image_bytes: The image data
+
+        Returns:
+            MIME type string (e.g., 'image/png', 'image/jpeg')
+        """
+        # Check magic bytes for common image formats
+        if image_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+            return 'image/png'
+        elif image_bytes.startswith(b'\xFF\xD8\xFF'):
+            return 'image/jpeg'
+        elif image_bytes.startswith(b'GIF87a') or image_bytes.startswith(b'GIF89a'):
+            return 'image/gif'
+        elif image_bytes.startswith(b'RIFF') and image_bytes[8:12] == b'WEBP':
+            return 'image/webp'
+        else:
+            # Default to PNG if unknown
+            return 'image/png'
+
     async def _edit_nickname(
         self,
         ctx: commands.Context,
@@ -57,8 +79,11 @@ class User(commands.Cog):
         try:
             image_data = await attachment.read()
             return image_data
-        except Exception as e:
+        except discord.HTTPException as e:
             await ctx.send(f"❌ Failed to read attachment: {e}")
+            return None
+        except discord.NotFound:
+            await ctx.send("❌ Attachment not found.")
             return None
 
     async def _update_guild_profile(
@@ -85,12 +110,14 @@ class User(commands.Cog):
         payload = {}
 
         if avatar_bytes is not None:
+            avatar_format = self._detect_image_format(avatar_bytes)
             avatar_b64 = base64.b64encode(avatar_bytes).decode('ascii')
-            payload['avatar'] = f'data:image/png;base64,{avatar_b64}'
+            payload['avatar'] = f'data:{avatar_format};base64,{avatar_b64}'
 
         if banner_bytes is not None:
+            banner_format = self._detect_image_format(banner_bytes)
             banner_b64 = base64.b64encode(banner_bytes).decode('ascii')
-            payload['banner'] = f'data:image/png;base64,{banner_b64}'
+            payload['banner'] = f'data:{banner_format};base64,{banner_b64}'
 
         if nick is not None:
             payload['nick'] = nick
