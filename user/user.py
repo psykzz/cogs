@@ -3,11 +3,41 @@ import discord
 from redbot.core import commands
 
 
+# Valid image types for avatar/banner uploads
+VALID_IMAGE_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/gif")
+
+# Maximum size for avatar uploads (8 MiB)
+MAX_AVATAR_SIZE = 8 * 1024 * 1024
+
+
 class User(commands.Cog):
     """Manage bot user settings"""
 
     def __init__(self, bot):
         self.bot = bot
+
+    def _format_profile_http_error(
+        self,
+        e: discord.HTTPException,
+        field: str | None = None
+    ) -> str:
+        """Format HTTP error messages for profile updates.
+
+        Args:
+            e: The HTTPException that occurred
+            field: Optional field name (e.g., 'avatar', 'nickname')
+
+        Returns:
+            Formatted error message string
+        """
+        error_text = str(e)
+        # Strip common prefixes for cleaner messages
+        if error_text.startswith("Invalid Form Body"):
+            error_text = error_text.replace("Invalid Form Body\n", "")
+
+        if field:
+            return f"❌ Failed to update {field}: {error_text}"
+        return f"❌ Failed to update profile: {error_text}"
 
     def _detect_image_format(self, image_bytes: bytes) -> str:
         """Detect image format from bytes.
@@ -51,16 +81,19 @@ class User(commands.Cog):
         except discord.Forbidden:
             await ctx.send("❌ I don't have permission to change my nickname.")
         except discord.HTTPException as e:
-            await ctx.send(f"❌ Failed to change nickname: {e}")
+            await ctx.send(self._format_profile_http_error(e, "nickname"))
 
     async def _validate_image_attachment(
         self,
-        ctx: commands.Context
+        ctx: commands.Context,
+        *,
+        max_size: int = MAX_AVATAR_SIZE
     ) -> bytes | None:
         """Validate that the first message attachment is an image and return its bytes.
 
         Args:
             ctx: The command context
+            max_size: Maximum allowed file size in bytes (default: 8 MiB)
 
         Returns:
             Image bytes if valid, None otherwise (with error message sent)
@@ -71,9 +104,18 @@ class User(commands.Cog):
 
         attachment = ctx.message.attachments[0]
 
-        # Check if the attachment is an image
-        if not attachment.content_type or not attachment.content_type.startswith("image/"):
-            await ctx.send("❌ The attachment must be an image file.")
+        # Validate file size
+        if attachment.size and attachment.size > max_size:
+            size_mb = max_size / (1024 * 1024)
+            await ctx.send(f"❌ The provided attachment is too large. Max size is {size_mb:.0f}MB.")
+            return None
+
+        # Validate content type
+        if not attachment.content_type or attachment.content_type not in VALID_IMAGE_TYPES:
+            await ctx.send(
+                f"❌ Invalid attachment type `{attachment.content_type}`; "
+                "must be PNG, JPEG, JPG, or GIF."
+            )
             return None
 
         try:
@@ -162,6 +204,6 @@ class User(commands.Cog):
         except discord.Forbidden:
             await ctx.send("❌ I don't have permission to change my avatar in this server.")
         except discord.HTTPException as e:
-            await ctx.send(f"❌ Failed to change avatar: {e}")
+            await ctx.send(self._format_profile_http_error(e, "avatar"))
         except Exception as e:
             await ctx.send(f"❌ An error occurred: {e}")
