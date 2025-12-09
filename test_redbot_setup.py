@@ -20,10 +20,15 @@ def test_redbot_import():
         return False
 
 
+def _get_cog_directories():
+    """Get list of cog directories (excluding hidden directories)."""
+    return [d for d in Path(".").iterdir() if d.is_dir() and not d.name.startswith(".")]
+
+
 def test_cog_syntax():
     """Test that all cog Python files have valid syntax."""
     print("\nTesting cog file syntax...")
-    cog_dirs = [d for d in Path(".").iterdir() if d.is_dir() and not d.name.startswith(".")]
+    cog_dirs = _get_cog_directories()
     
     failed_files = []
     success_count = 0
@@ -32,7 +37,7 @@ def test_cog_syntax():
         py_files = list(cog_dir.glob("*.py"))
         for py_file in py_files:
             try:
-                with open(py_file, 'r') as f:
+                with open(py_file, 'r', encoding='utf-8') as f:
                     compile(f.read(), py_file, 'exec')
                 success_count += 1
             except SyntaxError as e:
@@ -50,7 +55,7 @@ def test_cog_syntax():
 def test_cog_imports():
     """Test that cog __init__.py files can be imported."""
     print("\nTesting cog imports...")
-    cog_dirs = [d for d in Path(".").iterdir() if d.is_dir() and not d.name.startswith(".")]
+    cog_dirs = _get_cog_directories()
     
     failed_imports = []
     success_count = 0

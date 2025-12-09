@@ -31,8 +31,6 @@ jobs:
       - name: Test cog imports
         run: |
           python -c "from redbot.core import commands; print('✓ Red-DiscordBot core imports working')"
-          python -m py_compile */*.py
-          echo "✓ All cog files compiled successfully"
       - name: Run comprehensive test suite
         run: |
           python test_redbot_setup.py
