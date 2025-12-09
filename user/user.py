@@ -144,8 +144,8 @@ class User(commands.Cog):
 
         Args:
             guild_id: The guild ID to update profile for
-            avatar_bytes: Optional avatar image bytes
-            banner_bytes: Optional banner image bytes
+            avatar_bytes: Optional avatar image bytes, or empty bytes to reset
+            banner_bytes: Optional banner image bytes, or empty bytes to reset
             nick: Optional nickname
             bio: Optional bio
 
@@ -156,14 +156,22 @@ class User(commands.Cog):
         payload = {}
 
         if avatar_bytes is not None:
-            avatar_format = self._detect_image_format(avatar_bytes)
-            avatar_b64 = base64.b64encode(avatar_bytes).decode('ascii')
-            payload['avatar'] = f'data:{avatar_format};base64,{avatar_b64}'
+            # Empty bytes signals a reset (use None in payload)
+            if avatar_bytes == b'':
+                payload['avatar'] = None
+            else:
+                avatar_format = self._detect_image_format(avatar_bytes)
+                avatar_b64 = base64.b64encode(avatar_bytes).decode('ascii')
+                payload['avatar'] = f'data:{avatar_format};base64,{avatar_b64}'
 
         if banner_bytes is not None:
-            banner_format = self._detect_image_format(banner_bytes)
-            banner_b64 = base64.b64encode(banner_bytes).decode('ascii')
-            payload['banner'] = f'data:{banner_format};base64,{banner_b64}'
+            # Empty bytes signals a reset (use None in payload)
+            if banner_bytes == b'':
+                payload['banner'] = None
+            else:
+                banner_format = self._detect_image_format(banner_bytes)
+                banner_b64 = base64.b64encode(banner_bytes).decode('ascii')
+                payload['banner'] = f'data:{banner_format};base64,{banner_b64}'
 
         if nick is not None:
             payload['nick'] = nick
@@ -191,11 +199,29 @@ class User(commands.Cog):
 
     @commands.guild_only()
     @_user.command(name="avatar")
-    async def _avatar(self, ctx):
+    async def _avatar(self, ctx, action: str = None):
         """Change the bot's avatar in this guild using an attached image
 
+        Use 'reset' to remove the per-guild avatar and use the global avatar.
         Note: This changes the bot's avatar only in this server.
         """
+        # Handle reset action
+        if action and action.lower() == "reset":
+            try:
+                # Send None to reset avatar to global default
+                await self._update_guild_profile(ctx.guild.id, avatar_bytes=b'')
+                await ctx.send("✅ Avatar reset to global default in this server!")
+                return
+            except discord.Forbidden:
+                await ctx.send("❌ I don't have permission to change my avatar in this server.")
+                return
+            except discord.HTTPException as e:
+                await ctx.send(self._format_profile_http_error(e, "avatar"))
+                return
+            except Exception as e:
+                await ctx.send(f"❌ An error occurred: {e}")
+                return
+
         # Validate and get image bytes
         image_data = await self._validate_image_attachment(ctx)
         if image_data is None:
