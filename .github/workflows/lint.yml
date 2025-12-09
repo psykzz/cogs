@@ -6,6 +6,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     name: Lint
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,6 +19,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     name: Test Red-DiscordBot Installation
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
