@@ -4,7 +4,7 @@ from redbot.core import commands
 
 
 # Valid image types for avatar/banner uploads
-VALID_IMAGE_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/gif")
+VALID_IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif")
 
 # Maximum size for avatar uploads (8 MiB)
 MAX_AVATAR_SIZE = 8 * 1024 * 1024
@@ -105,16 +105,20 @@ class User(commands.Cog):
         attachment = ctx.message.attachments[0]
 
         # Validate file size
-        if attachment.size and attachment.size > max_size:
+        if attachment.size is not None and attachment.size > max_size:
             size_mb = max_size / (1024 * 1024)
             await ctx.send(f"❌ The provided attachment is too large. Max size is {size_mb:.0f}MB.")
             return None
 
         # Validate content type
-        if not attachment.content_type or attachment.content_type not in VALID_IMAGE_TYPES:
+        if not attachment.content_type:
+            await ctx.send("❌ Unable to determine attachment type. Please ensure the file is an image.")
+            return None
+
+        if attachment.content_type not in VALID_IMAGE_TYPES:
             await ctx.send(
                 f"❌ Invalid attachment type `{attachment.content_type}`; "
-                "must be PNG, JPEG, JPG, or GIF."
+                "must be PNG, JPEG, or GIF."
             )
             return None
 
