@@ -1,4 +1,4 @@
-name: Lint
+name: Lint and Test
 
 on: [push]
 
@@ -6,10 +6,35 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     name: Lint
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12' 
+          python-version: '3.11' 
       - name: flake8 Lint
         uses: py-actions/flake8@v2
+
+  test:
+    runs-on: ubuntu-latest
+    name: Test Red-DiscordBot Installation
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Red-DiscordBot
+        run: |
+          pip install Red-DiscordBot
+      - name: Install common cog dependencies
+        run: |
+          pip install cinemagoer==2022.12.27 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
+      - name: Test cog imports
+        run: |
+          python -c "from redbot.core import commands; print('✓ Red-DiscordBot core imports working')"
+      - name: Run comprehensive test suite
+        run: |
+          python test_redbot_setup.py

@@ -461,6 +461,41 @@ Manage bot user settings (nickname and avatar).
 
 ---
 
+## Development
+
+### Testing
+
+This repository includes automated testing to ensure all cogs are compatible with Red-DiscordBot:
+
+**Requirements:**
+- Python 3.11 (Red-DiscordBot does not support Python 3.12+)
+
+**Setup:**
+```bash
+# Install Red-DiscordBot and dependencies
+pip install Red-DiscordBot
+pip install cinemagoer==2022.12.27 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
+
+# Run the test suite
+python test_redbot_setup.py
+```
+
+**What the tests validate:**
+- Red-DiscordBot core modules can be imported
+- All cog Python files have valid syntax
+- All cogs can be imported successfully
+- All cogs have the required `setup` function
+
+**CI/CD:**
+
+The repository uses GitHub Actions to automatically:
+- Lint all code with flake8
+- Install Red-DiscordBot on Python 3.11
+- Test that all cogs can be imported
+- Validate Python syntax for all files
+
+---
+
 ## Support
 
 For issues or feature requests, please visit the [GitHub repository](https://github.com/psykzz/cogs).
