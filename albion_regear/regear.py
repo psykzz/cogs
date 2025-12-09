@@ -12,7 +12,7 @@ async def http_get(url, params=None):
     """Make HTTP GET request with retries"""
     max_attempts = 3
     attempt = 0
-    log.info(f"Making HTTP GET request to {url} with params: {params}")
+    log.debug(f"Making HTTP GET request to {url} with params: {params}")
     while attempt < max_attempts:
         try:
             async with httpx.AsyncClient() as client:
@@ -20,7 +20,7 @@ async def http_get(url, params=None):
 
             if r.status_code == 200:
                 response_data = r.json()
-                log.info(f"HTTP GET successful for {url} - Status: {r.status_code}")
+                log.debug(f"HTTP GET successful for {url} - Status: {r.status_code}")
                 log.debug(f"Response data: {response_data}")
                 return response_data
             else:
@@ -78,14 +78,14 @@ class AlbionRegear(commands.Cog):
 
     async def search_player(self, name):
         """Search for a player by name"""
-        log.info(f"Searching for player: {name}")
+        log.debug(f"Searching for player: {name}")
         url = "https://gameinfo-ams.albiononline.com/api/gameinfo/search"
         params = {"q": name}
         result = await http_get(url, params)
 
         if result and result.get("players"):
             player = result["players"][0]
-            log.info(f"Player found: {player.get('Name')} (ID: {player.get('Id')})")
+            log.debug(f"Player found: {player.get('Name')} (ID: {player.get('Id')})")
             return player
 
         log.warning(f"Player '{name}' not found in search results")
@@ -93,17 +93,17 @@ class AlbionRegear(commands.Cog):
 
     async def get_latest_death(self, player_id):
         """Get the latest death event for a player"""
-        log.info(f"Fetching latest death for player ID: {player_id}")
+        log.debug(f"Fetching latest death for player ID: {player_id}")
         url = f"https://gameinfo-ams.albiononline.com/api/gameinfo/players/{player_id}/deaths"
         result = await http_get(url)
 
         if result and len(result) > 0:
             death = result[0]
             event_id = death.get("EventId")
-            log.info(f"Latest death found - Event ID: {event_id}")
+            log.debug(f"Latest death found - Event ID: {event_id}")
             victim_name = death.get('Victim', {}).get('Name')
             killer_name = death.get('Killer', {}).get('Name')
-            log.info(f"Death event details: Victim={victim_name}, Killer={killer_name}")
+            log.debug(f"Death event details: Victim={victim_name}, Killer={killer_name}")
             return death
 
         log.warning(f"No deaths found for player ID: {player_id}")
@@ -125,7 +125,7 @@ class AlbionRegear(commands.Cog):
         # Build URL with item list in path and use Bridgewatch location
         # Don't filter by quality - get all qualities
         item_list = ",".join(items_with_quality.keys())
-        log.info(f"Fetching prices for {len(items_with_quality)} items: {list(items_with_quality.keys())}")
+        log.debug(f"Fetching prices for {len(items_with_quality)} items: {list(items_with_quality.keys())}")
         url = f"https://europe.albion-online-data.com/api/v2/stats/prices/{item_list}?locations=Bridgewatch"
         result = await http_get(url)
 
@@ -152,7 +152,7 @@ class AlbionRegear(commands.Cog):
             key = (item_id, quality)
             if key in price_data:
                 price_map[item_id] = price_data[key]
-                log.info(f"Price found for {item_id} Q{quality}: {price_data[key]} silver")
+                log.debug(f"Price found for {item_id} Q{quality}: {price_data[key]} silver")
             else:
                 # Try to find median of available qualities for this item
                 available_prices = [
@@ -162,14 +162,14 @@ class AlbionRegear(commands.Cog):
                 if available_prices:
                     median_price = self.calculate_median(available_prices)
                     price_map[item_id] = median_price
-                    log.info(
+                    log.debug(
                         f"No exact match for {item_id} Q{quality}, "
                         f"using median of {len(available_prices)} available qualities: {median_price} silver"
                     )
                 else:
                     log.warning(f"No price found for {item_id} Q{quality} and no other qualities available")
 
-        log.info(f"Successfully retrieved prices for {len(price_map)}/{len(items_with_quality)} items")
+        log.debug(f"Successfully retrieved prices for {len(price_map)}/{len(items_with_quality)} items")
         return price_map
 
     async def calculate_regear_cost(self, death_event):
@@ -177,7 +177,7 @@ class AlbionRegear(commands.Cog):
         victim = death_event.get("Victim", {})
         equipment = victim.get("Equipment", {})
 
-        log.info(f"Calculating regear cost for victim: {victim.get('Name')}")
+        log.debug(f"Calculating regear cost for victim: {victim.get('Name')}")
 
         # Extract all equipment items (excluding inventory)
         # Equipment slots: MainHand, OffHand, Head, Armor, Shoes, Bag, Cape, Mount, Potion, Food
@@ -190,7 +190,7 @@ class AlbionRegear(commands.Cog):
         items_to_price = {}  # Track full item data
 
         # Log all items found in the death event
-        log.info("Items found in death event:")
+        log.debug("Items found in death event:")
         for slot in equipment_slots:
             item = equipment.get(slot)
             if item and item.get("Type"):
@@ -199,7 +199,7 @@ class AlbionRegear(commands.Cog):
                 # Normalize quality for price lookups (Q0 -> Q1 for consumables)
                 item_quality = self.normalize_quality(item_quality)
                 item_count = item.get("Count", 1)
-                log.info(f"  - {slot}: {item_type} Q{item_quality} (Count: {item_count})")
+                log.debug(f"  - {slot}: {item_type} Q{item_quality} (Count: {item_count})")
                 items_with_quality[item_type] = item_quality
                 items_to_price[item_type] = item
             else:
@@ -209,7 +209,7 @@ class AlbionRegear(commands.Cog):
             log.warning("No equipment items found in death event")
             return 0, [], []
 
-        log.info(f"Total equipment items to price: {len(items_with_quality)}")
+        log.debug(f"Total equipment items to price: {len(items_with_quality)}")
 
         # Get prices for all items with quality matching
         prices = await self.get_item_prices(items_with_quality)
@@ -230,7 +230,7 @@ class AlbionRegear(commands.Cog):
                     "quality": quality,
                     "price": price
                 })
-                log.info(f"Item {item_type} Q{quality}: {price} silver added to total")
+                log.debug(f"Item {item_type} Q{quality}: {price} silver added to total")
             else:
                 unpriced_items.append({
                     "type": item_type,
@@ -240,7 +240,7 @@ class AlbionRegear(commands.Cog):
 
         msg = f"Regear cost calculation complete - Total: {total_cost} silver"
         msg += f" ({len(priced_items)}/{len(items_with_quality)} items priced)"
-        log.info(msg)
+        log.debug(msg)
         return total_cost, priced_items, unpriced_items
 
     @commands.command()
@@ -250,7 +250,7 @@ class AlbionRegear(commands.Cog):
         Usage: .regear <player_name>
         Example: .regear psykzz
         """
-        log.info(f"Regear command invoked by {ctx.author} for player: {name}")
+        log.debug(f"Regear command invoked by {ctx.author} for player: {name}")
         async with ctx.typing():
             # Search for the player
             player = await self.search_player(name)
@@ -316,7 +316,7 @@ class AlbionRegear(commands.Cog):
                     lines.append(f"- {item_name} (Q{item_quality})")
                 unpriced_breakdown = "\n".join(lines) + "\n"
 
-            log.info(f"Regear command successful: {player_name} - Total cost: {formatted_cost} silver")
+            log.debug(f"Regear command successful: {player_name} - Total cost: {formatted_cost} silver")
 
             # Build response message
             response_msg = f"**Regear cost for {player_name}:** {formatted_cost} silver"

@@ -66,12 +66,15 @@ async def setup(bot):
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)
 - **empty_voices/**: Voice channel management (no external deps)
+- **game_embed/**: Steam game server monitoring with status embeds and quick-join buttons (requires: python-a2s>=1.3.0)
+- **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **misc/**: Miscellaneous utilities (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
+- **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
 
@@ -95,6 +98,12 @@ pip3 install cinemagoer==2022.12.27
 
 # For albion_regear and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
+
+# For game_embed cog (Steam server monitoring)
+pip3 install python-a2s>=1.3.0
+
+# For hat cog (avatar image manipulation)
+pip3 install Pillow>=10.2.0
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py
@@ -152,6 +161,29 @@ When making changes to cogs, validate functionality by:
    import discord
    print('Discord.py import successful')
    print('discord.py version:', discord.__version__)"
+   ```
+
+5. **For game_embed changes**: Test A2S protocol and server query patterns
+   ```bash
+   # Test python-a2s module import and basic functionality
+   python3 -c "
+   import a2s
+   print('python-a2s import successful')
+   print('Available functions:', [f for f in dir(a2s) if not f.startswith('_')])"
+   ```
+
+6. **For hat changes**: Test Pillow image manipulation
+   ```bash
+   # Test Pillow module import and basic functionality
+   python3 -c "
+   from PIL import Image
+   import io
+   print('Pillow import successful')
+   # Test basic image creation
+   img = Image.new('RGBA', (100, 100), (255, 0, 0, 128))
+   output = io.BytesIO()
+   img.save(output, format='PNG')
+   print('Image creation test: OK')"
    ```
 
 ### Red-bot Framework
