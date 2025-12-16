@@ -6,6 +6,9 @@ from redbot.core import Config, commands
 
 log = logging.getLogger("red.cogs.ideas")
 
+# Config identifier for Red-bot Config system
+CONFIG_IDENTIFIER = 1494641512
+
 
 async def create_github_issue(token, repo_owner, repo_name, title, body, assignees=None):
     """Create a GitHub issue using the GitHub API"""
@@ -62,7 +65,7 @@ class Ideas(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1494641512)
+        self.config = Config.get_conf(self, identifier=CONFIG_IDENTIFIER)
 
         default_global = {
             "repo_owner": "psykzz",
@@ -83,7 +86,10 @@ class Ideas(commands.Cog):
         # Check permissions
         allow_anyone = await self.config.allow_anyone()
         if not allow_anyone and not await self.bot.is_owner(ctx.author):
-            await ctx.send("❌ Only the bot owner can use this command.")
+            await ctx.send(
+                "❌ This command is currently restricted to the bot owner. "
+                "Ask the bot owner to enable public suggestions with `[p]ideaset allowanyone True`"
+            )
             return
 
         # Get the GitHub API token
@@ -124,7 +130,8 @@ class Ideas(commands.Cog):
     async def ideaset(self, ctx):
         """Configure the ideas cog settings"""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+            # Show current settings when no subcommand is provided
+            await ctx.invoke(self.ideaset_showsettings)
 
     @ideaset.command(name="showsettings")
     async def ideaset_showsettings(self, ctx):
