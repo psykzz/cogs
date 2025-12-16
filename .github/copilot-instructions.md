@@ -68,6 +68,7 @@ async def setup(bot):
 - **empty_voices/**: Voice channel management (no external deps)
 - **game_embed/**: Steam game server monitoring with status embeds and quick-join buttons (requires: python-a2s>=1.3.0)
 - **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
+- **ideas/**: Suggest ideas by creating GitHub issues in the repository (requires: httpx>=0.14.1)
 - **misc/**: Miscellaneous utilities (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
@@ -96,7 +97,7 @@ pip3 install dependency_name==version
 # For movie_vote cog
 pip3 install cinemagoer==2022.12.27
 
-# For albion_regear and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
+# For albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
 
 # For game_embed cog (Steam server monitoring)

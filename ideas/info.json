@@ -1,0 +1,15 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Ideas",
+    "short": "Suggest ideas by creating GitHub issues",
+    "description": "Allows bot owners to suggest ideas that are automatically created as GitHub issues in the repository. Issues are automatically assigned to 'copilot' for tracking.",
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
+    "tags": [
+        "GitHub",
+        "Issues",
+        "Ideas",
+        "API"
+    ]
+}
