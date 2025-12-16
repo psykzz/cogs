@@ -12,8 +12,8 @@ async def create_github_issue(token, repo_owner, repo_name, title, body, assigne
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues"
 
     headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
         "User-Agent": "psykzz-cogs/1.0.0"
     }
 
