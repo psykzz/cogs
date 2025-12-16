@@ -2,7 +2,7 @@
     "author": ["PsyKzz"],
     "name": "Ideas",
     "short": "Suggest ideas by creating GitHub issues",
-    "description": "Allows bot owners to suggest ideas that are automatically created as GitHub issues in the repository. Issues are automatically assigned to 'copilot' for tracking.",
+    "description": "Allows users to suggest ideas that are automatically created as GitHub issues in a configurable repository. Bot owners can configure the target repository and toggle whether anyone can use the command or only the owner.",
     "requirements": [
         "httpx>=0.14.1"
     ],

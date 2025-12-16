@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import httpx
-from redbot.core import commands
+from redbot.core import Config, commands
 
 log = logging.getLogger("red.cogs.ideas")
 
@@ -62,9 +62,16 @@ class Ideas(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=1494641512)
+
+        default_global = {
+            "repo_owner": "psykzz",
+            "repo_name": "cogs",
+            "allow_anyone": False,
+        }
+        self.config.register_global(**default_global)
 
     @commands.command()
-    @commands.is_owner()
     async def suggest(self, ctx, title: str, *, description: str):
         """Suggest a new idea by creating a GitHub issue
 
@@ -73,6 +80,12 @@ class Ideas(commands.Cog):
 
         Usage: [p]suggest "Title of idea" Description of the idea goes here
         """
+        # Check permissions
+        allow_anyone = await self.config.allow_anyone()
+        if not allow_anyone and not await self.bot.is_owner(ctx.author):
+            await ctx.send("❌ Only the bot owner can use this command.")
+            return
+
         # Get the GitHub API token
         api_keys = await self.bot.get_shared_api_tokens("github")
         github_token = api_keys.get("token")
@@ -84,13 +97,17 @@ class Ideas(commands.Cog):
             )
             return
 
+        # Get repository settings from config
+        repo_owner = await self.config.repo_owner()
+        repo_name = await self.config.repo_name()
+
         # Send a "working" message
         async with ctx.typing():
             # Create the issue on GitHub
             issue_data = await create_github_issue(
                 token=github_token,
-                repo_owner="psykzz",
-                repo_name="cogs",
+                repo_owner=repo_owner,
+                repo_name=repo_name,
                 title=title,
                 body=description,
                 assignees=[]
@@ -101,3 +118,54 @@ class Ideas(commands.Cog):
             await ctx.send(f"✅ Idea submitted successfully!\n{issue_url}")
         else:
             await ctx.send("❌ Failed to create the GitHub issue. Please check the logs for details.")
+
+    @commands.group(name="ideaset")
+    @commands.is_owner()
+    async def ideaset(self, ctx):
+        """Configure the ideas cog settings"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
+
+    @ideaset.command(name="showsettings")
+    async def ideaset_showsettings(self, ctx):
+        """Show current ideas cog settings"""
+        repo_owner = await self.config.repo_owner()
+        repo_name = await self.config.repo_name()
+        allow_anyone = await self.config.allow_anyone()
+
+        settings_msg = (
+            f"**Ideas Cog Settings:**\n"
+            f"Repository: `{repo_owner}/{repo_name}`\n"
+            f"Allow anyone to suggest: `{allow_anyone}`"
+        )
+        await ctx.send(settings_msg)
+
+    @ideaset.command(name="owner")
+    async def ideaset_owner(self, ctx, owner: str):
+        """Set the GitHub repository owner
+
+        Example: [p]ideaset owner psykzz
+        """
+        await self.config.repo_owner.set(owner)
+        await ctx.send(f"✅ Repository owner set to: `{owner}`")
+
+    @ideaset.command(name="repo")
+    async def ideaset_repo(self, ctx, repo: str):
+        """Set the GitHub repository name
+
+        Example: [p]ideaset repo cogs
+        """
+        await self.config.repo_name.set(repo)
+        await ctx.send(f"✅ Repository name set to: `{repo}`")
+
+    @ideaset.command(name="allowanyone")
+    async def ideaset_allowanyone(self, ctx, enabled: bool):
+        """Toggle whether anyone can use the suggest command
+
+        Set to True to allow anyone, False to restrict to bot owner only.
+
+        Example: [p]ideaset allowanyone True
+        """
+        await self.config.allow_anyone.set(enabled)
+        status = "enabled" if enabled else "disabled"
+        await ctx.send(f"✅ Public suggestions {status}. Anyone can suggest: `{enabled}`")
