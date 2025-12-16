@@ -268,9 +268,9 @@ class RustPlusBridge(commands.Cog):
                 new_messages.append(msg)
                 seen_times.add(msg_time)
 
-        # Limit the size of seen_times to prevent memory issues (keep last 1000)
+        # Limit the size of seen_times to prevent memory issues
         if len(seen_times) > 1000:
-            # Keep only the most recent 500
+            # Keep only the most recent 500 timestamps
             sorted_times = sorted(seen_times, reverse=True)
             seen_times.clear()
             seen_times.update(sorted_times[:500])
@@ -279,9 +279,15 @@ class RustPlusBridge(commands.Cog):
         for msg in new_messages:
             try:
                 # Format message for Discord
+                # Determine embed color from Rust message color
+                if msg.colour and msg.colour.startswith('#'):
+                    color = discord.Color.from_str(msg.colour)
+                else:
+                    color = discord.Color.orange()
+
                 embed = discord.Embed(
                     description=msg.message,
-                    color=discord.Color.from_str(msg.colour) if msg.colour.startswith('#') else discord.Color.orange(),
+                    color=color,
                     timestamp=datetime.fromtimestamp(msg.time, tz=timezone.utc)
                 )
                 embed.set_author(name=msg.name)
@@ -395,7 +401,7 @@ class RustPlusBridge(commands.Cog):
 
         # Validate configuration
         if not guild_config.get("server_ip"):
-            await ctx.send("❌ Please setup server credentials first with `{ctx.prefix}rustbridge setup`")
+            await ctx.send(f"❌ Please setup server credentials first with `{ctx.prefix}rustbridge setup`")
             return
 
         if not guild_config.get("bridge_channel_id"):
