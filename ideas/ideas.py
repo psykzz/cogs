@@ -93,7 +93,7 @@ class Ideas(commands.Cog):
                 repo_name="cogs",
                 title=title,
                 body=description,
-                assignees=["copilot-swe-agent"]
+                assignees=[]
             )
 
         if issue_data:
