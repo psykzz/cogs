@@ -235,6 +235,28 @@ Add festive Christmas hats to your avatar! Users can select from multiple hats, 
 
 ---
 
+### Ideas
+
+Suggest ideas by creating GitHub issues in the repository.
+
+**Requirements:** `httpx>=0.14.1`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs ideas
+[p]load ideas
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]suggest "title" <description>` | Create a new GitHub issue with your idea (Bot Owner) |
+
+**Setup:** Set your GitHub API token with `[p]set api github token <your_token>` before using this cog.
+
+---
+
 ### Misc
 
 Miscellaneous utility commands for your server.
