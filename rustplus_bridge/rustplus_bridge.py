@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Set
 
 import discord
 from redbot.core import commands, Config
-from rustplus import RustSocket, ServerDetails
+from rustplus import RustSocket, ServerDetails, FCMListener, ChatEvent
 from rustplus.structs import RustChatMessage
 
 log = logging.getLogger("red.cogs.rustplus_bridge")
@@ -30,6 +30,12 @@ class RustPlusBridge(commands.Cog):
             # Player credentials
             player_id=None,
             player_token=None,
+            # FCM credentials (optional, for push notifications)
+            fcm_credentials=None,
+            # Use FCM listener instead of polling
+            use_fcm=False,
+            # Polling interval in seconds (only used when FCM is disabled)
+            poll_interval=2,
             # Bridge enabled status
             enabled=False,
         )
@@ -37,6 +43,7 @@ class RustPlusBridge(commands.Cog):
         # Runtime state (not persisted)
         self._connections: Dict[int, RustSocket] = {}  # guild_id -> RustSocket
         self._connection_tasks: Dict[int, asyncio.Task] = {}  # guild_id -> Task
+        self._fcm_listeners: Dict[int, FCMListener] = {}  # guild_id -> FCMListener
         self._last_message_ids: Dict[int, Set[int]] = {}  # guild_id -> set of message timestamps
         self._reconnect_attempts: Dict[int, int] = {}  # guild_id -> attempt count
 
@@ -65,6 +72,14 @@ class RustPlusBridge(commands.Cog):
                 except asyncio.CancelledError:
                     pass
 
+        # Stop all FCM listeners
+        for guild_id, fcm_listener in list(self._fcm_listeners.items()):
+            try:
+                # FCM listeners run in threads, they'll stop when the process exits
+                log.info(f"FCM listener for guild {guild_id} will stop on process exit")
+            except Exception as e:
+                log.error(f"Error with FCM listener for guild {guild_id}: {e}")
+
         # Disconnect all sockets
         for guild_id, socket in list(self._connections.items()):
             try:
@@ -76,6 +91,7 @@ class RustPlusBridge(commands.Cog):
         # Clear all state
         self._connections.clear()
         self._connection_tasks.clear()
+        self._fcm_listeners.clear()
         self._last_message_ids.clear()
         self._reconnect_attempts.clear()
 
@@ -169,6 +185,41 @@ class RustPlusBridge(commands.Cog):
             log.error(f"Error creating connection for guild {guild_id}: {e}", exc_info=True)
             return None
 
+    def _setup_fcm_listener(self, guild_id: int, server_details: ServerDetails):
+        """Setup FCM listener for push notifications"""
+        try:
+            guild_config_sync = asyncio.run(self.config.guild_from_id(guild_id).all())
+            fcm_credentials = guild_config_sync.get("fcm_credentials")
+
+            if not fcm_credentials:
+                log.warning(f"No FCM credentials configured for guild {guild_id}")
+                return None
+
+            # Create FCM listener with credentials
+            fcm_data = {
+                "fcm_credentials": fcm_credentials
+            }
+            fcm_listener = FCMListener(data=fcm_data)
+
+            # Register chat event handler
+            @ChatEvent(server_details)
+            async def on_chat_message(event):
+                """Handle incoming chat messages from FCM"""
+                try:
+                    await self._process_rust_messages(guild_id, [event.message])
+                except Exception as e:
+                    log.error(f"Error processing FCM chat message for guild {guild_id}: {e}")
+
+            # Start the FCM listener in daemon mode
+            fcm_listener.start(daemon=True)
+            log.info(f"Started FCM listener for guild {guild_id}")
+
+            return fcm_listener
+
+        except Exception as e:
+            log.error(f"Error setting up FCM listener for guild {guild_id}: {e}", exc_info=True)
+            return None
+
     async def _bridge_loop(self, guild_id: int):
         """Main bridge loop for a guild"""
         log.info(f"Starting bridge loop for guild {guild_id}")
@@ -181,11 +232,31 @@ class RustPlusBridge(commands.Cog):
                     log.info(f"Bridge disabled for guild {guild_id}, stopping loop")
                     break
 
+                # Check if using FCM mode
+                use_fcm = guild_config.get("use_fcm", False)
+
                 # Ensure we have a connection
                 if guild_id not in self._connections:
                     socket = await self._create_connection(guild_id)
                     if socket:
                         self._connections[guild_id] = socket
+
+                        # Setup FCM listener if enabled and not already set up
+                        if use_fcm and guild_id not in self._fcm_listeners:
+                            guild_cfg = await self.config.guild_from_id(guild_id).all()
+                            server_details = ServerDetails(
+                                ip=guild_cfg["server_ip"],
+                                port=guild_cfg["server_port"],
+                                player_id=guild_cfg["player_id"],
+                                player_token=guild_cfg["player_token"]
+                            )
+                            fcm_listener = self._setup_fcm_listener(guild_id, server_details)
+                            if fcm_listener:
+                                self._fcm_listeners[guild_id] = fcm_listener
+                                log.info(f"Using FCM push notifications for guild {guild_id}")
+                            else:
+                                log.warning(f"FCM setup failed, falling back to polling for guild {guild_id}")
+                                use_fcm = False
                     else:
                         # Failed to connect, wait before retry
                         self._reconnect_attempts[guild_id] = self._reconnect_attempts.get(guild_id, 0) + 1
@@ -200,7 +271,13 @@ class RustPlusBridge(commands.Cog):
 
                 socket = self._connections[guild_id]
 
-                # Get team chat messages
+                # If using FCM, we don't need to poll - just keep connection alive
+                if use_fcm:
+                    # Sleep longer since FCM handles notifications
+                    await asyncio.sleep(30)
+                    continue
+
+                # Polling mode: Get team chat messages
                 try:
                     chat_result = socket.get_team_chat()
 
@@ -228,8 +305,9 @@ class RustPlusBridge(commands.Cog):
                     await asyncio.sleep(5)
                     continue
 
-                # Poll interval - check for new messages every 2 seconds
-                await asyncio.sleep(2)
+                # Poll interval - use configured value (default 2 seconds)
+                poll_interval = guild_config.get("poll_interval", 2)
+                await asyncio.sleep(poll_interval)
 
             except asyncio.CancelledError:
                 log.info(f"Bridge loop cancelled for guild {guild_id}")
@@ -269,8 +347,8 @@ class RustPlusBridge(commands.Cog):
                 seen_times.add(msg_time)
 
         # Limit the size of seen_times to prevent memory issues
+        # Cleanup threshold: 1000 entries, target size: 500 entries
         if len(seen_times) > 1000:
-            # Keep only the most recent 500 timestamps
             sorted_times = sorted(seen_times, reverse=True)
             seen_times.clear()
             seen_times.update(sorted_times[:500])
@@ -482,6 +560,32 @@ class RustPlusBridge(commands.Cog):
                 inline=False
             )
 
+        # FCM status
+        use_fcm = guild_config.get("use_fcm", False)
+        has_fcm_creds = guild_config.get("fcm_credentials") is not None
+
+        if use_fcm and has_fcm_creds:
+            fcm_status = "🟢 Enabled (Push Notifications)"
+        elif has_fcm_creds:
+            fcm_status = "🟡 Configured but disabled"
+        else:
+            fcm_status = "⚪ Not configured"
+
+        embed.add_field(
+            name="FCM Status",
+            value=fcm_status,
+            inline=False
+        )
+
+        # Polling interval (only relevant when FCM is disabled)
+        if not use_fcm:
+            poll_interval = guild_config.get("poll_interval", 2)
+            embed.add_field(
+                name="Polling Interval",
+                value=f"{poll_interval} seconds",
+                inline=False
+            )
+
         # Reconnect attempts
         if ctx.guild.id in self._reconnect_attempts and self._reconnect_attempts[ctx.guild.id] > 0:
             embed.add_field(
@@ -514,6 +618,121 @@ class RustPlusBridge(commands.Cog):
         self._reconnect_attempts[ctx.guild.id] = 0
 
         await ctx.send("🔄 Reconnecting to Rust server...")
+
+    @rustbridge.command(name="fcm")
+    @commands.admin_or_permissions(administrator=True)
+    async def rustbridge_fcm(self, ctx, fcm_credentials: str = None):
+        """Configure FCM (Firebase Cloud Messaging) credentials for push notifications
+
+        Using FCM enables real-time push notifications instead of polling.
+        This is more efficient but requires additional FCM credentials.
+
+        To get FCM credentials:
+        1. Use the Rust+ mobile app
+        2. Extract FCM credentials using tools like rustplus.js
+        3. Provide the credentials as a JSON string
+
+        Example: [p]rustbridge fcm {"keys": {...}, "fcm": {...}}
+
+        To disable FCM and use polling: [p]rustbridge fcm clear
+        """
+        if fcm_credentials is None:
+            # Show current status
+            guild_config = await self.config.guild(ctx.guild).all()
+            use_fcm = guild_config.get("use_fcm", False)
+            has_creds = guild_config.get("fcm_credentials") is not None
+
+            if use_fcm and has_creds:
+                await ctx.send("✅ FCM is enabled and configured")
+            elif has_creds:
+                await ctx.send("⚠️ FCM credentials are configured but FCM is not enabled. Use `fcmenable` to enable.")
+            else:
+                await ctx.send("❌ FCM is not configured. Provide credentials or use polling mode.")
+            return
+
+        if fcm_credentials.lower() == "clear":
+            await self.config.guild(ctx.guild).fcm_credentials.set(None)
+            await self.config.guild(ctx.guild).use_fcm.set(False)
+            await ctx.send("✅ FCM credentials cleared. Bridge will use polling mode.")
+
+            # Restart bridge if enabled
+            guild_config = await self.config.guild(ctx.guild).all()
+            if guild_config.get("enabled", False):
+                await self._stop_bridge_task(ctx.guild.id)
+                await self._start_bridge_task(ctx.guild.id)
+            return
+
+        # Try to parse FCM credentials as JSON
+        import json
+        try:
+            fcm_data = json.loads(fcm_credentials)
+            await self.config.guild(ctx.guild).fcm_credentials.set(fcm_data)
+            await ctx.send(
+                "✅ FCM credentials configured!\n"
+                "Use `[p]rustbridge fcmenable` to enable push notifications."
+            )
+        except json.JSONDecodeError as e:
+            await ctx.send(f"❌ Invalid JSON format: {e}")
+
+    @rustbridge.command(name="fcmenable")
+    @commands.admin_or_permissions(administrator=True)
+    async def rustbridge_fcmenable(self, ctx):
+        """Enable FCM push notifications
+
+        FCM credentials must be configured first with [p]rustbridge fcm
+        """
+        guild_config = await self.config.guild(ctx.guild).all()
+
+        if not guild_config.get("fcm_credentials"):
+            await ctx.send("❌ FCM credentials not configured. Use `[p]rustbridge fcm` first.")
+            return
+
+        await self.config.guild(ctx.guild).use_fcm.set(True)
+        await ctx.send("✅ FCM push notifications enabled")
+
+        # Restart bridge if enabled
+        if guild_config.get("enabled", False):
+            await self._stop_bridge_task(ctx.guild.id)
+            await self._start_bridge_task(ctx.guild.id)
+            await ctx.send("🔄 Bridge restarted with FCM enabled")
+
+    @rustbridge.command(name="fcmdisable")
+    @commands.admin_or_permissions(administrator=True)
+    async def rustbridge_fcmdisable(self, ctx):
+        """Disable FCM push notifications and use polling instead"""
+        await self.config.guild(ctx.guild).use_fcm.set(False)
+        await ctx.send("✅ FCM disabled. Bridge will use polling mode.")
+
+        # Restart bridge if enabled
+        guild_config = await self.config.guild(ctx.guild).all()
+        if guild_config.get("enabled", False):
+            await self._stop_bridge_task(ctx.guild.id)
+            await self._start_bridge_task(ctx.guild.id)
+            await ctx.send("🔄 Bridge restarted in polling mode")
+
+    @rustbridge.command(name="pollinterval")
+    @commands.admin_or_permissions(administrator=True)
+    async def rustbridge_pollinterval(self, ctx, seconds: int):
+        """Set the polling interval in seconds (1-60)
+
+        Only used when FCM is disabled. Default is 2 seconds.
+        Lower values provide faster updates but use more resources.
+
+        Example: [p]rustbridge pollinterval 5
+        """
+        if seconds < 1 or seconds > 60:
+            await ctx.send("❌ Polling interval must be between 1 and 60 seconds")
+            return
+
+        await self.config.guild(ctx.guild).poll_interval.set(seconds)
+        await ctx.send(f"✅ Polling interval set to {seconds} seconds")
+
+        # Restart bridge if enabled and not using FCM
+        guild_config = await self.config.guild(ctx.guild).all()
+        if guild_config.get("enabled", False) and not guild_config.get("use_fcm", False):
+            await self._stop_bridge_task(ctx.guild.id)
+            await self._start_bridge_task(ctx.guild.id)
+            await ctx.send("🔄 Bridge restarted with new polling interval")
 
     @rustbridge.command(name="clear")
     @commands.admin_or_permissions(administrator=True)

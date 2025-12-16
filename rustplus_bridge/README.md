@@ -5,6 +5,8 @@ A bidirectional chat bridge between Discord and Rust+ in-game team chat.
 ## Features
 
 - **Bidirectional messaging**: Messages from Discord are sent to Rust team chat and vice versa
+- **FCM Push Notifications**: Optional Firebase Cloud Messaging support for real-time updates (no polling needed)
+- **Configurable polling**: Adjustable polling interval (1-60 seconds) when not using FCM
 - **Automatic connection management**: Handles reconnections and connection failures gracefully
 - **Memory-safe**: Properly tracks messages to avoid duplicates and implements cleanup on shutdown
 - **Exponential backoff**: Automatically retries failed connections with increasing delays
@@ -26,6 +28,25 @@ To use this bridge, you need your player_id and player_token from the Rust+ comp
 4. Alternative: Use tools like [rustplus.js](https://github.com/liamcottle/rustplus.js) to extract credentials
 
 **Note**: The player must be in a team on the server for team chat bridging to work.
+
+### Getting FCM Credentials (Optional)
+
+For real-time push notifications instead of polling, you can configure FCM (Firebase Cloud Messaging):
+
+1. Use the Rust+ mobile app and pair it with your character
+2. Extract FCM credentials using tools like [rustplus.js](https://github.com/liamcottle/rustplus.js)
+3. The credentials include FCM tokens and keys needed for push notifications
+4. Configure them with `[p]rustbridge fcm <json_credentials>`
+
+**Benefits of FCM**:
+- Instant notifications (no polling delay)
+- Lower resource usage
+- More efficient for active servers
+
+**Without FCM**:
+- The bridge works perfectly fine using polling mode (default)
+- Configurable polling interval (1-60 seconds)
+- Simpler setup (no additional credentials needed)
 
 ## Installation
 
@@ -56,6 +77,8 @@ To use this bridge, you need your player_id and player_token from the Rust+ comp
 
 All commands require administrator permissions or the "Administrator" permission.
 
+### Basic Commands
+
 | Command | Description |
 |---------|-------------|
 | `[p]rustbridge setup <ip> <port> <player_id> <token>` | Configure Rust+ server credentials |
@@ -65,6 +88,15 @@ All commands require administrator permissions or the "Administrator" permission
 | `[p]rustbridge status` | Check the current bridge status and connection state |
 | `[p]rustbridge reconnect` | Force a reconnection to the Rust server |
 | `[p]rustbridge clear` | Clear all bridge configuration |
+
+### FCM Commands (Optional - for Push Notifications)
+
+| Command | Description |
+|---------|-------------|
+| `[p]rustbridge fcm [credentials]` | Configure FCM credentials (JSON format) or use "clear" to remove |
+| `[p]rustbridge fcmenable` | Enable FCM push notifications (requires FCM credentials) |
+| `[p]rustbridge fcmdisable` | Disable FCM and use polling mode instead |
+| `[p]rustbridge pollinterval <seconds>` | Set polling interval (1-60 seconds, default: 2) |
 
 ## How It Works
 
@@ -83,6 +115,9 @@ All commands require administrator permissions or the "Administrator" permission
 
 ### Connection Management
 - The bridge automatically connects when enabled
+- **Two modes available**:
+  - **Polling mode** (default): Checks for new messages at regular intervals (configurable, default 2 seconds)
+  - **FCM mode** (optional): Uses Firebase Cloud Messaging for real-time push notifications (no polling overhead)
 - Failed connections trigger automatic reconnection with exponential backoff
 - Maximum retry delay is 60 seconds
 - Connection state is monitored continuously
@@ -110,20 +145,31 @@ All commands require administrator permissions or the "Administrator" permission
 
 ## Technical Details
 
-### Message Polling
-- The bridge polls for new team chat messages every 2 seconds
+### Polling Mode (Default)
+- Checks for new team chat messages at configurable intervals (default: 2 seconds)
+- Adjustable from 1-60 seconds via `[p]rustbridge pollinterval`
 - Messages are tracked by timestamp to prevent duplicates
-- Only the last 500 message timestamps are kept in memory
+- Message tracking set is cleaned when it exceeds 1000 entries (keeps most recent 500)
+- Lower intervals provide faster updates but use more API calls
+
+### FCM Mode (Optional - Recommended)
+- Uses Firebase Cloud Messaging for real-time push notifications
+- No polling overhead - messages arrive instantly
+- Requires additional FCM credentials from the Rust+ mobile app
+- More efficient for high-traffic servers
+- Connection is kept alive with minimal resource usage
 
 ### Memory Management
 - All connections are properly cleaned up on cog unload
-- Message tracking uses a bounded set (max 500 entries)
+- Message tracking uses a bounded set (cleanup threshold: 1000, target size: 500)
+- FCM listeners run in daemon threads and stop on process exit
 - Tasks are cancelled gracefully on shutdown
 
 ### Error Handling
 - Connection errors trigger automatic reconnection
 - API errors are logged and don't crash the bridge
 - Broken connections are detected and replaced
+- FCM failures automatically fall back to polling mode
 
 ## Security Notes
 
