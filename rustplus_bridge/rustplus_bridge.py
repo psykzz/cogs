@@ -132,6 +132,16 @@ class RustPlusBridge(commands.Cog):
                     pass
             del self._connection_tasks[guild_id]
 
+        # Stop FCM listener
+        if guild_id in self._fcm_listeners:
+            try:
+                # FCM listeners run in daemon threads, they'll stop when the process exits
+                # Just remove the reference
+                del self._fcm_listeners[guild_id]
+                log.info(f"Removed FCM listener for guild {guild_id}")
+            except Exception as e:
+                log.error(f"Error removing FCM listener for guild {guild_id}: {e}")
+
         # Disconnect socket
         if guild_id in self._connections:
             try:
@@ -203,13 +213,16 @@ class RustPlusBridge(commands.Cog):
             fcm_listener = FCMListener(data=fcm_data)
 
             # Register chat event handler
+            # Capture guild_id in closure to ensure it's bound at definition time
+            captured_guild_id = guild_id
+
             @ChatEvent(server_details)
             async def on_chat_message(event):
                 """Handle incoming chat messages from FCM"""
                 try:
-                    await self._process_rust_messages(guild_id, [event.message])
+                    await self._process_rust_messages(captured_guild_id, [event.message])
                 except Exception as e:
-                    log.error(f"Error processing FCM chat message for guild {guild_id}: {e}")
+                    log.error(f"Error processing FCM chat message for guild {captured_guild_id}: {e}")
 
             # Start the FCM listener in daemon mode
             fcm_listener.start(daemon=True)
