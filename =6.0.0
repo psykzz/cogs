@@ -1,0 +1,79 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting rustplus
+  Downloading rustplus-6.0.9-py3-none-any.whl.metadata (2.5 kB)
+Collecting websockets (from rustplus)
+  Downloading websockets-15.0.1-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+Collecting Pillow (from rustplus)
+  Downloading pillow-12.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.8 kB)
+Collecting asyncio (from rustplus)
+  Downloading asyncio-4.0.0-py3-none-any.whl.metadata (994 bytes)
+Collecting rustPlusPushReceiver==0.6.1 (from rustplus)
+  Downloading rustPlusPushReceiver-0.6.1-py3-none-any.whl.metadata (909 bytes)
+Collecting http-ece (from rustplus)
+  Downloading http_ece-1.2.1.tar.gz (8.8 kB)
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: requests in /usr/lib/python3/dist-packages (from rustplus) (2.31.0)
+Collecting numpy (from rustplus)
+  Downloading numpy-2.3.5-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (62 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.1/62.1 kB 10.5 MB/s eta 0:00:00
+Collecting scipy (from rustplus)
+  Downloading scipy-1.16.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (62 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.0/62.0 kB 19.9 MB/s eta 0:00:00
+Collecting betterproto==2.0.0b7 (from rustplus)
+  Downloading betterproto-2.0.0b7-py3-none-any.whl.metadata (19 kB)
+Collecting grpclib<0.5.0,>=0.4.1 (from betterproto==2.0.0b7->rustplus)
+  Downloading grpclib-0.4.9-py3-none-any.whl.metadata (6.1 kB)
+Requirement already satisfied: python-dateutil<3.0,>=2.8 in /usr/lib/python3/dist-packages (from betterproto==2.0.0b7->rustplus) (2.8.2)
+Requirement already satisfied: typing-extensions<5.0.0,>=4.7.1 in /usr/lib/python3/dist-packages (from betterproto==2.0.0b7->rustplus) (4.10.0)
+Collecting oscrypto (from rustPlusPushReceiver==0.6.1->rustplus)
+  Downloading oscrypto-1.3.0-py2.py3-none-any.whl.metadata (15 kB)
+Collecting protobuf (from rustPlusPushReceiver==0.6.1->rustplus)
+  Downloading protobuf-6.33.2-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+Requirement already satisfied: cryptography in /usr/lib/python3/dist-packages (from rustPlusPushReceiver==0.6.1->rustplus) (41.0.7)
+Collecting h2<5,>=3.1.0 (from grpclib<0.5.0,>=0.4.1->betterproto==2.0.0b7->rustplus)
+  Downloading h2-4.3.0-py3-none-any.whl.metadata (5.1 kB)
+Collecting multidict (from grpclib<0.5.0,>=0.4.1->betterproto==2.0.0b7->rustplus)
+  Downloading multidict-6.7.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+Collecting asn1crypto>=1.5.1 (from oscrypto->rustPlusPushReceiver==0.6.1->rustplus)
+  Downloading asn1crypto-1.5.1-py2.py3-none-any.whl.metadata (13 kB)
+Collecting hyperframe<7,>=6.1 (from h2<5,>=3.1.0->grpclib<0.5.0,>=0.4.1->betterproto==2.0.0b7->rustplus)
+  Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+Collecting hpack<5,>=4.1 (from h2<5,>=3.1.0->grpclib<0.5.0,>=0.4.1->betterproto==2.0.0b7->rustplus)
+  Downloading hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+Downloading rustplus-6.0.9-py3-none-any.whl (785 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 785.3/785.3 kB 93.4 MB/s eta 0:00:00
+Downloading betterproto-2.0.0b7-py3-none-any.whl (105 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 105.4/105.4 kB 42.0 MB/s eta 0:00:00
+Downloading rustPlusPushReceiver-0.6.1-py3-none-any.whl (12 kB)
+Downloading asyncio-4.0.0-py3-none-any.whl (5.6 kB)
+Downloading numpy-2.3.5-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 150.8 MB/s eta 0:00:00
+Downloading pillow-12.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.0/7.0 MB 166.5 MB/s eta 0:00:00
+Downloading scipy-1.16.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (35.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35.7/35.7 MB 113.0 MB/s eta 0:00:00
+Downloading websockets-15.0.1-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (182 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 182.5/182.5 kB 60.4 MB/s eta 0:00:00
+Downloading grpclib-0.4.9-py3-none-any.whl (77 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 77.1/77.1 kB 28.8 MB/s eta 0:00:00
+Downloading oscrypto-1.3.0-py2.py3-none-any.whl (194 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 194.6/194.6 kB 66.3 MB/s eta 0:00:00
+Downloading protobuf-6.33.2-cp39-abi3-manylinux2014_x86_64.whl (323 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 323.3/323.3 kB 84.6 MB/s eta 0:00:00
+Downloading asn1crypto-1.5.1-py2.py3-none-any.whl (105 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 105.0/105.0 kB 25.3 MB/s eta 0:00:00
+Downloading h2-4.3.0-py3-none-any.whl (61 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.8/61.8 kB 24.3 MB/s eta 0:00:00
+Downloading multidict-6.7.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (256 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 256.1/256.1 kB 72.8 MB/s eta 0:00:00
+Downloading hpack-4.1.0-py3-none-any.whl (34 kB)
+Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+Building wheels for collected packages: http-ece
+  Building wheel for http-ece (setup.py): started
+  Building wheel for http-ece (setup.py): finished with status 'done'
+  Created wheel for http-ece: filename=http_ece-1.2.1-py2.py3-none-any.whl size=4789 sha256=110bbd57b046ed3009851c6ea282e5985216d7a2c9e0d7967df925f3495b334e
+  Stored in directory: /home/runner/.cache/pip/wheels/56/8a/f9/f6f6e54ccc92850ca699e76891bfbc0b80301e3951ca6c41e0
+Successfully built http-ece
+Installing collected packages: asn1crypto, websockets, protobuf, Pillow, oscrypto, numpy, multidict, hyperframe, http-ece, hpack, asyncio, scipy, h2, grpclib, betterproto, rustPlusPushReceiver, rustplus
+Successfully installed Pillow-12.0.0 asn1crypto-1.5.1 asyncio-4.0.0 betterproto-2.0.0b7 grpclib-0.4.9 h2-4.3.0 hpack-4.1.0 http-ece-1.2.1 hyperframe-6.1.0 multidict-6.7.0 numpy-2.3.5 oscrypto-1.3.0 protobuf-6.33.2 rustPlusPushReceiver-0.6.1 rustplus-6.0.9 scipy-1.16.3 websockets-15.0.1
