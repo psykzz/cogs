@@ -372,7 +372,7 @@ class RustPlusBridge(commands.Cog):
             try:
                 # Format message for Discord
                 # Determine embed color from Rust message color
-                if msg.colour and msg.colour.startswith('#'):
+                if msg.colour and isinstance(msg.colour, str) and msg.colour.startswith('#'):
                     color = discord.Color.from_str(msg.colour)
                 else:
                     color = discord.Color.orange()
