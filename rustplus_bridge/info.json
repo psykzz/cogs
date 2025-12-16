@@ -1,0 +1,16 @@
+{
+    "author": ["PsyKzz"],
+    "name": "RustPlus Bridge",
+    "short": "Bridge Discord and Rust+ team chat",
+    "description": "Creates a bidirectional bridge between Discord channels and Rust+ in-game team chat. Users can submit their Rust+ credentials to enable the bridge, allowing messages from Discord to be sent to the game and vice versa. Features automatic connection management, reconnection logic, and memory-safe cleanup.",
+    "requirements": [
+        "rustplus>=6.0.0"
+    ],
+    "tags": [
+        "Rust",
+        "RustPlus",
+        "Game",
+        "Chat Bridge",
+        "API"
+    ]
+}

@@ -74,6 +74,7 @@ async def setup(bot):
 - **nw_timers/**: New World war timers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
+- **rustplus_bridge/**: Bidirectional Discord and Rust+ team chat bridge with automatic connection management (requires: rustplus>=6.0.0)
 - **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
@@ -104,6 +105,9 @@ pip3 install python-a2s>=1.3.0
 
 # For hat cog (avatar image manipulation)
 pip3 install Pillow>=10.2.0
+
+# For rustplus_bridge cog (Rust+ team chat bridge)
+pip3 install rustplus>=6.0.0
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py
@@ -184,6 +188,19 @@ When making changes to cogs, validate functionality by:
    output = io.BytesIO()
    img.save(output, format='PNG')
    print('Image creation test: OK')"
+   ```
+
+7. **For rustplus_bridge changes**: Test rustplus library and connection patterns
+   ```bash
+   # Test rustplus module import and basic functionality
+   python3 -c "
+   from rustplus import RustSocket, ServerDetails
+   from rustplus.structs import RustChatMessage
+   print('rustplus import successful')
+   # Test ServerDetails creation
+   details = ServerDetails('127.0.0.1', 28082, 12345, 67890)
+   print('ServerDetails creation test: OK')
+   print('Available RustSocket methods:', [m for m in dir(RustSocket) if not m.startswith('_') and callable(getattr(RustSocket, m))])"
    ```
 
 ### Red-bot Framework
