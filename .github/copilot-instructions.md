@@ -10,17 +10,23 @@ This repository contains Red-bot cogs (Discord bot plugins) written in Python. E
 Run these commands to set up the development environment and validate the codebase:
 
 ```bash
+# Install Red-DiscordBot (requires Python 3.11 or earlier, NOT 3.12+)
+pip3 install Red-DiscordBot
+
 # Install linting tools
 pip3 install flake8
 
 # Install common cog dependencies (install as needed based on info.json files)
-pip3 install cinemagoer==2022.12.27 httpx discord.py
+pip3 install cinemagoer==2022.12.27 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
 
 # Validate Python syntax for all cogs (immediate, ~1 second)
 python3 -m py_compile */*.py
 
 # Run linting to identify issues (immediate, <1 second)
 flake8 . --statistics
+
+# Test Red-DiscordBot imports (immediate, <1 second)
+python3 -c "from redbot.core import commands; print('Red-DiscordBot imports working')"
 ```
 
 ### Validation Commands
@@ -116,8 +122,8 @@ pip3 install discord.py
 Since this is a Red-bot cog repository, there is **no traditional build process**. Validation focuses on:
 
 1. **Python syntax validation** (immediate)
-2. **Import testing** (immediate, may fail due to missing redbot.core)
-3. **Linting compliance** (15 seconds)
+2. **Import testing** (immediate, requires Red-DiscordBot to be installed)
+3. **Linting compliance** (immediate, <1 second)
 
 ### Manual Testing Scenarios
 When making changes to cogs, validate functionality by:
@@ -187,20 +193,34 @@ When making changes to cogs, validate functionality by:
    print('Image creation test: OK')"
    ```
 
-### Red-bot Framework
-**IMPORTANT**: The redbot.core framework is NOT installable in this environment due to Python version compatibility. You cannot:
-- Import redbot modules directly
-- Run actual Red-bot instances
-- Test cog loading/unloading
+### Red-bot Framework Testing
+**IMPORTANT**: Red-DiscordBot requires Python 3.11 or earlier (not 3.12+). When testing with redbot.core:
 
-Focus on syntax validation and logic testing instead.
+**What you CAN do:**
+- Install Red-DiscordBot with Python 3.11: `pip install Red-DiscordBot`
+- Import redbot modules: `from redbot.core import commands, Config, checks`
+- Test cog imports and basic initialization
+- Validate that cogs can be loaded by the framework
+
+**What you CANNOT do:**
+- Run actual Red-bot instances (requires full Discord bot setup)
+- Test Discord interactions without a running bot
+- Test cog loading/unloading without a bot instance
+
+**Testing Strategy:**
+1. Install Red-DiscordBot (Python 3.11 only)
+2. Test imports: `python -c "from redbot.core import commands"`
+3. Validate syntax: `python -m py_compile */*.py`
+4. Run linting: `flake8 . --statistics`
 
 ## CI/CD Pipeline
 
 ### GitHub Actions
 The repository uses `.github/workflows/lint.yml` which:
-- Runs on Python 3.12
+- Runs on Python 3.11 (required for Red-DiscordBot compatibility)
 - Uses flake8 for linting via py-actions/flake8@v2
+- Installs Red-DiscordBot and tests cog imports
+- Validates that all cogs compile successfully
 
 ### Pre-commit Validation
 Always run before committing:
@@ -302,18 +322,23 @@ Remember: Accurate documentation prevents confusion and reduces errors in future
 - Dependency installation via pip
 - Flake8 linting
 - File editing and basic testing
+- Red-DiscordBot installation (with Python 3.11)
+- Cog import testing
+- Red-DiscordBot module imports
 
 ### What Does NOT Work
-- Red-bot framework installation (Python version incompatibility)
-- Actual cog loading/testing
-- Discord bot functionality testing
-- Red-bot command testing
+- Running actual Red-bot instances (requires Discord bot setup)
+- Testing Discord interactions without a bot
+- Full cog loading/unloading testing (requires bot instance)
+- Red-bot command execution testing
 
 ### Time Expectations
 - Python syntax validation: Immediate (<1 second)
+- Red-DiscordBot installation: 60-120 seconds (first time)
 - Dependency installation: 30-60 seconds per package  
 - Full repository linting: Immediate (<1 second)
 - Individual file linting: Immediate
+- Cog import testing: Immediate (<1 second)
 
 ## File Locations
 
