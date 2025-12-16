@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
@@ -185,11 +186,11 @@ class RustPlusBridge(commands.Cog):
             log.error(f"Error creating connection for guild {guild_id}: {e}", exc_info=True)
             return None
 
-    def _setup_fcm_listener(self, guild_id: int, server_details: ServerDetails):
+    async def _setup_fcm_listener(self, guild_id: int, server_details: ServerDetails):
         """Setup FCM listener for push notifications"""
         try:
-            guild_config_sync = asyncio.run(self.config.guild_from_id(guild_id).all())
-            fcm_credentials = guild_config_sync.get("fcm_credentials")
+            guild_config = await self.config.guild_from_id(guild_id).all()
+            fcm_credentials = guild_config.get("fcm_credentials")
 
             if not fcm_credentials:
                 log.warning(f"No FCM credentials configured for guild {guild_id}")
@@ -250,7 +251,7 @@ class RustPlusBridge(commands.Cog):
                                 player_id=guild_cfg["player_id"],
                                 player_token=guild_cfg["player_token"]
                             )
-                            fcm_listener = self._setup_fcm_listener(guild_id, server_details)
+                            fcm_listener = await self._setup_fcm_listener(guild_id, server_details)
                             if fcm_listener:
                                 self._fcm_listeners[guild_id] = fcm_listener
                                 log.info(f"Using FCM push notifications for guild {guild_id}")
@@ -663,7 +664,6 @@ class RustPlusBridge(commands.Cog):
             return
 
         # Try to parse FCM credentials as JSON
-        import json
         try:
             fcm_data = json.loads(fcm_credentials)
             await self.config.guild(ctx.guild).fcm_credentials.set(fcm_data)
