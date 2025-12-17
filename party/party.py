@@ -107,7 +107,20 @@ class RoleSelectView(discord.ui.View):
     async def select_callback(self, interaction: discord.Interaction):
         """Handle role selection from dropdown."""
         selected_role = self.role_select.values[0]
+
+        # Disable all components in the view after selection
+        for item in self.children:
+            item.disabled = True
+
+        # Sign up the user
         await self.cog.signup_user(interaction, self.party_id, selected_role)
+
+        # Edit the message to show the disabled view
+        try:
+            await interaction.edit_original_response(view=self)
+        except discord.HTTPException:
+            # If editing fails, it's not critical - the ephemeral message will disappear anyway
+            pass
 
 
 class PartyView(discord.ui.View):
@@ -186,9 +199,6 @@ class Party(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-        # User cache to avoid repeated API calls
-        self._user_cache = {}
-
         # Load persistent views for existing parties
         self.bot.loop.create_task(self._register_persistent_views())
 
@@ -202,30 +212,6 @@ class Party(commands.Cog):
                 view = PartyView(party_id, self)
                 self.bot.add_view(view)
                 log.debug(f"Registered persistent view for party {party_id}")
-
-    async def _get_user_name(self, user_id: int) -> str:
-        """Get a user's display name with caching."""
-        # Check cache first
-        if user_id in self._user_cache:
-            return self._user_cache[user_id]
-
-        # Try to get from bot cache
-        user = self.bot.get_user(user_id)
-        if user:
-            name = user.display_name
-            self._user_cache[user_id] = name
-            return name
-
-        # Fallback to fetching
-        try:
-            user = await self.bot.fetch_user(user_id)
-            name = user.display_name
-            self._user_cache[user_id] = name
-            return name
-        except discord.NotFound:
-            return f"User {user_id}"
-        except discord.HTTPException:
-            return f"User {user_id}"
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -353,22 +339,16 @@ class Party(commands.Cog):
         for role in roles:
             users = signups.get(role, [])
             if users:
-                user_names = []
-                for user_id in users:
-                    name = await self._get_user_name(int(user_id))
-                    user_names.append(name)
-                signup_lines.append(f"**{role}**: {', '.join(user_names)}")
+                user_mentions = [f"<@{user_id}>" for user_id in users]
+                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
-                user_names = []
-                for user_id in users:
-                    name = await self._get_user_name(int(user_id))
-                    user_names.append(name)
-                signup_lines.append(f"**{role}**: {', '.join(user_names)}")
+                user_mentions = [f"<@{user_id}>" for user_id in users]
+                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
         if signup_lines:
             # Smart truncation: respect line boundaries
