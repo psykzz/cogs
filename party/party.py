@@ -78,7 +78,8 @@ class RoleSelectionModal(discord.ui.Modal):
             return
 
         # Add the user to the party with the selected role
-        await self.cog.signup_user(interaction, self.party_id, role)
+        # Note: Modals are ephemeral and don't need view cleanup
+        await self.cog.signup_user(interaction, self.party_id, role, view_to_disable=None)
 
 
 class RoleSelectView(discord.ui.View):
