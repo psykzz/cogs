@@ -70,7 +70,9 @@ Configure party settings for the server (requires admin or manage_guild permissi
 
 1. **Create a Party**: Use `[p]party create` to create a new party
 2. **Users Sign Up**: Click the "Sign Up" button on the party message
-3. **Select Role**: Enter your role in the modal that appears
+3. **Select Role**: 
+   - If party has predefined roles only: Choose from a dropdown menu
+   - If party allows freeform roles: Enter your role in a text input modal
 4. **Update Role**: Click "Sign Up" again to change your role
 5. **Leave Party**: Click the "Leave" button to remove yourself
 
@@ -79,7 +81,8 @@ Configure party settings for the server (requires admin or manage_guild permissi
 The cog uses modern Discord UI components:
 
 - **Buttons**: Sign Up and Leave buttons on party messages
-- **Modals**: Role selection form when signing up
+- **Select Menus**: Dropdown for choosing from predefined roles (when freeform is disabled)
+- **Modals**: Text input form for freeform role entry
 - **Embeds**: Rich party information display with signups
 
 ## Configuration

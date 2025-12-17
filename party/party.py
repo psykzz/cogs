@@ -14,23 +14,18 @@ EMBED_FIELD_MAX_LENGTH = 1024
 
 
 class RoleSelectionModal(discord.ui.Modal):
-    """Modal for selecting a role when signing up for a party."""
+    """Modal for selecting a role when signing up for a party (for freeform entry)."""
 
-    def __init__(self, party_id: str, predefined_roles: list, allow_freeform: bool, cog):
-        super().__init__(title="Select Your Role")
+    def __init__(self, party_id: str, predefined_roles: list, cog):
+        super().__init__(title="Enter Your Role")
         self.party_id = party_id
         self.predefined_roles = predefined_roles
-        self.allow_freeform = allow_freeform
         self.cog = cog
 
         # Create the role input field
-        if predefined_roles and not allow_freeform:
-            # Show predefined roles as hint
-            placeholder = f"Choose from: {', '.join(predefined_roles)}"
-            label = "Select Role"
-        elif predefined_roles and allow_freeform:
+        if predefined_roles:
             placeholder = f"Choose from: {', '.join(predefined_roles)} or enter custom"
-            label = "Select Role"
+            label = "Your Role"
         else:
             placeholder = "Enter your role"
             label = "Your Role"
@@ -47,17 +42,37 @@ class RoleSelectionModal(discord.ui.Modal):
         """Handle the modal submission."""
         role = self.role_input.value.strip()
 
-        # Validate role
-        if self.predefined_roles and not self.allow_freeform:
-            if role not in self.predefined_roles:
-                await interaction.response.send_message(
-                    f"❌ Invalid role! Please choose from: {', '.join(self.predefined_roles)}",
-                    ephemeral=True
-                )
-                return
-
         # Add the user to the party with the selected role
         await self.cog.signup_user(interaction, self.party_id, role)
+
+
+class RoleSelectView(discord.ui.View):
+    """View with a select menu for choosing predefined roles."""
+
+    def __init__(self, party_id: str, roles: list, cog):
+        super().__init__(timeout=180)  # 3 minute timeout for ephemeral view
+        self.party_id = party_id
+        self.cog = cog
+
+        # Create select menu with role options (max 25 options)
+        options = [
+            discord.SelectOption(label=role, value=role)
+            for role in roles[:25]  # Discord limit
+        ]
+
+        self.role_select = discord.ui.Select(
+            placeholder="Choose your role...",
+            options=options,
+            min_values=1,
+            max_values=1
+        )
+        self.role_select.callback = self.select_callback
+        self.add_item(self.role_select)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        """Handle role selection from dropdown."""
+        selected_role = self.role_select.values[0]
+        await self.cog.signup_user(interaction, self.party_id, selected_role)
 
 
 class PartyView(discord.ui.View):
@@ -85,30 +100,46 @@ class PartyView(discord.ui.View):
                 current_role = role_name
                 break
 
+        roles = party["roles"]
+        allow_freeform = party.get("allow_freeform", True)
+
+        # Determine whether to use select menu or modal
+        use_select_menu = roles and not allow_freeform and len(roles) <= 25
+
         if current_role:
-            # User is already signed up, offer to update
-            await interaction.response.send_message(
+            # User is already signed up
+            message = (
                 f"You're already signed up as **{current_role}**. "
-                "Click again to update your role or use the Leave button to leave the party.",
+                f"Select a new role to update or use the Leave button to leave the party."
+            )
+        else:
+            message = "Select your role:"
+
+        if use_select_menu:
+            # Use select menu for predefined roles only
+            view = RoleSelectView(self.party_id, roles, self.cog)
+            await interaction.response.send_message(
+                message,
+                view=view,
                 ephemeral=True
             )
-            # Show modal anyway to allow update
-            modal = RoleSelectionModal(
-                self.party_id,
-                party["roles"],
-                party.get("allow_freeform", True),
-                self.cog
-            )
-            await interaction.followup.send_modal(modal)
         else:
-            # Show role selection modal
-            modal = RoleSelectionModal(
-                self.party_id,
-                party["roles"],
-                party.get("allow_freeform", True),
-                self.cog
-            )
-            await interaction.response.send_modal(modal)
+            # Use modal for freeform or mixed entry
+            if current_role:
+                await interaction.response.send_message(message, ephemeral=True)
+                modal = RoleSelectionModal(
+                    self.party_id,
+                    roles,
+                    self.cog
+                )
+                await interaction.followup.send_modal(modal)
+            else:
+                modal = RoleSelectionModal(
+                    self.party_id,
+                    roles,
+                    self.cog
+                )
+                await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Leave", style=discord.ButtonStyle.red, custom_id="party_leave", emoji="❌")
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
