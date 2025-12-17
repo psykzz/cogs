@@ -349,11 +349,8 @@ class Party(commands.Cog):
             users = signups.get(role, [])
             if users:
                 # Filter out any invalid user IDs (defensive programming)
-                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and str(user_id).isdigit()]
-                if user_mentions:
-                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
-                else:
-                    signup_lines.append(f"**{role}**: _No signups yet_")
+                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and user_id.isdigit()]
+                signup_lines.append(f"**{role}**: {', '.join(user_mentions) if user_mentions else '_Invalid data_'}")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
@@ -361,7 +358,7 @@ class Party(commands.Cog):
         for role, users in signups.items():
             if role not in roles and users:
                 # Filter out any invalid user IDs (defensive programming)
-                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and str(user_id).isdigit()]
+                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and user_id.isdigit()]
                 if user_mentions:
                     signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
