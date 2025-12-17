@@ -78,7 +78,8 @@ class RoleSelectionModal(discord.ui.Modal):
             return
 
         # Add the user to the party with the selected role
-        await self.cog.signup_user(interaction, self.party_id, role)
+        # Note: Modals don't have persistent UI components, so no view cleanup needed
+        await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None)
 
 
 class RoleSelectView(discord.ui.View):
@@ -107,7 +108,13 @@ class RoleSelectView(discord.ui.View):
     async def select_callback(self, interaction: discord.Interaction):
         """Handle role selection from dropdown."""
         selected_role = self.role_select.values[0]
-        await self.cog.signup_user(interaction, self.party_id, selected_role)
+
+        # Disable all components in the view after selection
+        for item in self.children:
+            item.disabled = True
+
+        # Sign up the user (this will handle the interaction response)
+        await self.cog.signup_user(interaction, self.party_id, selected_role, disabled_view=self)
 
 
 class PartyView(discord.ui.View):
@@ -186,9 +193,6 @@ class Party(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-        # User cache to avoid repeated API calls
-        self._user_cache = {}
-
         # Load persistent views for existing parties
         self.bot.loop.create_task(self._register_persistent_views())
 
@@ -203,29 +207,31 @@ class Party(commands.Cog):
                 self.bot.add_view(view)
                 log.debug(f"Registered persistent view for party {party_id}")
 
-    async def _get_user_name(self, user_id: int) -> str:
-        """Get a user's display name with caching."""
-        # Check cache first
-        if user_id in self._user_cache:
-            return self._user_cache[user_id]
+    def _get_user_mentions(self, user_ids):
+        """Convert user IDs to Discord mentions, filtering out invalid IDs.
 
-        # Try to get from bot cache
-        user = self.bot.get_user(user_id)
-        if user:
-            name = user.display_name
-            self._user_cache[user_id] = name
-            return name
+        Validates that IDs are positive integers. Discord will gracefully handle
+        invalid snowflakes by not making them clickable, so we only need to
+        ensure they're positive integers to prevent obvious errors.
 
-        # Fallback to fetching
-        try:
-            user = await self.bot.fetch_user(user_id)
-            name = user.display_name
-            self._user_cache[user_id] = name
-            return name
-        except discord.NotFound:
-            return f"User {user_id}"
-        except discord.HTTPException:
-            return f"User {user_id}"
+        Args:
+            user_ids: List of user IDs (strings or integers)
+
+        Returns:
+            List of Discord mention strings
+        """
+        mentions = []
+        for user_id in user_ids:
+            # Handle both string and integer user IDs
+            try:
+                # Convert to int to validate it's a positive integer
+                user_id_int = int(user_id)
+                if user_id_int > 0:
+                    mentions.append(f"<@{user_id_int}>")
+            except (TypeError, ValueError):
+                # Skip invalid user IDs silently
+                continue
+        return mentions
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -247,14 +253,32 @@ class Party(commands.Cog):
         parties = await self.config.guild_from_id(guild_id).parties()
         return parties.get(party_id)
 
-    async def signup_user(self, interaction: discord.Interaction, party_id: str, role: str):
-        """Sign up a user for a party with a specific role."""
+    async def signup_user(
+        self,
+        interaction: discord.Interaction,
+        party_id: str,
+        role: str,
+        disabled_view: Optional[discord.ui.View] = None
+    ):
+        """Sign up a user for a party with a specific role.
+
+        Args:
+            interaction: The Discord interaction
+            party_id: The party to sign up for
+            role: The role to sign up as
+            disabled_view: A pre-disabled view to include in the response message.
+                          Pass None for no view components.
+        """
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
 
         async with self.config.guild_from_id(guild_id).parties() as parties:
             if party_id not in parties:
-                await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    "❌ Party not found.",
+                    view=disabled_view,
+                    ephemeral=True
+                )
                 return
 
             party = parties[party_id]
@@ -273,6 +297,7 @@ class Party(commands.Cog):
             if not allow_multiple and len(party["signups"][role]) > 0:
                 await interaction.response.send_message(
                     f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                    view=disabled_view,
                     ephemeral=True
                 )
                 return
@@ -280,8 +305,10 @@ class Party(commands.Cog):
             # Add user to the role
             party["signups"][role].append(user_id)
 
+        # Send success response
         await interaction.response.send_message(
             f"✅ You've signed up as **{role}**!",
+            view=disabled_view,
             ephemeral=True
         )
         await self.update_party_message(guild_id, party_id)
@@ -352,23 +379,18 @@ class Party(commands.Cog):
         signup_lines = []
         for role in roles:
             users = signups.get(role, [])
-            if users:
-                user_names = []
-                for user_id in users:
-                    name = await self._get_user_name(int(user_id))
-                    user_names.append(name)
-                signup_lines.append(f"**{role}**: {', '.join(user_names)}")
+            user_mentions = self._get_user_mentions(users)
+            if user_mentions:
+                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
-                user_names = []
-                for user_id in users:
-                    name = await self._get_user_name(int(user_id))
-                    user_names.append(name)
-                signup_lines.append(f"**{role}**: {', '.join(user_names)}")
+                user_mentions = self._get_user_mentions(users)
+                if user_mentions:
+                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
         if signup_lines:
             # Smart truncation: respect line boundaries
