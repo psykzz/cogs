@@ -268,6 +268,7 @@ class Party(commands.Cog):
             role: The role to sign up as
             disabled_view: A pre-disabled view to include in the response message.
                           If provided, the original message will be edited instead of sending a new one.
+                          If None, a new ephemeral message is sent.
         """
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
