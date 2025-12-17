@@ -514,6 +514,16 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Party created! ID: `{party_id}`", delete_after=10)
 
+        # Delete the original command message
+        try:
+            await ctx.message.delete()
+        except discord.NotFound:
+            # Message already deleted
+            pass
+        except discord.Forbidden:
+            # Bot doesn't have permission to delete messages
+            pass
+
     @party.command(name="delete")
     async def party_delete(self, ctx, party_id: str):
         """Delete a party.
