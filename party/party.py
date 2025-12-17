@@ -90,7 +90,7 @@ class EditPartyModal(discord.ui.Modal):
         super().__init__(title="Edit Party")
         self.party_id = party_id
         self.cog = cog
-        
+
         # Title input
         self.title_input = discord.ui.TextInput(
             label="Party Title",
@@ -100,7 +100,7 @@ class EditPartyModal(discord.ui.Modal):
             max_length=100,
         )
         self.add_item(self.title_input)
-        
+
         # Description input
         self.description_input = discord.ui.TextInput(
             label="Description",
@@ -116,32 +116,38 @@ class EditPartyModal(discord.ui.Modal):
         """Handle the modal submission."""
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
-        
+
         # Update the party data
         async with self.cog.config.guild(interaction.guild).parties() as parties:
             if self.party_id not in parties:
                 await interaction.response.send_message("❌ Party not found.", ephemeral=True)
                 return
-            
+
             old_title = parties[self.party_id]['name']
             old_description = parties[self.party_id].get('description')
-            
+
             parties[self.party_id]['name'] = new_title
             parties[self.party_id]['description'] = new_description
-        
+
         # Update the party message
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
-        
+
         # Create modlog entry
+        reason = (
+            f"Party '{old_title}' (ID: {self.party_id}) edited.\n"
+            f"New title: {new_title}\n"
+            f"Old description: {old_description or 'None'}\n"
+            f"New description: {new_description or 'None'}"
+        )
         await self.cog.create_party_modlog(
             interaction.guild,
             "party_edit",
             interaction.user,
-            f"Party '{old_title}' (ID: {self.party_id}) edited.\nNew title: {new_title}\nOld description: {old_description or 'None'}\nNew description: {new_description or 'None'}"
+            reason
         )
-        
+
         await interaction.response.send_message(
-            f"✅ Party updated successfully!",
+            "✅ Party updated successfully!",
             ephemeral=True
         )
 
@@ -848,7 +854,11 @@ class Party(commands.Cog):
             channel_id = party.get("channel_id")
             message_id = party.get("message_id")
             if channel_id and message_id:
-                link_text = f"\n**[Jump to Party](https://discord.com/channels/{ctx.guild.id}/{channel_id}/{message_id})**"
+                jump_url = (
+                    f"https://discord.com/channels/"
+                    f"{ctx.guild.id}/{channel_id}/{message_id}"
+                )
+                link_text = f"\n**[Jump to Party]({jump_url})**"
 
             value = (
                 f"**ID**: `{party_id}`\n"
@@ -918,11 +928,15 @@ class Party(commands.Cog):
         await self.update_party_message(ctx.guild.id, party_id)
 
         # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) description updated.\n"
+            f"Old: {old_description or 'None'}\nNew: {description}"
+        )
         await self.create_party_modlog(
             ctx.guild,
             "party_edit",
             ctx.author,
-            f"Party '{party['name']}' (ID: {party_id}) description updated.\nOld: {old_description or 'None'}\nNew: {description}"
+            reason
         )
 
         await ctx.send(f"✅ Description updated for party `{party_id}`.")
