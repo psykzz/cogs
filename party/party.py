@@ -78,7 +78,7 @@ class RoleSelectionModal(discord.ui.Modal):
             return
 
         # Add the user to the party with the selected role
-        # Note: Modals are ephemeral and don't need view cleanup
+        # Note: Modals don't have persistent UI components, so no view cleanup needed
         await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None)
 
 
@@ -348,16 +348,22 @@ class Party(commands.Cog):
         for role in roles:
             users = signups.get(role, [])
             if users:
-                user_mentions = [f"<@{user_id}>" for user_id in users]
-                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                # Filter out any invalid user IDs (defensive programming)
+                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and str(user_id).isdigit()]
+                if user_mentions:
+                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                else:
+                    signup_lines.append(f"**{role}**: _No signups yet_")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
-                user_mentions = [f"<@{user_id}>" for user_id in users]
-                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                # Filter out any invalid user IDs (defensive programming)
+                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and str(user_id).isdigit()]
+                if user_mentions:
+                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
         if signup_lines:
             # Smart truncation: respect line boundaries
