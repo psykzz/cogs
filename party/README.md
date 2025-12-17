@@ -37,12 +37,15 @@ Shows party name, ID, number of roles, total signups, and author.
 
 ### Management Commands
 
-#### `[p]party delete <party_id>`
-Delete a party (requires author or admin permissions).
+#### `[p]party delete <party_id_or_title>`
+Delete a party by ID or title (requires author or admin permissions).
 
-**Example:**
+You can delete a party by its ID or by its title. If multiple parties have the same title, you'll be asked to use the party ID instead.
+
+**Examples:**
 ```
 [p]party delete abc123
+[p]party delete Raid Night
 ```
 
 #### `[p]party description <party_id> <description>`

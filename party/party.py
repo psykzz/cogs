@@ -566,20 +566,42 @@ class Party(commands.Cog):
             pass
 
     @party.command(name="delete")
-    async def party_delete(self, ctx, party_id: str):
-        """Delete a party.
+    async def party_delete(self, ctx, *, party_identifier: str):
+        """Delete a party by ID or title.
 
         Only the party creator or server admins can delete a party.
 
-        Example: [p]party delete abc123
+        Examples:
+        - [p]party delete abc123
+        - [p]party delete Raid Night
         """
         parties = await self.config.guild(ctx.guild).parties()
 
-        if party_id not in parties:
-            await ctx.send("❌ Party not found.")
-            return
+        # First, try to find by exact party_id
+        if party_identifier in parties:
+            party_id = party_identifier
+            party = parties[party_id]
+        else:
+            # Try to find by title (case-insensitive)
+            matching_parties = []
+            for pid, p in parties.items():
+                if p["name"].lower() == party_identifier.lower():
+                    matching_parties.append((pid, p))
 
-        party = parties[party_id]
+            if not matching_parties:
+                await ctx.send("❌ Party not found.")
+                return
+            elif len(matching_parties) > 1:
+                # Multiple parties with the same title
+                party_list = "\n".join([f"- `{pid}`: {p['name']}" for pid, p in matching_parties])
+                await ctx.send(
+                    f"❌ Multiple parties found with that title:\n{party_list}\n\n"
+                    f"Please use the party ID to delete a specific one."
+                )
+                return
+            else:
+                # Exactly one match
+                party_id, party = matching_parties[0]
 
         # Check permissions
         is_author = party["author_id"] == ctx.author.id
@@ -609,7 +631,7 @@ class Party(commands.Cog):
                     await ctx.send("⚠️ Party deleted, but I couldn't delete the message (missing permissions).")
                     return
 
-        await ctx.send(f"✅ Party `{party_id}` deleted.")
+        await ctx.send(f"✅ Party `{party_id}` ({party['name']}) deleted.")
 
     @party.command(name="list")
     async def party_list(self, ctx):
