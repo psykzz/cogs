@@ -24,7 +24,19 @@ class RoleSelectionModal(discord.ui.Modal):
 
         # Create the role input field
         if predefined_roles:
-            placeholder = f"Choose from: {', '.join(predefined_roles)} or enter custom"
+            # Build placeholder with truncation to respect Discord's 100-char limit
+            roles_text = ', '.join(predefined_roles)
+            prefix = "Choose from: "
+            suffix = " or enter custom"
+            max_roles_length = 100 - len(prefix) - len(suffix)
+
+            if len(roles_text) <= max_roles_length:
+                placeholder = f"{prefix}{roles_text}{suffix}"
+            else:
+                # Truncate the roles list and add ellipsis
+                truncated_roles = roles_text[:max_roles_length - 3] + "..."
+                placeholder = f"{prefix}{truncated_roles}{suffix}"
+
             label = "Your Role"
         else:
             placeholder = "Enter your role"
