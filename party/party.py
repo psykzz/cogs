@@ -228,7 +228,15 @@ class Party(commands.Cog):
         return parties.get(party_id)
 
     async def signup_user(self, interaction: discord.Interaction, party_id: str, role: str, view_to_disable=None):
-        """Sign up a user for a party with a specific role."""
+        """Sign up a user for a party with a specific role.
+
+        Args:
+            interaction: The Discord interaction
+            party_id: The party to sign up for
+            role: The role to sign up as
+            view_to_disable: Optional view to include in response (already disabled).
+                           Passing None is valid and means no view components.
+        """
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
 
