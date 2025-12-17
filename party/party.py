@@ -661,16 +661,19 @@ class Party(commands.Cog):
         - [p]party create "Game Night" Player1 Player2 Player3 Player4
         - [p]party create "PvP Team" Warrior, Mage, Archer
         """
-        # Parse roles: handle both comma-separated and whitespace-separated
-        parsed_roles = []
-        for role_arg in roles:
-            # If the role contains commas, split on comma
-            if ',' in role_arg:
-                # Split on comma and strip whitespace from each part
-                parsed_roles.extend([r.strip() for r in role_arg.split(',') if r.strip()])
-            else:
-                # No comma, treat as single role
-                parsed_roles.append(role_arg.strip())
+        # Parse roles: join all arguments first, then split appropriately
+        # This ensures multi-word roles like "Siege Crossbow" stay together
+        # when separated by commas
+        joined_roles = ' '.join(roles)
+        
+        # If commas are present, split by comma (allows multi-word roles)
+        # Otherwise, split by whitespace (for backward compatibility)
+        if ',' in joined_roles:
+            # Split on comma and strip whitespace from each part
+            parsed_roles = [r.strip() for r in joined_roles.split(',') if r.strip()]
+        else:
+            # Split on whitespace
+            parsed_roles = [r.strip() for r in joined_roles.split() if r.strip()]
 
         # Remove any empty strings and duplicates while preserving order
         seen = set()

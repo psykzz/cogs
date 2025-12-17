@@ -360,3 +360,81 @@ Remember: Accurate documentation prevents confusion and reduces errors in future
 - `.github/workflows/lint.yml` for CI requirements
 
 Remember: This is a cog repository, not an application. Focus on plugin functionality, dependency management, and code quality rather than traditional build/test/deploy cycles.
+
+## Discord.py Command Argument Parsing
+
+### Understanding Command Arguments
+When working with Discord commands, it's crucial to understand how discord.py parses command arguments. This knowledge is essential when designing commands with `*args` or handling multi-word arguments.
+
+### Parsing Behavior
+Discord.py uses a quote-aware parser (implemented in `discord/ext/commands/view.py` via `StringView.get_quoted_word()`):
+
+1. **Whitespace Splitting**: Arguments are split by whitespace (spaces, tabs, newlines) by default
+2. **Quote Protection**: Content within quotes is treated as a single argument
+3. **Escape Sequences**: Backslash can escape quotes within quoted strings
+
+### Example Parsing
+```python
+# Command: [p]party create Siege Tank Healer DPS
+# Results in:
+#   name = "Siege"
+#   *roles = ("Tank", "Healer", "DPS")
+
+# Command: [p]party create Siege "Off Tank" "Main Healer" DPS
+# Results in:
+#   name = "Siege"
+#   *roles = ("Off Tank", "Main Healer", "DPS")
+
+# Command: [p]party create Siege Tank, Healer, Off Tank, Main DPS
+# Results in: (note: multi-word roles get split!)
+#   name = "Siege"
+#   *roles = ("Tank,", "Healer,", "Off", "Tank,", "Main", "DPS")
+```
+
+### Common Pitfalls
+1. **Multi-word with Commas**: When users type comma-separated lists with multi-word items, the items get split by whitespace first, then you see commas attached to words
+2. **Quote Awareness**: Your parsing logic must account for whether the user quoted arguments or not
+3. **Backward Compatibility**: Changes to argument parsing must maintain compatibility with existing usage patterns
+
+### Validation Strategy
+When modifying command argument parsing:
+
+1. **Review Source Code**: Check both:
+   - [Red-DiscordBot](https://github.com/Cog-Creators/Red-DiscordBot) for Red-bot specific behavior
+   - [discord.py](https://github.com/Rapptz/discord.py) for underlying argument parsing (specifically `discord/ext/commands/view.py`)
+
+2. **Test Multiple Formats**: Validate that your parsing handles:
+   - Space-separated arguments: `arg1 arg2 arg3`
+   - Quoted arguments: `"arg 1" "arg 2" arg3`
+   - Comma-separated arguments: `arg1, arg2, arg3`
+   - Mixed formats: `arg1, "arg 2", arg3`
+
+3. **Document Expected Usage**: Clearly document in the command's docstring how users should format multi-word arguments
+
+### Best Practices for Commands with `*args`
+When designing commands that accept multiple arguments:
+
+```python
+@command()
+async def mycommand(self, ctx, name: str, *items: str):
+    """Command that accepts multiple items.
+    
+    For multi-word items, use one of these formats:
+    - Comma-separated: [p]mycommand "Name" Item1, Multi Word Item, Item3
+    - Quoted: [p]mycommand "Name" Item1 "Multi Word Item" Item3
+    """
+    # Join all args first, then split based on detected format
+    joined = ' '.join(items)
+    
+    if ',' in joined:
+        # Comma-separated: split by comma (preserves multi-word items)
+        parsed_items = [i.strip() for i in joined.split(',') if i.strip()]
+    else:
+        # Space-separated: split by whitespace (assumes single-word items)
+        parsed_items = [i.strip() for i in joined.split() if i.strip()]
+```
+
+### References
+- Discord.py StringView: `discord/ext/commands/view.py`
+- Red-bot Command Examples: `redbot/cogs/*/` in Red-DiscordBot repository
+- Quote Handling: Discord.py supports many quote types (", ', «», etc.) defined in `_quotes` dictionary
