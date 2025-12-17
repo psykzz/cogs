@@ -350,9 +350,10 @@ class Party(commands.Cog):
             for user_id in user_ids:
                 # Handle both string and integer user IDs
                 try:
-                    user_id_str = str(user_id)
-                    if user_id_str and user_id_str.isdigit():
-                        mentions.append(f"<@{user_id_str}>")
+                    # Convert to int to validate it's a positive integer
+                    user_id_int = int(user_id)
+                    if user_id_int > 0:
+                        mentions.append(f"<@{user_id_int}>")
                 except (TypeError, ValueError):
                     # Skip invalid user IDs silently
                     continue
@@ -362,13 +363,9 @@ class Party(commands.Cog):
         signup_lines = []
         for role in roles:
             users = signups.get(role, [])
-            if users:
-                user_mentions = get_user_mentions(users)
-                if user_mentions:
-                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
-                else:
-                    # Skip roles with only invalid user IDs
-                    signup_lines.append(f"**{role}**: _No signups yet_")
+            user_mentions = get_user_mentions(users) if users else []
+            if user_mentions:
+                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
