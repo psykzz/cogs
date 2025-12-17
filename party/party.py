@@ -660,6 +660,7 @@ class Party(commands.Cog):
         - [p]party create "Raid Night" "Tank, Healer, DPS"
         - [p]party create "Game Night" Player1 Player2 Player3 Player4
         - [p]party create "PvP Team" Warrior, Mage, Archer
+        - [p]party create "Siege" Siege Crossbow, Energy Shaper, GA
         """
         # Parse roles: join all arguments first, then split appropriately
         # This ensures multi-word roles like "Siege Crossbow" stay together
