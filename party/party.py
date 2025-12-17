@@ -24,7 +24,29 @@ class RoleSelectionModal(discord.ui.Modal):
 
         # Create the role input field
         if predefined_roles:
-            placeholder = f"Choose from: {', '.join(predefined_roles)} or enter custom"
+            # Build placeholder with truncation to respect Discord's 100-char limit
+            roles_text = ', '.join(predefined_roles)
+            prefix = "Choose from: "
+            suffix = ""
+            max_roles_length = 100 - len(prefix) - len(suffix)
+
+            if len(roles_text) <= max_roles_length:
+                placeholder = f"{prefix}{roles_text}{suffix}"
+            else:
+                # Truncate at word boundary (last comma) to avoid splitting role names
+                truncate_at = max_roles_length - 3
+                if truncate_at > 0:
+                    last_comma = roles_text.rfind(', ', 0, truncate_at)
+                    if last_comma > 0:
+                        truncated_roles = roles_text[:last_comma] + "..."
+                    else:
+                        # No comma found, truncate at character boundary
+                        truncated_roles = roles_text[:truncate_at] + "..."
+                else:
+                    # Not enough space, just use ellipsis
+                    truncated_roles = "..."
+                placeholder = f"{prefix}{truncated_roles}{suffix}"
+
             label = "Your Role"
         else:
             placeholder = "Enter your role"
@@ -41,6 +63,19 @@ class RoleSelectionModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
         role = self.role_input.value.strip()
+
+        # Validate that the role is in the predefined list
+        if self.predefined_roles and role not in self.predefined_roles:
+            # Truncate role list in error message to avoid exceeding Discord's limit
+            roles_list = ', '.join(self.predefined_roles)
+            if len(roles_list) > 100:
+                # Show first few roles with ellipsis
+                roles_list = roles_list[:97] + "..."
+            await interaction.response.send_message(
+                f"❌ Invalid role. Please choose from: {roles_list}",
+                ephemeral=True
+            )
+            return
 
         # Add the user to the party with the selected role
         await self.cog.signup_user(interaction, self.party_id, role)
@@ -101,10 +136,14 @@ class PartyView(discord.ui.View):
                 break
 
         roles = party["roles"]
-        allow_freeform = party.get("allow_freeform", True)
 
-        # Determine whether to use select menu or modal
-        use_select_menu = roles and not allow_freeform and len(roles) <= 25
+        # Validate that roles are defined
+        if not roles:
+            await interaction.response.send_message(
+                "❌ This party has no roles defined. Please contact the party creator.",
+                ephemeral=True
+            )
+            return
 
         if current_role:
             # User is already signed up
@@ -115,31 +154,13 @@ class PartyView(discord.ui.View):
         else:
             message = "Select your role:"
 
-        if use_select_menu:
-            # Use select menu for predefined roles only
-            view = RoleSelectView(self.party_id, roles, self.cog)
-            await interaction.response.send_message(
-                message,
-                view=view,
-                ephemeral=True
-            )
-        else:
-            # Use modal for freeform or mixed entry
-            if current_role:
-                await interaction.response.send_message(message, ephemeral=True)
-                modal = RoleSelectionModal(
-                    self.party_id,
-                    roles,
-                    self.cog
-                )
-                await interaction.followup.send_modal(modal)
-            else:
-                modal = RoleSelectionModal(
-                    self.party_id,
-                    roles,
-                    self.cog
-                )
-                await interaction.response.send_modal(modal)
+        # Always use select menu (max 25 roles enforced at creation)
+        view = RoleSelectView(self.party_id, roles, self.cog)
+        await interaction.response.send_message(
+            message,
+            view=view,
+            ephemeral=True
+        )
 
     @discord.ui.button(label="Leave", style=discord.ButtonStyle.red, custom_id="party_leave", emoji="❌")
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -381,16 +402,12 @@ class Party(commands.Cog):
 
         # Add configuration info
         allow_multiple = party.get("allow_multiple_per_role", True)
-        allow_freeform = party.get("allow_freeform", True)
         config_lines = []
         if allow_multiple:
             config_lines.append("✅ Multiple signups per role allowed")
         else:
             config_lines.append("❌ Only one signup per role")
-        if allow_freeform:
-            config_lines.append("✅ Freeform roles allowed")
-        else:
-            config_lines.append("❌ Only predefined roles")
+        config_lines.append("📋 Only predefined roles allowed")
 
         embed.add_field(name="Configuration", value="\n".join(config_lines), inline=False)
 
@@ -412,17 +429,47 @@ class Party(commands.Cog):
         name: str,
         *roles: str
     ):
-        """Create a new party with optional predefined roles.
+        """Create a new party with predefined roles.
 
-        If no roles are specified, users can enter any role they want (freeform).
-        If roles are specified, users must choose from the list or can enter custom roles
-        depending on server configuration.
+        Users can only select from the specified roles.
+        At least one role must be specified.
+        Roles can be separated by spaces or commas.
 
         Examples:
         - [p]party create "Raid Night" Tank Healer DPS
-        - [p]party create "Game Night"
-        - [p]party create "PvP Team" Warrior Mage Archer
+        - [p]party create "Raid Night" "Tank, Healer, DPS"
+        - [p]party create "Game Night" Player1 Player2 Player3 Player4
+        - [p]party create "PvP Team" Warrior, Mage, Archer
         """
+        # Parse roles: handle both comma-separated and whitespace-separated
+        parsed_roles = []
+        for role_arg in roles:
+            # If the role contains commas, split on comma
+            if ',' in role_arg:
+                # Split on comma and strip whitespace from each part
+                parsed_roles.extend([r.strip() for r in role_arg.split(',') if r.strip()])
+            else:
+                # No comma, treat as single role
+                parsed_roles.append(role_arg.strip())
+
+        # Remove any empty strings and duplicates while preserving order
+        seen = set()
+        roles_list = []
+        for role in parsed_roles:
+            if role and role not in seen:
+                seen.add(role)
+                roles_list.append(role)
+
+        # Validate that at least one role is specified
+        if not roles_list:
+            await ctx.send("❌ You must specify at least one role for the party.")
+            return
+
+        # Validate maximum 25 roles (Discord select menu limit)
+        if len(roles_list) > 25:
+            await ctx.send("❌ You can specify a maximum of 25 roles per party.")
+            return
+
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
@@ -435,16 +482,16 @@ class Party(commands.Cog):
             "name": name,
             "description": None,
             "author_id": ctx.author.id,
-            "roles": list(roles),
+            "roles": roles_list,
             "signups": {},
             "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": True,  # Always allow freeform for now
+            "allow_freeform": False,  # Only allow predefined roles
             "channel_id": None,
             "message_id": None,
         }
 
         # Initialize signups for each predefined role
-        for role in roles:
+        for role in roles_list:
             party["signups"][role] = []
 
         # Save the party
@@ -466,6 +513,16 @@ class Party(commands.Cog):
             parties[party_id]["channel_id"] = ctx.channel.id
 
         await ctx.send(f"✅ Party created! ID: `{party_id}`", delete_after=10)
+
+        # Delete the original command message
+        try:
+            await ctx.message.delete()
+        except discord.NotFound:
+            # Message already deleted
+            pass
+        except discord.Forbidden:
+            # Bot doesn't have permission to delete messages
+            pass
 
     @party.command(name="delete")
     async def party_delete(self, ctx, party_id: str):
