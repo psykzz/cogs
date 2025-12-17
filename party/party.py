@@ -133,8 +133,46 @@ class Party(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
-        # Register persistent views
-        self.bot.add_view(PartyView(party_id="placeholder", cog=self))
+        # User cache to avoid repeated API calls
+        self._user_cache = {}
+
+        # Load persistent views for existing parties
+        self.bot.loop.create_task(self._register_persistent_views())
+
+    async def _register_persistent_views(self):
+        """Register persistent views for existing parties."""
+        await self.bot.wait_until_ready()
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            parties = guild_data.get("parties", {})
+            for party_id in parties:
+                view = PartyView(party_id, self)
+                self.bot.add_view(view)
+                log.debug(f"Registered persistent view for party {party_id}")
+
+    async def _get_user_name(self, user_id: int) -> str:
+        """Get a user's display name with caching."""
+        # Check cache first
+        if user_id in self._user_cache:
+            return self._user_cache[user_id]
+
+        # Try to get from bot cache
+        user = self.bot.get_user(user_id)
+        if user:
+            name = user.display_name
+            self._user_cache[user_id] = name
+            return name
+
+        # Fallback to fetching
+        try:
+            user = await self.bot.fetch_user(user_id)
+            name = user.display_name
+            self._user_cache[user_id] = name
+            return name
+        except discord.NotFound:
+            return f"User {user_id}"
+        except discord.HTTPException:
+            return f"User {user_id}"
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -237,7 +275,7 @@ class Party(commands.Cog):
             return
 
         # Build the updated embed
-        embed = self.create_party_embed(party)
+        embed = await self.create_party_embed(party)
 
         # Update the message
         try:
@@ -245,7 +283,7 @@ class Party(commands.Cog):
         except discord.HTTPException:
             log.error(f"Failed to update party message {message_id}")
 
-    def create_party_embed(self, party: dict) -> discord.Embed:
+    async def create_party_embed(self, party: dict) -> discord.Embed:
         """Create an embed for a party."""
         embed = discord.Embed(
             title=f"🎉 {party['name']}",
@@ -264,11 +302,8 @@ class Party(commands.Cog):
             if users:
                 user_names = []
                 for user_id in users:
-                    user = self.bot.get_user(int(user_id))
-                    if user:
-                        user_names.append(user.display_name)
-                    else:
-                        user_names.append(f"User {user_id}")
+                    name = await self._get_user_name(int(user_id))
+                    user_names.append(name)
                 signup_lines.append(f"**{role}**: {', '.join(user_names)}")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
@@ -278,23 +313,35 @@ class Party(commands.Cog):
             if role not in roles and users:
                 user_names = []
                 for user_id in users:
-                    user = self.bot.get_user(int(user_id))
-                    if user:
-                        user_names.append(user.display_name)
-                    else:
-                        user_names.append(f"User {user_id}")
+                    name = await self._get_user_name(int(user_id))
+                    user_names.append(name)
                 signup_lines.append(f"**{role}**: {', '.join(user_names)}")
 
         if signup_lines:
-            signup_text = "\n".join(signup_lines)
-            # Split into multiple fields if too long
-            if len(signup_text) <= EMBED_FIELD_MAX_LENGTH:
+            # Smart truncation: respect line boundaries
+            current_length = 0
+            included_lines = []
+            for line in signup_lines:
+                line_length = len(line) + 1  # +1 for newline
+                if current_length + line_length <= EMBED_FIELD_MAX_LENGTH:
+                    included_lines.append(line)
+                    current_length += line_length
+                else:
+                    # Can't fit this line, stop here
+                    break
+
+            if included_lines:
+                signup_text = "\n".join(included_lines)
+                if len(included_lines) < len(signup_lines):
+                    # Add indicator that there are more signups
+                    remaining = len(signup_lines) - len(included_lines)
+                    signup_text += f"\n_... and {remaining} more role(s)_"
                 embed.add_field(name="Signups", value=signup_text, inline=False)
             else:
-                # Truncate if necessary
+                # Even one line is too long, truncate it
                 embed.add_field(
                     name="Signups",
-                    value=signup_text[:EMBED_FIELD_MAX_LENGTH-3] + "...",
+                    value=signup_lines[0][:EMBED_FIELD_MAX_LENGTH-3] + "...",
                     inline=False
                 )
         else:
@@ -375,7 +422,7 @@ class Party(commands.Cog):
             parties[party_id] = party
 
         # Create the party embed
-        embed = self.create_party_embed(party)
+        embed = await self.create_party_embed(party)
 
         # Create the view with buttons
         view = PartyView(party_id, self)
