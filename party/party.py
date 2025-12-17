@@ -234,10 +234,11 @@ class Party(commands.Cog):
 
         async with self.config.guild_from_id(guild_id).parties() as parties:
             if party_id not in parties:
-                if view_to_disable:
-                    await interaction.response.send_message("❌ Party not found.", view=view_to_disable, ephemeral=True)
-                else:
-                    await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    "❌ Party not found.",
+                    view=view_to_disable,
+                    ephemeral=True
+                )
                 return
 
             party = parties[party_id]
@@ -254,34 +255,22 @@ class Party(commands.Cog):
 
             # Check if multiple signups allowed
             if not allow_multiple and len(party["signups"][role]) > 0:
-                if view_to_disable:
-                    await interaction.response.send_message(
-                        f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                        view=view_to_disable,
-                        ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(
-                        f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                        ephemeral=True
-                    )
+                await interaction.response.send_message(
+                    f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                    view=view_to_disable,
+                    ephemeral=True
+                )
                 return
 
             # Add user to the role
             party["signups"][role].append(user_id)
 
-        # Send response with the disabled view if provided
-        if view_to_disable:
-            await interaction.response.send_message(
-                f"✅ You've signed up as **{role}**!",
-                view=view_to_disable,
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                f"✅ You've signed up as **{role}**!",
-                ephemeral=True
-            )
+        # Send success response
+        await interaction.response.send_message(
+            f"✅ You've signed up as **{role}**!",
+            view=view_to_disable,
+            ephemeral=True
+        )
         await self.update_party_message(guild_id, party_id)
 
     async def leave_party(self, guild_id: int, party_id: str, user_id: int) -> bool:
