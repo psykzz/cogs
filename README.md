@@ -353,6 +353,38 @@ Manage war timers for New World.
 
 ---
 
+### Party
+
+Create and manage party signups with role-based compositions using interactive Discord buttons and select menus.
+
+**Installation:**
+```
+[p]cog install psykzz-cogs party
+[p]load party
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]party create <name> [roles...]` | Create a new party with optional predefined roles |
+| `[p]party list` | List all active parties in the server |
+| `[p]party delete <party_id>` | Delete a party (author or admin only) |
+| `[p]party description <party_id> <description>` | Set party description (author or admin only) |
+| `[p]party config <setting> <value>` | Configure server-wide party settings (admin only) |
+
+**Features:**
+- Interactive signups via Discord buttons
+- Select menu (dropdown) for predefined roles
+- Modal text input for freeform roles
+- Users can update their role or leave parties
+- Configurable multiple signups per role
+- Persistent views survive bot restarts
+
+**Example:** `[p]party create "Raid Night" Tank Healer DPS` - Creates a party with three predefined roles. Users click the "Sign Up" button and select their role from a dropdown menu.
+
+---
+
 ### QuotesDB
 
 Store and retrieve user-generated quotes with triggers.

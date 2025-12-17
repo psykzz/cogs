@@ -1,0 +1,10 @@
+{
+    "name": "Party",
+    "author": ["psykzz"],
+    "short": "Create and manage party signups",
+    "description": "A cog to create parties with role compositions and allow users to signup for specific roles using Discord buttons. Supports predefined and freeform roles, multiple signups per role (configurable), and role updates.",
+    "tags": ["party", "composition", "signup", "roles", "group"],
+    "permissions": ["send_messages", "embed_links", "manage_messages"],
+    "requirements": [],
+    "end_user_data_statement": "This cog stores user IDs for party participation tracking."
+}
