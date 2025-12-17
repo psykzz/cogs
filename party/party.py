@@ -27,7 +27,7 @@ class RoleSelectionModal(discord.ui.Modal):
             # Build placeholder with truncation to respect Discord's 100-char limit
             roles_text = ', '.join(predefined_roles)
             prefix = "Choose from: "
-            suffix = " or enter custom"
+            suffix = ""
             max_roles_length = 100 - len(prefix) - len(suffix)
 
             if len(roles_text) <= max_roles_length:
@@ -59,6 +59,14 @@ class RoleSelectionModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
         role = self.role_input.value.strip()
+
+        # Validate that the role is in the predefined list
+        if self.predefined_roles and role not in self.predefined_roles:
+            await interaction.response.send_message(
+                f"❌ Invalid role. Please choose from: {', '.join(self.predefined_roles)}",
+                ephemeral=True
+            )
+            return
 
         # Add the user to the party with the selected role
         await self.cog.signup_user(interaction, self.party_id, role)
@@ -119,10 +127,14 @@ class PartyView(discord.ui.View):
                 break
 
         roles = party["roles"]
-        allow_freeform = party.get("allow_freeform", True)
 
-        # Determine whether to use select menu or modal
-        use_select_menu = roles and not allow_freeform and len(roles) <= 25
+        # Validate that roles are defined
+        if not roles:
+            await interaction.response.send_message(
+                "❌ This party has no roles defined. Please contact the party creator.",
+                ephemeral=True
+            )
+            return
 
         if current_role:
             # User is already signed up
@@ -133,31 +145,13 @@ class PartyView(discord.ui.View):
         else:
             message = "Select your role:"
 
-        if use_select_menu:
-            # Use select menu for predefined roles only
-            view = RoleSelectView(self.party_id, roles, self.cog)
-            await interaction.response.send_message(
-                message,
-                view=view,
-                ephemeral=True
-            )
-        else:
-            # Use modal for freeform or mixed entry
-            if current_role:
-                await interaction.response.send_message(message, ephemeral=True)
-                modal = RoleSelectionModal(
-                    self.party_id,
-                    roles,
-                    self.cog
-                )
-                await interaction.followup.send_modal(modal)
-            else:
-                modal = RoleSelectionModal(
-                    self.party_id,
-                    roles,
-                    self.cog
-                )
-                await interaction.response.send_modal(modal)
+        # Always use select menu (max 25 roles enforced at creation)
+        view = RoleSelectView(self.party_id, roles, self.cog)
+        await interaction.response.send_message(
+            message,
+            view=view,
+            ephemeral=True
+        )
 
     @discord.ui.button(label="Leave", style=discord.ButtonStyle.red, custom_id="party_leave", emoji="❌")
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -399,16 +393,12 @@ class Party(commands.Cog):
 
         # Add configuration info
         allow_multiple = party.get("allow_multiple_per_role", True)
-        allow_freeform = party.get("allow_freeform", True)
         config_lines = []
         if allow_multiple:
             config_lines.append("✅ Multiple signups per role allowed")
         else:
             config_lines.append("❌ Only one signup per role")
-        if allow_freeform:
-            config_lines.append("✅ Freeform roles allowed")
-        else:
-            config_lines.append("❌ Only predefined roles")
+        config_lines.append("📋 Only predefined roles allowed")
 
         embed.add_field(name="Configuration", value="\n".join(config_lines), inline=False)
 
@@ -430,17 +420,26 @@ class Party(commands.Cog):
         name: str,
         *roles: str
     ):
-        """Create a new party with optional predefined roles.
+        """Create a new party with predefined roles.
 
-        If no roles are specified, users can enter any role they want (freeform).
-        If roles are specified, users must choose from the list or can enter custom roles
-        depending on server configuration.
+        Users can only select from the specified roles.
+        At least one role must be specified.
 
         Examples:
         - [p]party create "Raid Night" Tank Healer DPS
-        - [p]party create "Game Night"
+        - [p]party create "Game Night" Player1 Player2 Player3 Player4
         - [p]party create "PvP Team" Warrior Mage Archer
         """
+        # Validate that at least one role is specified
+        if not roles:
+            await ctx.send("❌ You must specify at least one role for the party.")
+            return
+
+        # Validate maximum 25 roles (Discord select menu limit)
+        if len(roles) > 25:
+            await ctx.send("❌ You can specify a maximum of 25 roles per party.")
+            return
+
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
@@ -456,7 +455,7 @@ class Party(commands.Cog):
             "roles": list(roles),
             "signups": {},
             "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": True,  # Always allow freeform for now
+            "allow_freeform": False,  # Only allow predefined roles
             "channel_id": None,
             "message_id": None,
         }
