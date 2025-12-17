@@ -433,19 +433,40 @@ class Party(commands.Cog):
 
         Users can only select from the specified roles.
         At least one role must be specified.
+        Roles can be separated by spaces or commas.
 
         Examples:
         - [p]party create "Raid Night" Tank Healer DPS
+        - [p]party create "Raid Night" "Tank, Healer, DPS"
         - [p]party create "Game Night" Player1 Player2 Player3 Player4
-        - [p]party create "PvP Team" Warrior Mage Archer
+        - [p]party create "PvP Team" Warrior, Mage, Archer
         """
+        # Parse roles: handle both comma-separated and whitespace-separated
+        parsed_roles = []
+        for role_arg in roles:
+            # If the role contains commas, split on comma
+            if ',' in role_arg:
+                # Split on comma and strip whitespace from each part
+                parsed_roles.extend([r.strip() for r in role_arg.split(',') if r.strip()])
+            else:
+                # No comma, treat as single role
+                parsed_roles.append(role_arg.strip())
+
+        # Remove any empty strings and duplicates while preserving order
+        seen = set()
+        roles_list = []
+        for role in parsed_roles:
+            if role and role not in seen:
+                seen.add(role)
+                roles_list.append(role)
+
         # Validate that at least one role is specified
-        if not roles:
+        if not roles_list:
             await ctx.send("❌ You must specify at least one role for the party.")
             return
 
         # Validate maximum 25 roles (Discord select menu limit)
-        if len(roles) > 25:
+        if len(roles_list) > 25:
             await ctx.send("❌ You can specify a maximum of 25 roles per party.")
             return
 
@@ -461,7 +482,7 @@ class Party(commands.Cog):
             "name": name,
             "description": None,
             "author_id": ctx.author.id,
-            "roles": list(roles),
+            "roles": roles_list,
             "signups": {},
             "allow_multiple_per_role": allow_multiple,
             "allow_freeform": False,  # Only allow predefined roles
@@ -470,7 +491,7 @@ class Party(commands.Cog):
         }
 
         # Initialize signups for each predefined role
-        for role in roles:
+        for role in roles_list:
             party["signups"][role] = []
 
         # Save the party
