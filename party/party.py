@@ -1,9 +1,10 @@
 import logging
 import secrets
+from datetime import datetime, timezone
 from typing import Optional
 
 import discord
-from redbot.core import Config, checks, commands
+from redbot.core import Config, checks, commands, modlog
 
 log = logging.getLogger("red.cog.party")
 
@@ -80,6 +81,75 @@ class RoleSelectionModal(discord.ui.Modal):
         # Add the user to the party with the selected role
         # Note: Modals don't have persistent UI components, so no view cleanup needed
         await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None)
+
+
+class EditPartyModal(discord.ui.Modal):
+    """Modal for editing party title and description."""
+
+    def __init__(self, party_id: str, party: dict, cog):
+        super().__init__(title="Edit Party")
+        self.party_id = party_id
+        self.cog = cog
+
+        # Title input
+        self.title_input = discord.ui.TextInput(
+            label="Party Title",
+            placeholder="Enter the party title",
+            default=party['name'],
+            required=True,
+            max_length=100,
+        )
+        self.add_item(self.title_input)
+
+        # Description input
+        self.description_input = discord.ui.TextInput(
+            label="Description",
+            placeholder="Enter party description (optional)",
+            default=party.get('description') or "",
+            required=False,
+            style=discord.TextStyle.paragraph,
+            max_length=2000,
+        )
+        self.add_item(self.description_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle the modal submission."""
+        new_title = self.title_input.value.strip()
+        new_description = self.description_input.value.strip() or None
+
+        # Update the party data
+        async with self.cog.config.guild(interaction.guild).parties() as parties:
+            if self.party_id not in parties:
+                await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                return
+
+            old_title = parties[self.party_id]['name']
+            old_description = parties[self.party_id].get('description')
+
+            parties[self.party_id]['name'] = new_title
+            parties[self.party_id]['description'] = new_description
+
+        # Update the party message
+        await self.cog.update_party_message(interaction.guild.id, self.party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{old_title}' (ID: {self.party_id}) edited.\n"
+            f"New title: {new_title}\n"
+            f"Old description: {old_description or 'None'}\n"
+            f"New description: {new_description or 'None'}"
+        )
+        await self.cog.create_party_modlog(
+            interaction.guild,
+            "party_edit",
+            interaction.user,
+            reason
+        )
+
+        await interaction.response.send_message(
+            "✅ Party updated successfully!",
+            ephemeral=True
+        )
 
 
 class RoleSelectView(discord.ui.View):
@@ -179,6 +249,80 @@ class PartyView(discord.ui.View):
         else:
             await interaction.response.send_message("❌ You're not signed up for this party.", ephemeral=True)
 
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.gray, custom_id="party_edit", emoji="✏️", row=1)
+    async def edit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle edit button click (admin/owner only)."""
+        # Get party data
+        party = await self.cog.get_party(interaction.guild.id, self.party_id)
+        if not party:
+            await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+            return
+
+        # Check permissions
+        is_author = party["author_id"] == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await interaction.response.send_message(
+                "❌ You don't have permission to edit this party.",
+                ephemeral=True
+            )
+            return
+
+        # Show the edit modal
+        modal = EditPartyModal(self.party_id, party, self.cog)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.gray, custom_id="party_delete", emoji="🗑️", row=1)
+    async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Handle delete button click (admin/owner only)."""
+        # Get party data
+        party = await self.cog.get_party(interaction.guild.id, self.party_id)
+        if not party:
+            await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+            return
+
+        # Check permissions
+        is_author = party["author_id"] == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await interaction.response.send_message(
+                "❌ You don't have permission to delete this party.",
+                ephemeral=True
+            )
+            return
+
+        # Delete the party
+        async with self.cog.config.guild(interaction.guild).parties() as parties:
+            del parties[self.party_id]
+
+        # Try to delete the message
+        channel_id = party.get("channel_id")
+        message_id = party.get("message_id")
+
+        if channel_id and message_id:
+            channel = self.cog.bot.get_channel(channel_id)
+            if channel:
+                try:
+                    message = await channel.fetch_message(message_id)
+                    await message.delete()
+                except (discord.NotFound, discord.Forbidden):
+                    pass
+
+        # Create modlog entry
+        await self.cog.create_party_modlog(
+            interaction.guild,
+            "party_delete",
+            interaction.user,
+            f"Party '{party['name']}' (ID: {self.party_id}) deleted."
+        )
+
+        await interaction.response.send_message(
+            f"✅ Party `{self.party_id}` ({party['name']}) deleted.",
+            ephemeral=True
+        )
+
 
 class Party(commands.Cog):
     """Create and manage party signups with role compositions."""
@@ -195,6 +339,52 @@ class Party(commands.Cog):
 
         # Load persistent views for existing parties
         self.bot.loop.create_task(self._register_persistent_views())
+        # Register custom modlog casetypes
+        self.bot.loop.create_task(self._register_casetypes())
+
+    async def _register_casetypes(self):
+        """Register custom modlog case types for party events."""
+        await self.bot.wait_until_ready()
+        try:
+            # Register party creation case type
+            await modlog.register_casetype(
+                name="party_create",
+                default_setting=True,
+                image="🎉",
+                case_str="Party Created"
+            )
+            # Register party edit case type
+            await modlog.register_casetype(
+                name="party_edit",
+                default_setting=True,
+                image="✏️",
+                case_str="Party Edited"
+            )
+            # Register party delete case type
+            await modlog.register_casetype(
+                name="party_delete",
+                default_setting=True,
+                image="🗑️",
+                case_str="Party Deleted"
+            )
+        except RuntimeError:
+            # Case types already registered
+            pass
+
+    async def create_party_modlog(self, guild: discord.Guild, action_type: str, moderator: discord.Member, reason: str):
+        """Create a modlog entry for party actions."""
+        try:
+            await modlog.create_case(
+                self.bot,
+                guild,
+                datetime.now(timezone.utc),
+                action_type,
+                guild.me,  # The bot is the "user" for party actions
+                moderator,
+                reason
+            )
+        except Exception as e:
+            log.error(f"Failed to create modlog entry: {e}")
 
     async def _register_persistent_views(self):
         """Register persistent views for existing parties."""
@@ -441,17 +631,6 @@ class Party(commands.Cog):
         else:
             embed.add_field(name="Signups", value="_No signups yet_", inline=False)
 
-        # Add configuration info
-        allow_multiple = party.get("allow_multiple_per_role", True)
-        config_lines = []
-        if allow_multiple:
-            config_lines.append("✅ Multiple signups per role allowed")
-        else:
-            config_lines.append("❌ Only one signup per role")
-        config_lines.append("📋 Only predefined roles allowed")
-
-        embed.add_field(name="Configuration", value="\n".join(config_lines), inline=False)
-
         embed.set_footer(text=f"Party ID: {party['id']}")
 
         return embed
@@ -553,6 +732,14 @@ class Party(commands.Cog):
             parties[party_id]["message_id"] = message.id
             parties[party_id]["channel_id"] = ctx.channel.id
 
+        # Create modlog entry
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_create",
+            ctx.author,
+            f"Party '{name}' (ID: {party_id}) created with {len(roles_list)} role(s)."
+        )
+
         await ctx.send(f"✅ Party created! ID: `{party_id}`", delete_after=10)
 
         # Delete the original command message
@@ -631,6 +818,14 @@ class Party(commands.Cog):
                     await ctx.send("⚠️ Party deleted, but I couldn't delete the message (missing permissions).")
                     return
 
+        # Create modlog entry
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_delete",
+            ctx.author,
+            f"Party '{party['name']}' (ID: {party_id}) deleted."
+        )
+
         await ctx.send(f"✅ Party `{party_id}` ({party['name']}) deleted.")
 
     @party.command(name="list")
@@ -654,11 +849,23 @@ class Party(commands.Cog):
             total_signups = sum(len(users) for users in party["signups"].values())
             role_count = len(party["roles"]) if party["roles"] else "Freeform"
 
+            # Build the link to the party message if available
+            link_text = ""
+            channel_id = party.get("channel_id")
+            message_id = party.get("message_id")
+            if channel_id and message_id:
+                jump_url = (
+                    f"https://discord.com/channels/"
+                    f"{ctx.guild.id}/{channel_id}/{message_id}"
+                )
+                link_text = f"\n**[Jump to Party]({jump_url})**"
+
             value = (
                 f"**ID**: `{party_id}`\n"
                 f"**Roles**: {role_count}\n"
                 f"**Signups**: {total_signups}\n"
                 f"**Author**: <@{party['author_id']}>"
+                f"{link_text}"
             )
             embed.add_field(name=party["name"], value=value, inline=True)
 
@@ -713,10 +920,23 @@ class Party(commands.Cog):
             return
 
         # Update description
+        old_description = party.get("description")
         async with self.config.guild(ctx.guild).parties() as parties:
             parties[party_id]["description"] = description
 
         # Update the message
         await self.update_party_message(ctx.guild.id, party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) description updated.\n"
+            f"Old: {old_description or 'None'}\nNew: {description}"
+        )
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_edit",
+            ctx.author,
+            reason
+        )
 
         await ctx.send(f"✅ Description updated for party `{party_id}`.")
