@@ -345,7 +345,12 @@ class Party(commands.Cog):
 
         # Helper function to safely create user mentions
         def get_user_mentions(user_ids):
-            """Convert user IDs to Discord mentions, filtering out invalid IDs."""
+            """Convert user IDs to Discord mentions, filtering out invalid IDs.
+
+            Validates that IDs are positive integers. Discord will gracefully handle
+            invalid snowflakes by not making them clickable, so we only need to
+            ensure they're positive integers to prevent obvious errors.
+            """
             mentions = []
             for user_id in user_ids:
                 # Handle both string and integer user IDs
