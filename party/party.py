@@ -207,6 +207,32 @@ class Party(commands.Cog):
                 self.bot.add_view(view)
                 log.debug(f"Registered persistent view for party {party_id}")
 
+    def _get_user_mentions(self, user_ids):
+        """Convert user IDs to Discord mentions, filtering out invalid IDs.
+
+        Validates that IDs are positive integers. Discord will gracefully handle
+        invalid snowflakes by not making them clickable, so we only need to
+        ensure they're positive integers to prevent obvious errors.
+
+        Args:
+            user_ids: List of user IDs (strings or integers)
+
+        Returns:
+            List of Discord mention strings
+        """
+        mentions = []
+        for user_id in user_ids:
+            # Handle both string and integer user IDs
+            try:
+                # Convert to int to validate it's a positive integer
+                user_id_int = int(user_id)
+                if user_id_int > 0:
+                    mentions.append(f"<@{user_id_int}>")
+            except (TypeError, ValueError):
+                # Skip invalid user IDs silently
+                continue
+        return mentions
+
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
         all_guilds = await self.config.all_guilds()
@@ -227,15 +253,21 @@ class Party(commands.Cog):
         parties = await self.config.guild_from_id(guild_id).parties()
         return parties.get(party_id)
 
-    async def signup_user(self, interaction: discord.Interaction, party_id: str, role: str, disabled_view=None):
+    async def signup_user(
+        self,
+        interaction: discord.Interaction,
+        party_id: str,
+        role: str,
+        disabled_view: Optional[discord.ui.View] = None
+    ):
         """Sign up a user for a party with a specific role.
 
         Args:
             interaction: The Discord interaction
             party_id: The party to sign up for
             role: The role to sign up as
-            disabled_view: Optional[discord.ui.View] - A pre-disabled view to include
-                          in the response message. Pass None for no view components.
+            disabled_view: A pre-disabled view to include in the response message.
+                          Pass None for no view components.
         """
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
@@ -343,32 +375,11 @@ class Party(commands.Cog):
         signups = party.get("signups", {})
         roles = party.get("roles", [])
 
-        # Helper function to safely create user mentions
-        def get_user_mentions(user_ids):
-            """Convert user IDs to Discord mentions, filtering out invalid IDs.
-
-            Validates that IDs are positive integers. Discord will gracefully handle
-            invalid snowflakes by not making them clickable, so we only need to
-            ensure they're positive integers to prevent obvious errors.
-            """
-            mentions = []
-            for user_id in user_ids:
-                # Handle both string and integer user IDs
-                try:
-                    # Convert to int to validate it's a positive integer
-                    user_id_int = int(user_id)
-                    if user_id_int > 0:
-                        mentions.append(f"<@{user_id_int}>")
-                except (TypeError, ValueError):
-                    # Skip invalid user IDs silently
-                    continue
-            return mentions
-
         # Build signup list
         signup_lines = []
         for role in roles:
             users = signups.get(role, [])
-            user_mentions = get_user_mentions(users) if users else []
+            user_mentions = self._get_user_mentions(users)
             if user_mentions:
                 signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
             else:
@@ -377,7 +388,7 @@ class Party(commands.Cog):
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
-                user_mentions = get_user_mentions(users)
+                user_mentions = self._get_user_mentions(users)
                 if user_mentions:
                     signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
