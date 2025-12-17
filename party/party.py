@@ -1,4 +1,5 @@
 import logging
+import secrets
 from typing import Optional
 
 import discord
@@ -323,7 +324,7 @@ class Party(commands.Cog):
             included_lines = []
             for line in signup_lines:
                 line_length = len(line) + 1  # +1 for newline
-                if current_length + line_length <= EMBED_FIELD_MAX_LENGTH:
+                if current_length + line_length < EMBED_FIELD_MAX_LENGTH:
                     included_lines.append(line)
                     current_length += line_length
                 else:
@@ -391,8 +392,6 @@ class Party(commands.Cog):
         - [p]party create "Game Night"
         - [p]party create "PvP Team" Warrior Mage Archer
         """
-        import secrets
-
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
