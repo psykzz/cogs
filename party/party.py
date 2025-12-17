@@ -276,10 +276,10 @@ class Party(commands.Cog):
         async with self.config.guild_from_id(guild_id).parties() as parties:
             if party_id not in parties:
                 if disabled_view:
-                    # Edit the original message to show error
+                    # Edit the original message to show error with disabled view
                     await interaction.response.edit_message(
                         content="❌ Party not found.",
-                        view=None
+                        view=disabled_view
                     )
                 else:
                     await interaction.response.send_message(
@@ -303,10 +303,10 @@ class Party(commands.Cog):
             # Check if multiple signups allowed
             if not allow_multiple and len(party["signups"][role]) > 0:
                 if disabled_view:
-                    # Edit the original message to show error
+                    # Edit the original message to show error with disabled view
                     await interaction.response.edit_message(
                         content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                        view=None
+                        view=disabled_view
                     )
                 else:
                     await interaction.response.send_message(
@@ -320,10 +320,10 @@ class Party(commands.Cog):
 
         # Send success response
         if disabled_view:
-            # Edit the original message to show success (remove the select menu)
+            # Edit the original message to show success with disabled view
             await interaction.response.edit_message(
                 content=f"✅ You've signed up as **{role}**!",
-                view=None
+                view=disabled_view
             )
         else:
             await interaction.response.send_message(
