@@ -33,8 +33,14 @@ class RoleSelectionModal(discord.ui.Modal):
             if len(roles_text) <= max_roles_length:
                 placeholder = f"{prefix}{roles_text}{suffix}"
             else:
-                # Truncate the roles list and add ellipsis
-                truncated_roles = roles_text[:max_roles_length - 3] + "..."
+                # Truncate at word boundary (last comma) to avoid splitting role names
+                truncate_at = max_roles_length - 3
+                last_comma = roles_text.rfind(', ', 0, truncate_at)
+                if last_comma > 0:
+                    truncated_roles = roles_text[:last_comma] + "..."
+                else:
+                    # No comma found, truncate at character boundary
+                    truncated_roles = roles_text[:truncate_at] + "..."
                 placeholder = f"{prefix}{truncated_roles}{suffix}"
 
             label = "Your Role"
