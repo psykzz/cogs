@@ -35,12 +35,16 @@ class RoleSelectionModal(discord.ui.Modal):
             else:
                 # Truncate at word boundary (last comma) to avoid splitting role names
                 truncate_at = max_roles_length - 3
-                last_comma = roles_text.rfind(', ', 0, truncate_at)
-                if last_comma > 0:
-                    truncated_roles = roles_text[:last_comma] + "..."
+                if truncate_at > 0:
+                    last_comma = roles_text.rfind(', ', 0, truncate_at)
+                    if last_comma > 0:
+                        truncated_roles = roles_text[:last_comma] + "..."
+                    else:
+                        # No comma found, truncate at character boundary
+                        truncated_roles = roles_text[:truncate_at] + "..."
                 else:
-                    # No comma found, truncate at character boundary
-                    truncated_roles = roles_text[:truncate_at] + "..."
+                    # Not enough space, just use ellipsis
+                    truncated_roles = "..."
                 placeholder = f"{prefix}{truncated_roles}{suffix}"
 
             label = "Your Role"
@@ -62,8 +66,13 @@ class RoleSelectionModal(discord.ui.Modal):
 
         # Validate that the role is in the predefined list
         if self.predefined_roles and role not in self.predefined_roles:
+            # Truncate role list in error message to avoid exceeding Discord's limit
+            roles_list = ', '.join(self.predefined_roles)
+            if len(roles_list) > 100:
+                # Show first few roles with ellipsis
+                roles_list = roles_list[:97] + "..."
             await interaction.response.send_message(
-                f"❌ Invalid role. Please choose from: {', '.join(self.predefined_roles)}",
+                f"❌ Invalid role. Please choose from: {roles_list}",
                 ephemeral=True
             )
             return
