@@ -343,22 +343,39 @@ class Party(commands.Cog):
         signups = party.get("signups", {})
         roles = party.get("roles", [])
 
+        # Helper function to safely create user mentions
+        def get_user_mentions(user_ids):
+            """Convert user IDs to Discord mentions, filtering out invalid IDs."""
+            mentions = []
+            for user_id in user_ids:
+                # Handle both string and integer user IDs
+                try:
+                    user_id_str = str(user_id)
+                    if user_id_str and user_id_str.isdigit():
+                        mentions.append(f"<@{user_id_str}>")
+                except (TypeError, ValueError):
+                    # Skip invalid user IDs silently
+                    continue
+            return mentions
+
         # Build signup list
         signup_lines = []
         for role in roles:
             users = signups.get(role, [])
             if users:
-                # Filter out any invalid user IDs (defensive programming)
-                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and user_id.isdigit()]
-                signup_lines.append(f"**{role}**: {', '.join(user_mentions) if user_mentions else '_Invalid data_'}")
+                user_mentions = get_user_mentions(users)
+                if user_mentions:
+                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                else:
+                    # Skip roles with only invalid user IDs
+                    signup_lines.append(f"**{role}**: _No signups yet_")
             else:
                 signup_lines.append(f"**{role}**: _No signups yet_")
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
-                # Filter out any invalid user IDs (defensive programming)
-                user_mentions = [f"<@{user_id}>" for user_id in users if user_id and user_id.isdigit()]
+                user_mentions = get_user_mentions(users)
                 if user_mentions:
                     signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
 
