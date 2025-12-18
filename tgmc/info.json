@@ -4,6 +4,9 @@
     "short": "Interface for the TGMC API",
     "description": "Interface for the TGMC API.",
     "permissions" : ["Send Messages"],
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
     "tags": [
         "TGMC",
         "API"
