@@ -953,19 +953,27 @@ class Party(commands.Cog):
 
         Example: [p]party rename-option abc123 "Old Role" "New Role"
         """
+        parties = await self.config.guild(ctx.guild).parties()
+
+        if party_id not in parties:
+            await ctx.send("❌ Party not found.")
+            return
+
+        party = parties[party_id]
+
+        # Check permissions
+        is_author = party["author_id"] == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await ctx.send("❌ You don't have permission to modify this party.")
+            return
+
         # Update the party
         async with self.config.guild(ctx.guild).parties() as parties:
-            # Validate party exists
+            # Re-validate party exists (in case it was deleted concurrently)
             if party_id not in parties:
                 await ctx.send("❌ Party not found.")
-                return
-            
-            # Check permissions
-            is_author = parties[party_id]["author_id"] == ctx.author.id
-            is_admin = ctx.author.guild_permissions.administrator
-
-            if not (is_author or is_admin):
-                await ctx.send("❌ You don't have permission to modify this party.")
                 return
             
             # Validate roles key exists
@@ -995,16 +1003,13 @@ class Party(commands.Cog):
             if old_option in parties[party_id]["signups"]:
                 parties[party_id]["signups"][new_option] = parties[party_id]["signups"][old_option]
                 del parties[party_id]["signups"][old_option]
-            
-            # Get party name for modlog (from current state)
-            party_name = parties[party_id].get("name", "Unknown")
 
         # Update the message
         await self.update_party_message(ctx.guild.id, party_id)
 
         # Create modlog entry
         reason = (
-            f"Party '{party_name}' (ID: {party_id}) role renamed.\n"
+            f"Party '{party['name']}' (ID: {party_id}) role renamed.\n"
             f"Old role: {old_option}\n"
             f"New role: {new_option}"
         )
