@@ -975,16 +975,16 @@ class Party(commands.Cog):
             if party_id not in parties:
                 await ctx.send("❌ Party not found.")
                 return
-            
+
             # Validate roles key exists
             if "roles" not in parties[party_id]:
                 await ctx.send("❌ Party has no roles defined.")
                 return
-            
+
             # Validate signups key exists
             if "signups" not in parties[party_id]:
                 parties[party_id]["signups"] = {}
-            
+
             # Check if old option exists in roles
             if old_option not in parties[party_id]["roles"]:
                 await ctx.send(f"❌ Role `{old_option}` not found in party.")
@@ -994,7 +994,7 @@ class Party(commands.Cog):
             if new_option in parties[party_id]["roles"]:
                 await ctx.send(f"❌ Role `{new_option}` already exists in party.")
                 return
-            
+
             # Update the roles list
             role_index = parties[party_id]["roles"].index(old_option)
             parties[party_id]["roles"][role_index] = new_option
