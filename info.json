@@ -1,0 +1,7 @@
+{
+    "author": ["PsyKzz"],
+    "description": "A number of different cogs built to support gaming & social communities for Redbot.",
+    "short": "PsyKzz's cogs",
+    "install_msg": "Thanks for installing! Use '[p]help <cog_name>' to see available commands. Please reach out if you need my help.",
+    "tags": ["albion", "voice", "monitoring", "social"]
+}
