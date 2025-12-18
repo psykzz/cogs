@@ -944,3 +944,80 @@ class Party(commands.Cog):
         )
 
         await ctx.send(f"✅ Description updated for party `{party_id}`.")
+
+    @party.command(name="rename-option")
+    async def party_rename_option(self, ctx, party_id: str, old_option: str, *, new_option: str):
+        """Rename an option/role in a party.
+
+        Only the party creator or server admins can rename options.
+
+        Example: [p]party rename-option abc123 "Old Role" "New Role"
+        """
+        parties = await self.config.guild(ctx.guild).parties()
+
+        if party_id not in parties:
+            await ctx.send("❌ Party not found.")
+            return
+
+        party = parties[party_id]
+
+        # Check permissions
+        is_author = party["author_id"] == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await ctx.send("❌ You don't have permission to modify this party.")
+            return
+
+        # Update the party
+        async with self.config.guild(ctx.guild).parties() as parties:
+            # Re-validate party exists (in case it was deleted concurrently)
+            if party_id not in parties:
+                await ctx.send("❌ Party not found.")
+                return
+
+            # Validate roles key exists
+            if "roles" not in parties[party_id]:
+                await ctx.send("❌ Party has no roles defined.")
+                return
+
+            # Validate signups key exists
+            if "signups" not in parties[party_id]:
+                parties[party_id]["signups"] = {}
+
+            # Check if old option exists in roles
+            if old_option not in parties[party_id]["roles"]:
+                await ctx.send(f"❌ Role `{old_option}` not found in party.")
+                return
+
+            # Check if new option already exists
+            if new_option in parties[party_id]["roles"]:
+                await ctx.send(f"❌ Role `{new_option}` already exists in party.")
+                return
+
+            # Update the roles list
+            role_index = parties[party_id]["roles"].index(old_option)
+            parties[party_id]["roles"][role_index] = new_option
+
+            # Migrate signups from old role name to new role name
+            if old_option in parties[party_id]["signups"]:
+                parties[party_id]["signups"][new_option] = parties[party_id]["signups"][old_option]
+                del parties[party_id]["signups"][old_option]
+
+        # Update the message
+        await self.update_party_message(ctx.guild.id, party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) role renamed.\n"
+            f"Old role: {old_option}\n"
+            f"New role: {new_option}"
+        )
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_edit",
+            ctx.author,
+            reason
+        )
+
+        await ctx.send(f"✅ Renamed role `{old_option}` to `{new_option}` in party `{party_id}`.")

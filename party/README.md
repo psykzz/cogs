@@ -56,6 +56,17 @@ Set the description for a party (requires author or admin permissions).
 [p]party description abc123 Join us for a fun raid tonight!
 ```
 
+#### `[p]party rename-option <party_id> <old_option> <new_option>`
+Rename an option/role in a party (requires author or admin permissions).
+
+This command updates the role name in the party's role list and migrates all signups from the old role name to the new role name.
+
+**Examples:**
+```
+[p]party rename-option abc123 Tank "Main Tank"
+[p]party rename-option abc123 "Off Tank" "Secondary Tank"
+```
+
 ### Admin Commands
 
 #### `[p]party config <setting> <value>`
