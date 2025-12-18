@@ -379,7 +379,7 @@ class Party(commands.Cog):
                 guild,
                 datetime.now(timezone.utc),
                 action_type,
-                guild.me,  # The bot is the "user" for party actions
+                moderator,  # The moderator is the user/target for party actions
                 moderator,
                 reason
             )
