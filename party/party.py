@@ -976,16 +976,18 @@ class Party(commands.Cog):
                 await ctx.send("❌ Party not found.")
                 return
             
-            # Get roles list from current state
-            roles = parties[party_id].get("roles", [])
+            # Validate roles key exists
+            if "roles" not in parties[party_id]:
+                await ctx.send("❌ Party has no roles defined.")
+                return
             
             # Check if old option exists in roles
-            if old_option not in roles:
+            if old_option not in parties[party_id]["roles"]:
                 await ctx.send(f"❌ Role `{old_option}` not found in party.")
                 return
 
             # Check if new option already exists
-            if new_option in roles:
+            if new_option in parties[party_id]["roles"]:
                 await ctx.send(f"❌ Role `{new_option}` already exists in party.")
                 return
             
