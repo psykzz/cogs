@@ -981,6 +981,10 @@ class Party(commands.Cog):
                 await ctx.send("❌ Party has no roles defined.")
                 return
             
+            # Validate signups key exists
+            if "signups" not in parties[party_id]:
+                parties[party_id]["signups"] = {}
+            
             # Check if old option exists in roles
             if old_option not in parties[party_id]["roles"]:
                 await ctx.send(f"❌ Role `{old_option}` not found in party.")
@@ -999,13 +1003,16 @@ class Party(commands.Cog):
             if old_option in parties[party_id]["signups"]:
                 parties[party_id]["signups"][new_option] = parties[party_id]["signups"][old_option]
                 del parties[party_id]["signups"][old_option]
+            
+            # Get party name for modlog (from current state)
+            party_name = parties[party_id].get("name", "Unknown")
 
         # Update the message
         await self.update_party_message(ctx.guild.id, party_id)
 
         # Create modlog entry
         reason = (
-            f"Party '{party['name']}' (ID: {party_id}) role renamed.\n"
+            f"Party '{party_name}' (ID: {party_id}) role renamed.\n"
             f"Old role: {old_option}\n"
             f"New role: {new_option}"
         )
