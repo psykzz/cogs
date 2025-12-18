@@ -666,7 +666,7 @@ class Party(commands.Cog):
         # This ensures multi-word roles like "Siege Crossbow" stay together
         # when separated by commas
         joined_roles = ' '.join(roles)
-        
+
         # If commas are present, split by comma (allows multi-word roles)
         # Otherwise, split by whitespace (for backward compatibility)
         if ',' in joined_roles:
