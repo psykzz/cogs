@@ -969,21 +969,26 @@ class Party(commands.Cog):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
-        # Get roles list
-        roles = party.get("roles", [])
-        
-        # Check if old option exists in roles
-        if old_option not in roles:
-            await ctx.send(f"❌ Role `{old_option}` not found in party.")
-            return
-
-        # Check if new option already exists
-        if new_option in roles:
-            await ctx.send(f"❌ Role `{new_option}` already exists in party.")
-            return
-
         # Update the party
         async with self.config.guild(ctx.guild).parties() as parties:
+            # Re-validate party exists (in case it was deleted concurrently)
+            if party_id not in parties:
+                await ctx.send("❌ Party not found.")
+                return
+            
+            # Get roles list from current state
+            roles = parties[party_id].get("roles", [])
+            
+            # Check if old option exists in roles
+            if old_option not in roles:
+                await ctx.send(f"❌ Role `{old_option}` not found in party.")
+                return
+
+            # Check if new option already exists
+            if new_option in roles:
+                await ctx.send(f"❌ Role `{new_option}` already exists in party.")
+                return
+            
             # Update the roles list
             role_index = parties[party_id]["roles"].index(old_option)
             parties[party_id]["roles"][role_index] = new_option
