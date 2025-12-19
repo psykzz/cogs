@@ -521,7 +521,9 @@ class PartyView(discord.ui.View):
         # Get party data
         party = await self.cog.get_party(interaction.guild.id, self.party_id)
         if not party:
-            await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+            # Defer for error case to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            await interaction.followup.send("❌ Party not found.", ephemeral=True)
             return
 
         # Check if user is already signed up
@@ -536,7 +538,9 @@ class PartyView(discord.ui.View):
 
         # Validate that roles are defined
         if not roles:
-            await interaction.response.send_message(
+            # Defer for error case to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            await interaction.followup.send(
                 "❌ This party has no roles defined. Please contact the party creator.",
                 ephemeral=True
             )
@@ -552,6 +556,7 @@ class PartyView(discord.ui.View):
             message = "Select your role:"
 
         # Always use select menu (max 25 roles enforced at creation)
+        # Note: Cannot defer here as we need to send a view with response.send_message
         view = RoleSelectView(self.party_id, roles, self.cog)
         await interaction.response.send_message(
             message,
@@ -562,12 +567,15 @@ class PartyView(discord.ui.View):
     @discord.ui.button(label="Leave", style=discord.ButtonStyle.red, custom_id="party_leave", emoji="❌")
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle leave button click."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         result = await self.cog.leave_party(interaction.guild.id, self.party_id, interaction.user.id)
         if result:
-            await interaction.response.send_message("✅ You've left the party.", ephemeral=True)
+            await interaction.followup.send("✅ You've left the party.", ephemeral=True)
             await self.cog.update_party_message(interaction.guild.id, self.party_id)
         else:
-            await interaction.response.send_message("❌ You're not signed up for this party.", ephemeral=True)
+            await interaction.followup.send("❌ You're not signed up for this party.", ephemeral=True)
 
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.gray, custom_id="party_edit", emoji="✏️", row=1)
     async def edit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -596,10 +604,13 @@ class PartyView(discord.ui.View):
     @discord.ui.button(label="Delete", style=discord.ButtonStyle.gray, custom_id="party_delete", emoji="🗑️", row=1)
     async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle delete button click (admin/owner only)."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         # Get party data
         party = await self.cog.get_party(interaction.guild.id, self.party_id)
         if not party:
-            await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+            await interaction.followup.send("❌ Party not found.", ephemeral=True)
             return
 
         # Check permissions
@@ -607,7 +618,7 @@ class PartyView(discord.ui.View):
         is_admin = interaction.user.guild_permissions.administrator
 
         if not (is_author or is_admin):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ You don't have permission to delete this party.",
                 ephemeral=True
             )
@@ -638,7 +649,7 @@ class PartyView(discord.ui.View):
             f"Party '{party['name']}' (ID: {self.party_id}) deleted."
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Party `{self.party_id}` ({party['name']}) deleted.",
             ephemeral=True
         )
