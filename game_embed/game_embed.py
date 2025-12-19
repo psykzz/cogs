@@ -220,6 +220,8 @@ class GameEmbed(commands.Cog):
                     del embeds[server_key]
         except discord.Forbidden:
             logger.warning(f"Missing permissions to edit message {message_id}")
+        except discord.HTTPException as e:
+            logger.warning(f"HTTP error updating embed for message {message_id}: {e.status} {e.text}")
         except Exception as e:
             logger.exception(f"Error updating embed: {e}")
 
@@ -375,6 +377,8 @@ class GameEmbed(commands.Cog):
                     pass  # Message already deleted
                 except discord.Forbidden:
                     logger.warning(f"Missing permissions to delete previous embed for {server_key} in {ctx.guild.name}")
+                except discord.HTTPException as e:
+                    logger.warning(f"HTTP error deleting previous embed for {server_key}: {e.status} {e.text}")
 
         # Get current server info
         server_info = self.server_cache.get(server_key)
