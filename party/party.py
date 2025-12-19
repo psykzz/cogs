@@ -991,7 +991,8 @@ class Party(commands.Cog):
 
             await ctx.send(
                 "Click the button below to open the party creation form:",
-                view=view
+                view=view,
+                delete_after=300  # Delete after 5 minutes
             )
 
             # Delete the command message
