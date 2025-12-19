@@ -403,10 +403,43 @@ class EditPartyFullModal(discord.ui.Modal):
             channel_id = parties[self.party_id].get('channel_id')
             message_id = parties[self.party_id].get('message_id')
 
-        # Update the party message
+        # Send success message to user immediately after data update
+        try:
+            await interaction.followup.send(
+                "✅ Party updated successfully!",
+                ephemeral=True
+            )
+        except discord.errors.NotFound:
+            # Interaction expired, log but continue with remaining tasks
+            log.warning(f"Interaction expired before sending confirmation for party {self.party_id}")
+
+        # Update the party message (after responding to user)
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
 
-        # Send DMs to users whose roles were removed
+        # Create modlog entry
+        changes = []
+        if old_title != new_title:
+            changes.append(f"Title: '{old_title}' → '{new_title}'")
+        if old_description != new_description:
+            changes.append(f"Description: '{old_description or 'None'}' → '{new_description or 'None'}'")
+        if old_roles != unique_roles:
+            changes.append(f"Roles: {old_roles} → {unique_roles}")
+            if removed_role_users:
+                total_notified = sum(len(users) for users in removed_role_users.values())
+                changes.append(f"Removed roles affected {total_notified} user(s), DMs will be sent")
+        if old_allow_multiple != allow_multiple:
+            changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
+
+        reason = f"Party '{old_title}' (ID: {self.party_id}) edited.\n" + "\n".join(changes)
+
+        await self.cog.create_party_modlog(
+            interaction.guild,
+            "party_edit",
+            interaction.user,
+            reason
+        )
+
+        # Send DMs to users whose roles were removed (after modlog entry)
         if removed_role_users:
             party_name = new_title
             # Build jump URL for the party message
@@ -439,34 +472,6 @@ class EditPartyFullModal(discord.ui.Modal):
                     except (ValueError, discord.NotFound):
                         # Invalid user ID or user not found, skip
                         pass
-
-        # Create modlog entry
-        changes = []
-        if old_title != new_title:
-            changes.append(f"Title: '{old_title}' → '{new_title}'")
-        if old_description != new_description:
-            changes.append(f"Description: '{old_description or 'None'}' → '{new_description or 'None'}'")
-        if old_roles != unique_roles:
-            changes.append(f"Roles: {old_roles} → {unique_roles}")
-            if removed_role_users:
-                total_notified = sum(len(users) for users in removed_role_users.values())
-                changes.append(f"Removed roles affected {total_notified} user(s), DMs sent")
-        if old_allow_multiple != allow_multiple:
-            changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
-
-        reason = f"Party '{old_title}' (ID: {self.party_id}) edited.\n" + "\n".join(changes)
-
-        await self.cog.create_party_modlog(
-            interaction.guild,
-            "party_edit",
-            interaction.user,
-            reason
-        )
-
-        await interaction.followup.send(
-            "✅ Party updated successfully!",
-            ephemeral=True
-        )
 
 
 class RoleSelectView(discord.ui.View):
