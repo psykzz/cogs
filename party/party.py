@@ -206,7 +206,7 @@ class CreatePartyModal(discord.ui.Modal):
         allow_multiple_text = self.allow_multiple_input.value.strip().lower()
 
         # Parse allow_multiple setting
-        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""] or allow_multiple_text == "yes"
+        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""]
         if allow_multiple_text and allow_multiple_text not in ["yes", "no", "true", "false", "y", "n", "1", "0", ""]:
             await interaction.response.send_message(
                 "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'.",
@@ -954,15 +954,15 @@ class Party(commands.Cog):
         if name is None:
             # Create and send the modal
             modal = CreatePartyModal(self)
-            
+
             # We need to create an interaction to send the modal
             # Since we're in a text command context, we need to send a message first
             # that the user can interact with to trigger the modal
             view = discord.ui.View(timeout=300)  # 5 minute timeout
-            
+
             async def modal_button_callback(interaction: discord.Interaction):
                 await interaction.response.send_modal(modal)
-            
+
             button = discord.ui.Button(
                 label="Open Party Creation Form",
                 style=discord.ButtonStyle.primary,
@@ -970,20 +970,20 @@ class Party(commands.Cog):
             )
             button.callback = modal_button_callback
             view.add_item(button)
-            
+
             await ctx.send(
                 "Click the button below to open the party creation form:",
                 view=view
             )
-            
+
             # Delete the command message
             try:
                 await ctx.message.delete()
             except (discord.NotFound, discord.Forbidden):
                 pass
-            
+
             return
-        
+
         # Parse roles: join all arguments first, then split appropriately
         # This ensures multi-word roles like "Siege Crossbow" stay together
         # when separated by commas
