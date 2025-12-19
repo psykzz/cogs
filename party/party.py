@@ -595,7 +595,7 @@ class Party(commands.Cog):
                     value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
             else:
                 value = "_No signups yet_"
-            
+
             embed.add_field(name=role, value=value, inline=True)
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
