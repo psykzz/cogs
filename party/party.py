@@ -594,7 +594,7 @@ class Party(commands.Cog):
                 if len(value) > EMBED_FIELD_MAX_LENGTH:
                     value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
             else:
-                value = "_No signups yet_"
+                value = "-"
 
             embed.add_field(name=role, value=value, inline=True)
 
@@ -610,7 +610,7 @@ class Party(commands.Cog):
 
         # If no roles defined and no signups, show a message
         if not roles and not any(users for users in signups.values()):
-            embed.add_field(name="Signups", value="_No signups yet_", inline=True)
+            embed.add_field(name="Signups", value="-", inline=True)
 
         # Set footer with party owner mention and party ID
         embed.set_footer(text=f"Owner: <@{party['author_id']}> | Party ID: {party['id']}")
