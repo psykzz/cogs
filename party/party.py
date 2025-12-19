@@ -152,6 +152,266 @@ class EditPartyModal(discord.ui.Modal):
         )
 
 
+class CreatePartyModal(discord.ui.Modal):
+    """Modal for creating a new party without command arguments."""
+
+    def __init__(self, cog):
+        super().__init__(title="Create New Party")
+        self.cog = cog
+
+        # Title input
+        self.title_input = discord.ui.TextInput(
+            label="Party Title",
+            placeholder="Enter the party title (e.g., Raid Night)",
+            required=True,
+            max_length=100,
+        )
+        self.add_item(self.title_input)
+
+        # Description input
+        self.description_input = discord.ui.TextInput(
+            label="Description (Optional)",
+            placeholder="Enter party description",
+            required=False,
+            style=discord.TextStyle.paragraph,
+            max_length=2000,
+        )
+        self.add_item(self.description_input)
+
+        # Roles input (one per line)
+        self.roles_input = discord.ui.TextInput(
+            label="Roles (one per line, max 25)",
+            placeholder="Tank\nHealer\nDPS\nSupport",
+            required=True,
+            style=discord.TextStyle.paragraph,
+            max_length=1000,
+        )
+        self.add_item(self.roles_input)
+
+        # Allow multiple signups per role
+        self.allow_multiple_input = discord.ui.TextInput(
+            label="Allow Multiple Per Role? (yes/no)",
+            placeholder="yes",
+            required=False,
+            max_length=3,
+            default="yes",
+        )
+        self.add_item(self.allow_multiple_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle the modal submission."""
+        title = self.title_input.value.strip()
+        description = self.description_input.value.strip() or None
+        roles_text = self.roles_input.value.strip()
+        allow_multiple_text = self.allow_multiple_input.value
+
+        # Parse and validate allow_multiple setting
+        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        # Parse roles from text
+        unique_roles = Party.parse_roles_from_text(roles_text)
+
+        # Validate roles
+        error = Party.validate_roles(unique_roles)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        # Generate a unique party ID
+        party_id = secrets.token_hex(4)
+
+        # Create party data
+        party = {
+            "id": party_id,
+            "name": title,
+            "description": description,
+            "author_id": interaction.user.id,
+            "roles": unique_roles,
+            "signups": {},
+            "allow_multiple_per_role": allow_multiple,
+            "allow_freeform": False,
+            "channel_id": None,
+            "message_id": None,
+        }
+
+        # Initialize signups for each predefined role
+        for role in unique_roles:
+            party["signups"][role] = []
+
+        # Save the party
+        async with self.cog.config.guild(interaction.guild).parties() as parties:
+            parties[party_id] = party
+
+        # Create the party embed
+        embed = await self.cog.create_party_embed(party)
+
+        # Create the view with buttons
+        view = PartyView(party_id, self.cog)
+
+        # Send the message to the channel where the interaction occurred
+        channel = interaction.channel
+        message = await channel.send(embed=embed, view=view)
+
+        # Save the message ID and channel ID
+        async with self.cog.config.guild(interaction.guild).parties() as parties:
+            parties[party_id]["message_id"] = message.id
+            parties[party_id]["channel_id"] = channel.id
+
+        # Create modlog entry
+        await self.cog.create_party_modlog(
+            interaction.guild,
+            "party_create",
+            interaction.user,
+            f"Party '{title}' (ID: {party_id}) created with {len(unique_roles)} role(s) via modal."
+        )
+
+        # Respond to the interaction
+        await interaction.response.send_message(
+            f"✅ Party created! ID: `{party_id}`",
+            ephemeral=True
+        )
+
+
+class EditPartyFullModal(discord.ui.Modal):
+    """Modal for editing all party settings including roles."""
+
+    def __init__(self, party_id: str, party: dict, cog):
+        super().__init__(title="Edit Party")
+        self.party_id = party_id
+        self.cog = cog
+
+        # Title input
+        self.title_input = discord.ui.TextInput(
+            label="Party Title",
+            placeholder="Enter the party title",
+            default=party['name'],
+            required=True,
+            max_length=100,
+        )
+        self.add_item(self.title_input)
+
+        # Description input
+        self.description_input = discord.ui.TextInput(
+            label="Description (Optional)",
+            placeholder="Enter party description",
+            default=party.get('description') or "",
+            required=False,
+            style=discord.TextStyle.paragraph,
+            max_length=2000,
+        )
+        self.add_item(self.description_input)
+
+        # Roles input (one per line)
+        roles_text = '\n'.join(party.get('roles', []))
+        self.roles_input = discord.ui.TextInput(
+            label="Roles (one per line, max 25)",
+            placeholder="Tank\nHealer\nDPS",
+            default=roles_text,
+            required=True,
+            style=discord.TextStyle.paragraph,
+            max_length=1000,
+        )
+        self.add_item(self.roles_input)
+
+        # Allow multiple signups per role
+        allow_multiple_default = "yes" if party.get("allow_multiple_per_role", True) else "no"
+        self.allow_multiple_input = discord.ui.TextInput(
+            label="Allow Multiple Per Role? (yes/no)",
+            placeholder="yes or no",
+            default=allow_multiple_default,
+            required=False,
+            max_length=3,
+        )
+        self.add_item(self.allow_multiple_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        """Handle the modal submission."""
+        new_title = self.title_input.value.strip()
+        new_description = self.description_input.value.strip() or None
+        roles_text = self.roles_input.value.strip()
+        allow_multiple_text = self.allow_multiple_input.value
+
+        # Parse and validate allow_multiple setting
+        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        # Parse roles from text
+        unique_roles = Party.parse_roles_from_text(roles_text)
+
+        # Validate roles
+        error = Party.validate_roles(unique_roles)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+
+        # Update the party data
+        async with self.cog.config.guild(interaction.guild).parties() as parties:
+            if self.party_id not in parties:
+                await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                return
+
+            old_title = parties[self.party_id]['name']
+            old_description = parties[self.party_id].get('description')
+            old_roles = parties[self.party_id].get('roles', [])
+            old_allow_multiple = parties[self.party_id].get('allow_multiple_per_role', True)
+
+            parties[self.party_id]['name'] = new_title
+            parties[self.party_id]['description'] = new_description
+            parties[self.party_id]['roles'] = unique_roles
+            parties[self.party_id]['allow_multiple_per_role'] = allow_multiple
+
+            # Handle role changes: preserve signups for roles that still exist
+            old_signups = parties[self.party_id].get('signups', {})
+            new_signups = {}
+
+            # Keep signups for roles that are still in the list
+            for role in unique_roles:
+                if role in old_signups:
+                    new_signups[role] = old_signups[role]
+                else:
+                    new_signups[role] = []
+
+            # Keep signups for roles that were removed (as freeform signups)
+            for role, users in old_signups.items():
+                if role not in unique_roles and users:
+                    new_signups[role] = users
+
+            parties[self.party_id]['signups'] = new_signups
+
+        # Update the party message
+        await self.cog.update_party_message(interaction.guild.id, self.party_id)
+
+        # Create modlog entry
+        changes = []
+        if old_title != new_title:
+            changes.append(f"Title: '{old_title}' → '{new_title}'")
+        if old_description != new_description:
+            changes.append(f"Description: '{old_description or 'None'}' → '{new_description or 'None'}'")
+        if old_roles != unique_roles:
+            changes.append(f"Roles: {old_roles} → {unique_roles}")
+        if old_allow_multiple != allow_multiple:
+            changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
+
+        reason = f"Party '{old_title}' (ID: {self.party_id}) edited.\n" + "\n".join(changes)
+
+        await self.cog.create_party_modlog(
+            interaction.guild,
+            "party_edit",
+            interaction.user,
+            reason
+        )
+
+        await interaction.response.send_message(
+            "✅ Party updated successfully!",
+            ephemeral=True
+        )
+
+
 class RoleSelectView(discord.ui.View):
     """View with a select menu for choosing predefined roles."""
 
@@ -269,8 +529,8 @@ class PartyView(discord.ui.View):
             )
             return
 
-        # Show the edit modal
-        modal = EditPartyModal(self.party_id, party, self.cog)
+        # Show the comprehensive edit modal with all settings
+        modal = EditPartyFullModal(self.party_id, party, self.cog)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Delete", style=discord.ButtonStyle.gray, custom_id="party_delete", emoji="🗑️", row=1)
@@ -341,6 +601,66 @@ class Party(commands.Cog):
         self.bot.loop.create_task(self._register_persistent_views())
         # Register custom modlog casetypes
         self.bot.loop.create_task(self._register_casetypes())
+
+    @staticmethod
+    def parse_allow_multiple(allow_multiple_text: str) -> tuple[bool, Optional[str]]:
+        """Parse and validate allow_multiple_per_role setting.
+
+        Args:
+            allow_multiple_text: User input for allow_multiple setting
+
+        Returns:
+            Tuple of (parsed_value, error_message). Error message is None if valid.
+        """
+        allow_multiple_text = allow_multiple_text.strip().lower()
+        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""]
+
+        # Validate the input
+        if allow_multiple_text and allow_multiple_text not in ["yes", "no", "true", "false", "y", "n", "1", "0", ""]:
+            return False, "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'."
+
+        return allow_multiple, None
+
+    @staticmethod
+    def parse_roles_from_text(roles_text: str) -> list[str]:
+        """Parse roles from multiline text, removing duplicates while preserving order.
+
+        Args:
+            roles_text: Multiline text with one role per line
+
+        Returns:
+            List of unique role names
+        """
+        # Parse roles (one per line)
+        roles_list = [line.strip() for line in roles_text.split('\n') if line.strip()]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_roles = []
+        for role in roles_list:
+            if role and role not in seen:
+                seen.add(role)
+                unique_roles.append(role)
+
+        return unique_roles
+
+    @staticmethod
+    def validate_roles(roles: list[str]) -> Optional[str]:
+        """Validate role list meets requirements.
+
+        Args:
+            roles: List of role names
+
+        Returns:
+            Error message if invalid, None if valid
+        """
+        if not roles:
+            return "❌ You must specify at least one role for the party."
+
+        if len(roles) > 25:
+            return f"❌ You can specify a maximum of 25 roles per party. You provided {len(roles)} roles."
+
+        return None
 
     async def _register_casetypes(self):
         """Register custom modlog case types for party events."""
@@ -628,22 +948,61 @@ class Party(commands.Cog):
     async def party_create(
         self,
         ctx,
-        name: str,
+        name: Optional[str] = None,
         *roles: str
     ):
         """Create a new party with predefined roles.
 
+        Call without arguments to use an interactive modal form.
+        Call with arguments to use the traditional command format.
+
         Users can only select from the specified roles.
-        At least one role must be specified.
+        At least one role must be specified when using arguments.
         Roles can be separated by spaces or commas.
 
         Examples:
+        - [p]party create  (opens interactive modal)
         - [p]party create "Raid Night" Tank Healer DPS
         - [p]party create "Raid Night" "Tank, Healer, DPS"
         - [p]party create "Game Night" Player1 Player2 Player3 Player4
         - [p]party create "PvP Team" Warrior, Mage, Archer
         - [p]party create "Siege" Siege Crossbow, Energy Shaper, GA
         """
+        # If no arguments provided, show the modal
+        if name is None:
+            # Create and send the modal
+            modal = CreatePartyModal(self)
+
+            # We need to create an interaction to send the modal
+            # Since we're in a text command context, we need to send a message first
+            # that the user can interact with to trigger the modal
+            view = discord.ui.View(timeout=300)  # 5 minute timeout
+
+            async def modal_button_callback(interaction: discord.Interaction):
+                await interaction.response.send_modal(modal)
+
+            button = discord.ui.Button(
+                label="Open Party Creation Form",
+                style=discord.ButtonStyle.primary,
+                emoji="📝"
+            )
+            button.callback = modal_button_callback
+            view.add_item(button)
+
+            await ctx.send(
+                "Click the button below to open the party creation form:",
+                view=view,
+                delete_after=300  # Delete after 5 minutes
+            )
+
+            # Delete the command message
+            try:
+                await ctx.message.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
+
+            return
+
         # Parse roles: join all arguments first, then split appropriately
         # This ensures multi-word roles like "Siege Crossbow" stay together
         # when separated by commas
@@ -666,14 +1025,10 @@ class Party(commands.Cog):
                 seen.add(role)
                 roles_list.append(role)
 
-        # Validate that at least one role is specified
-        if not roles_list:
-            await ctx.send("❌ You must specify at least one role for the party.")
-            return
-
-        # Validate maximum 25 roles (Discord select menu limit)
-        if len(roles_list) > 25:
-            await ctx.send("❌ You can specify a maximum of 25 roles per party.")
+        # Validate roles
+        error = self.validate_roles(roles_list)
+        if error:
+            await ctx.send(error)
             return
 
         # Generate a unique party ID

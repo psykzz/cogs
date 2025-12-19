@@ -17,18 +17,33 @@ A Discord bot cog for creating and managing party signups with role-based compos
 
 ### User Commands
 
-#### `[p]party create <name> [roles...]`
-Create a new party with optional predefined roles.
+#### `[p]party create [name] [roles...]`
+Create a new party with predefined roles.
 
-**Examples:**
-```
-[p]party create "Raid Night" Tank Healer DPS
-[p]party create "Game Night"
-[p]party create "PvP Team" Warrior Mage Archer
-```
+You can use this command in two ways:
 
-If no roles are specified, users can enter any role they want (freeform mode).
-If roles are specified, users must choose from the list or can enter custom roles depending on server configuration.
+1. **Interactive Modal** (Recommended): Call without arguments to open a form
+   ```
+   [p]party create
+   ```
+   This opens an interactive form where you can specify:
+   - Party title
+   - Description (optional)
+   - Roles (one per line, max 25)
+   - Whether to allow multiple signups per role
+
+2. **Traditional Command**: Provide title and roles as arguments
+   ```
+   [p]party create "Raid Night" Tank Healer DPS
+   [p]party create "Game Night" Player1 Player2 Player3 Player4
+   [p]party create "PvP Team" Warrior Mage Archer
+   ```
+
+When using the command format:
+- Users can only select from the specified roles
+- At least one role must be specified
+- Roles can be separated by spaces or commas
+- Multi-word roles should use comma separation: `[p]party create "Siege" "Siege Crossbow, Energy Shaper, GA"`
 
 #### `[p]party list`
 List all active parties in the server.
@@ -83,20 +98,28 @@ Configure party settings for the server (requires admin or manage_guild permissi
 ## Usage Flow
 
 1. **Create a Party**: Use `[p]party create` to create a new party
+   - Without arguments: Opens an interactive form (recommended)
+   - With arguments: Traditional command-based creation
 2. **Users Sign Up**: Click the "Sign Up" button on the party message
-3. **Select Role**: 
-   - If party has predefined roles only: Choose from a dropdown menu
-   - If party allows freeform roles: Enter your role in a text input modal
+3. **Select Role**: Choose from a dropdown menu of predefined roles
 4. **Update Role**: Click "Sign Up" again to change your role
 5. **Leave Party**: Click the "Leave" button to remove yourself
+6. **Edit Party**: Click the "Edit" button (creator/admin only) to modify:
+   - Party title
+   - Description
+   - Available roles
+   - Multiple signup settings
 
 ## Discord UI Components
 
 The cog uses modern Discord UI components:
 
-- **Buttons**: Sign Up and Leave buttons on party messages
-- **Select Menus**: Dropdown for choosing from predefined roles (when freeform is disabled)
-- **Modals**: Text input form for freeform role entry
+- **Buttons**: Sign Up, Leave, Edit, and Delete buttons on party messages
+- **Select Menus**: Dropdown for choosing from predefined roles
+- **Modals**: Interactive forms for:
+  - Creating new parties (with all settings)
+  - Editing existing parties (title, description, roles, configuration)
+  - Role selection (for freeform entry)
 - **Embeds**: Rich party information display with signups
 
 ## Configuration
