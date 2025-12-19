@@ -403,7 +403,17 @@ class EditPartyFullModal(discord.ui.Modal):
             channel_id = parties[self.party_id].get('channel_id')
             message_id = parties[self.party_id].get('message_id')
 
-        # Update the party message
+        # Send success message to user immediately after data update
+        try:
+            await interaction.followup.send(
+                "✅ Party updated successfully!",
+                ephemeral=True
+            )
+        except discord.errors.NotFound:
+            # Interaction expired, log but continue with remaining tasks
+            log.warning(f"Interaction expired before sending confirmation for party {self.party_id}")
+
+        # Update the party message (after responding to user)
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
 
         # Create modlog entry
@@ -429,17 +439,7 @@ class EditPartyFullModal(discord.ui.Modal):
             reason
         )
 
-        # Send success message to user BEFORE sending DMs to prevent interaction timeout
-        try:
-            await interaction.followup.send(
-                "✅ Party updated successfully!",
-                ephemeral=True
-            )
-        except discord.errors.NotFound:
-            # Interaction expired, log but continue with DM sending
-            log.warning(f"Interaction expired before sending confirmation for party {self.party_id}")
-
-        # Send DMs to users whose roles were removed (after confirming to user)
+        # Send DMs to users whose roles were removed (after modlog entry)
         if removed_role_users:
             party_name = new_title
             # Build jump URL for the party message
