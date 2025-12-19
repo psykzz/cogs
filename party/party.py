@@ -203,42 +203,21 @@ class CreatePartyModal(discord.ui.Modal):
         title = self.title_input.value.strip()
         description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value.strip().lower()
+        allow_multiple_text = self.allow_multiple_input.value
 
-        # Parse allow_multiple setting
-        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""]
-        if allow_multiple_text and allow_multiple_text not in ["yes", "no", "true", "false", "y", "n", "1", "0", ""]:
-            await interaction.response.send_message(
-                "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'.",
-                ephemeral=True
-            )
+        # Parse and validate allow_multiple setting
+        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
-        # Parse roles (one per line)
-        roles_list = [line.strip() for line in roles_text.split('\n') if line.strip()]
+        # Parse roles from text
+        unique_roles = Party.parse_roles_from_text(roles_text)
 
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_roles = []
-        for role in roles_list:
-            if role and role not in seen:
-                seen.add(role)
-                unique_roles.append(role)
-
-        # Validate at least one role
-        if not unique_roles:
-            await interaction.response.send_message(
-                "❌ You must specify at least one role for the party.",
-                ephemeral=True
-            )
-            return
-
-        # Validate maximum 25 roles (Discord select menu limit)
-        if len(unique_roles) > 25:
-            await interaction.response.send_message(
-                f"❌ You can specify a maximum of 25 roles per party. You provided {len(unique_roles)} roles.",
-                ephemeral=True
-            )
+        # Validate roles
+        error = Party.validate_roles(unique_roles)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
         # Generate a unique party ID
@@ -353,42 +332,21 @@ class EditPartyFullModal(discord.ui.Modal):
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value.strip().lower()
+        allow_multiple_text = self.allow_multiple_input.value
 
-        # Parse allow_multiple setting
-        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""]
-        if allow_multiple_text and allow_multiple_text not in ["yes", "no", "true", "false", "y", "n", "1", "0", ""]:
-            await interaction.response.send_message(
-                "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'.",
-                ephemeral=True
-            )
+        # Parse and validate allow_multiple setting
+        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
-        # Parse roles (one per line)
-        new_roles = [line.strip() for line in roles_text.split('\n') if line.strip()]
+        # Parse roles from text
+        unique_roles = Party.parse_roles_from_text(roles_text)
 
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_roles = []
-        for role in new_roles:
-            if role and role not in seen:
-                seen.add(role)
-                unique_roles.append(role)
-
-        # Validate at least one role
-        if not unique_roles:
-            await interaction.response.send_message(
-                "❌ You must specify at least one role for the party.",
-                ephemeral=True
-            )
-            return
-
-        # Validate maximum 25 roles
-        if len(unique_roles) > 25:
-            await interaction.response.send_message(
-                f"❌ You can specify a maximum of 25 roles per party. You provided {len(unique_roles)} roles.",
-                ephemeral=True
-            )
+        # Validate roles
+        error = Party.validate_roles(unique_roles)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
         # Update the party data
@@ -643,6 +601,66 @@ class Party(commands.Cog):
         self.bot.loop.create_task(self._register_persistent_views())
         # Register custom modlog casetypes
         self.bot.loop.create_task(self._register_casetypes())
+
+    @staticmethod
+    def parse_allow_multiple(allow_multiple_text: str) -> tuple[bool, Optional[str]]:
+        """Parse and validate allow_multiple_per_role setting.
+
+        Args:
+            allow_multiple_text: User input for allow_multiple setting
+
+        Returns:
+            Tuple of (parsed_value, error_message). Error message is None if valid.
+        """
+        allow_multiple_text = allow_multiple_text.strip().lower()
+        allow_multiple = allow_multiple_text in ["yes", "true", "y", "1", ""]
+
+        # Validate the input
+        if allow_multiple_text and allow_multiple_text not in ["yes", "no", "true", "false", "y", "n", "1", "0", ""]:
+            return False, "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'."
+
+        return allow_multiple, None
+
+    @staticmethod
+    def parse_roles_from_text(roles_text: str) -> list[str]:
+        """Parse roles from multiline text, removing duplicates while preserving order.
+
+        Args:
+            roles_text: Multiline text with one role per line
+
+        Returns:
+            List of unique role names
+        """
+        # Parse roles (one per line)
+        roles_list = [line.strip() for line in roles_text.split('\n') if line.strip()]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_roles = []
+        for role in roles_list:
+            if role and role not in seen:
+                seen.add(role)
+                unique_roles.append(role)
+
+        return unique_roles
+
+    @staticmethod
+    def validate_roles(roles: list[str]) -> Optional[str]:
+        """Validate role list meets requirements.
+
+        Args:
+            roles: List of role names
+
+        Returns:
+            Error message if invalid, None if valid
+        """
+        if not roles:
+            return "❌ You must specify at least one role for the party."
+
+        if len(roles) > 25:
+            return f"❌ You can specify a maximum of 25 roles per party. You provided {len(roles)} roles."
+
+        return None
 
     async def _register_casetypes(self):
         """Register custom modlog case types for party events."""
