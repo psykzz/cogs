@@ -387,12 +387,24 @@ class EditPartyFullModal(discord.ui.Modal):
 
             parties[self.party_id]['signups'] = new_signups
 
+            # Store party message info for DM link
+            channel_id = parties[self.party_id].get('channel_id')
+            message_id = parties[self.party_id].get('message_id')
+
         # Update the party message
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
 
         # Send DMs to users whose roles were removed
         if removed_role_users:
             party_name = new_title
+            # Build jump URL for the party message
+            party_link = ""
+            if channel_id and message_id:
+                jump_url = (
+                    f"https://discord.com/channels/"
+                    f"{interaction.guild.id}/{channel_id}/{message_id}"
+                )
+                party_link = f"\n\n[View Party Message]({jump_url})"
             for role, user_ids in removed_role_users.items():
                 for user_id_str in user_ids:
                     try:
@@ -404,6 +416,7 @@ class EditPartyFullModal(discord.ui.Modal):
                                     f"⚠️ Your role **{role}** has been removed from the party "
                                     f"**{party_name}** in **{interaction.guild.name}**.\n\n"
                                     f"Your signup has been cleared. Please sign up again if you'd like to participate."
+                                    f"{party_link}"
                                 )
                             except discord.Forbidden:
                                 # User has DMs disabled, skip silently
