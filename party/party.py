@@ -584,54 +584,36 @@ class Party(commands.Cog):
         signups = party.get("signups", {})
         roles = party.get("roles", [])
 
-        # Build signup list
-        signup_lines = []
+        # Add each role as an inline field
         for role in roles:
             users = signups.get(role, [])
             user_mentions = self._get_user_mentions(users)
             if user_mentions:
-                signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                # Truncate field value if it exceeds Discord's limit
+                value = ', '.join(user_mentions)
+                if len(value) > EMBED_FIELD_MAX_LENGTH:
+                    value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
             else:
-                signup_lines.append(f"**{role}**: _No signups yet_")
+                value = "-"
+
+            embed.add_field(name=role, value=value, inline=True)
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
             if role not in roles and users:
                 user_mentions = self._get_user_mentions(users)
                 if user_mentions:
-                    signup_lines.append(f"**{role}**: {', '.join(user_mentions)}")
+                    value = ', '.join(user_mentions)
+                    if len(value) > EMBED_FIELD_MAX_LENGTH:
+                        value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
+                    embed.add_field(name=role, value=value, inline=True)
 
-        if signup_lines:
-            # Smart truncation: respect line boundaries
-            current_length = 0
-            included_lines = []
-            for line in signup_lines:
-                line_length = len(line) + 1  # +1 for newline
-                if current_length + line_length < EMBED_FIELD_MAX_LENGTH:
-                    included_lines.append(line)
-                    current_length += line_length
-                else:
-                    # Can't fit this line, stop here
-                    break
+        # If no roles defined and no signups, show a message
+        if not roles and not any(users for users in signups.values()):
+            embed.add_field(name="Signups", value="-", inline=True)
 
-            if included_lines:
-                signup_text = "\n".join(included_lines)
-                if len(included_lines) < len(signup_lines):
-                    # Add indicator that there are more signups
-                    remaining = len(signup_lines) - len(included_lines)
-                    signup_text += f"\n_... and {remaining} more role(s)_"
-                embed.add_field(name="Signups", value=signup_text, inline=False)
-            else:
-                # Even one line is too long, truncate it
-                embed.add_field(
-                    name="Signups",
-                    value=signup_lines[0][:EMBED_FIELD_MAX_LENGTH-3] + "...",
-                    inline=False
-                )
-        else:
-            embed.add_field(name="Signups", value="_No signups yet_", inline=False)
-
-        embed.set_footer(text=f"Party ID: {party['id']}")
+        # Set footer with party owner mention and party ID
+        embed.set_footer(text=f"Owner: <@{party['author_id']}> | Party ID: {party['id']}")
 
         return embed
 
