@@ -307,8 +307,8 @@ class EditPartyFullModal(discord.ui.Modal):
         # Roles input (one per line)
         roles_text = '\n'.join(party.get('roles', []))
         self.roles_input = discord.ui.TextInput(
-            label="Roles (one per line, max 25)",
-            placeholder="Tank\nHealer\nDPS",
+            label="⚠️ Roles (one per line, max 25)",
+            placeholder="Tank\nHealer\nDPS\n\n⚠️ Removing roles will clear those signups",
             default=roles_text,
             required=True,
             style=discord.TextStyle.paragraph,
@@ -369,6 +369,9 @@ class EditPartyFullModal(discord.ui.Modal):
             old_signups = parties[self.party_id].get('signups', {})
             new_signups = {}
 
+            # Track users whose roles were removed (for DM notifications)
+            removed_role_users = {}  # role -> list of user_ids
+
             # Keep signups for roles that are still in the list
             for role in unique_roles:
                 if role in old_signups:
@@ -376,15 +379,54 @@ class EditPartyFullModal(discord.ui.Modal):
                 else:
                     new_signups[role] = []
 
-            # Keep signups for roles that were removed (as freeform signups)
+            # Identify removed roles and their users
             for role, users in old_signups.items():
                 if role not in unique_roles and users:
-                    new_signups[role] = users
+                    # This role was removed, track the users
+                    removed_role_users[role] = users.copy()
 
             parties[self.party_id]['signups'] = new_signups
 
+            # Store party message info for DM link
+            channel_id = parties[self.party_id].get('channel_id')
+            message_id = parties[self.party_id].get('message_id')
+
         # Update the party message
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
+
+        # Send DMs to users whose roles were removed
+        if removed_role_users:
+            party_name = new_title
+            # Build jump URL for the party message
+            party_link = ""
+            if channel_id and message_id:
+                jump_url = (
+                    f"https://discord.com/channels/"
+                    f"{interaction.guild.id}/{channel_id}/{message_id}"
+                )
+                party_link = f"\n\n[View Party Message]({jump_url})"
+            for role, user_ids in removed_role_users.items():
+                for user_id_str in user_ids:
+                    try:
+                        user_id = int(user_id_str)
+                        user = await self.cog.bot.fetch_user(user_id)
+                        if user:
+                            try:
+                                await user.send(
+                                    f"⚠️ Your role **{role}** has been removed from the party "
+                                    f"**{party_name}** in **{interaction.guild.name}**.\n\n"
+                                    f"Your signup has been cleared. Please sign up again if you'd like to participate."
+                                    f"{party_link}"
+                                )
+                            except discord.Forbidden:
+                                # User has DMs disabled, skip silently
+                                pass
+                            except discord.HTTPException:
+                                # Other Discord API errors, skip silently
+                                pass
+                    except (ValueError, discord.NotFound):
+                        # Invalid user ID or user not found, skip
+                        pass
 
         # Create modlog entry
         changes = []
@@ -394,6 +436,9 @@ class EditPartyFullModal(discord.ui.Modal):
             changes.append(f"Description: '{old_description or 'None'}' → '{new_description or 'None'}'")
         if old_roles != unique_roles:
             changes.append(f"Roles: {old_roles} → {unique_roles}")
+            if removed_role_users:
+                total_notified = sum(len(users) for users in removed_role_users.values())
+                changes.append(f"Removed roles affected {total_notified} user(s), DMs sent")
         if old_allow_multiple != allow_multiple:
             changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
 
