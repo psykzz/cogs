@@ -255,7 +255,7 @@ class CreatePartyModal(discord.ui.Modal):
             parties[party_id] = party
 
         # Create the party embed
-        embed = await self.cog.create_party_embed(party)
+        embed = await self.cog.create_party_embed(party, interaction.guild)
 
         # Create the view with buttons
         view = PartyView(party_id, self.cog)
@@ -998,8 +998,9 @@ class Party(commands.Cog):
         except discord.NotFound:
             return
 
-        # Build the updated embed
-        embed = await self.create_party_embed(party)
+        # Build the updated embed (pass guild from channel)
+        guild = channel.guild if hasattr(channel, 'guild') else None
+        embed = await self.create_party_embed(party, guild)
 
         # Update the message
         try:
@@ -1007,8 +1008,13 @@ class Party(commands.Cog):
         except discord.HTTPException:
             log.error(f"Failed to update party message {message_id}")
 
-    async def create_party_embed(self, party: dict) -> discord.Embed:
-        """Create an embed for a party."""
+    async def create_party_embed(self, party: dict, guild: discord.Guild = None) -> discord.Embed:
+        """Create an embed for a party.
+
+        Args:
+            party: The party data dictionary
+            guild: Optional guild object to resolve the owner's display name
+        """
         embed = discord.Embed(
             title=f"🎉 {party['name']}",
             description=party.get("description", "Join the party by selecting your role!"),
@@ -1047,8 +1053,40 @@ class Party(commands.Cog):
         if not roles and not any(users for users in signups.values()):
             embed.add_field(name="Signups", value="-", inline=True)
 
-        # Set footer with party owner mention and party ID
-        embed.set_footer(text=f"Owner: <@{party['author_id']}> | Party ID: {party['id']}")
+        # Get owner name for footer
+        owner_name = "Unknown User"
+        author_id = party['author_id']
+
+        if guild:
+            # Try to get member from guild (includes display name/nickname)
+            member = guild.get_member(author_id)
+            if member:
+                owner_name = member.display_name
+            else:
+                # User might have left the server, try to fetch user object
+                try:
+                    user = await self.bot.fetch_user(author_id)
+                    if user:
+                        owner_name = user.name
+                except (discord.NotFound, discord.HTTPException):
+                    # User not found or API error, use fallback
+                    pass
+        else:
+            # No guild provided, try to fetch user from bot
+            try:
+                user = self.bot.get_user(author_id)
+                if user:
+                    owner_name = user.name
+                else:
+                    user = await self.bot.fetch_user(author_id)
+                    if user:
+                        owner_name = user.name
+            except (discord.NotFound, discord.HTTPException):
+                # User not found or API error, use fallback
+                pass
+
+        # Set footer with party owner name and party ID
+        embed.set_footer(text=f"Owner: {owner_name} | Party ID: {party['id']}")
 
         return embed
 
@@ -1175,7 +1213,7 @@ class Party(commands.Cog):
             parties[party_id] = party
 
         # Create the party embed
-        embed = await self.create_party_embed(party)
+        embed = await self.create_party_embed(party, ctx.guild)
 
         # Create the view with buttons
         view = PartyView(party_id, self)
