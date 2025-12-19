@@ -1024,14 +1024,10 @@ class Party(commands.Cog):
                 seen.add(role)
                 roles_list.append(role)
 
-        # Validate that at least one role is specified
-        if not roles_list:
-            await ctx.send("❌ You must specify at least one role for the party.")
-            return
-
-        # Validate maximum 25 roles (Discord select menu limit)
-        if len(roles_list) > 25:
-            await ctx.send("❌ You can specify a maximum of 25 roles per party.")
+        # Validate roles
+        error = self.validate_roles(roles_list)
+        if error:
+            await ctx.send(error)
             return
 
         # Generate a unique party ID
