@@ -63,6 +63,9 @@ class RoleSelectionModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         role = self.role_input.value.strip()
 
         # Validate that the role is in the predefined list
@@ -72,7 +75,7 @@ class RoleSelectionModal(discord.ui.Modal):
             if len(roles_list) > 100:
                 # Show first few roles with ellipsis
                 roles_list = roles_list[:97] + "..."
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Invalid role. Please choose from: {roles_list}",
                 ephemeral=True
             )
@@ -80,7 +83,7 @@ class RoleSelectionModal(discord.ui.Modal):
 
         # Add the user to the party with the selected role
         # Note: Modals don't have persistent UI components, so no view cleanup needed
-        await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None)
+        await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None, deferred=True)
 
 
 class EditPartyModal(discord.ui.Modal):
@@ -114,13 +117,16 @@ class EditPartyModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
 
         # Update the party data
         async with self.cog.config.guild(interaction.guild).parties() as parties:
             if self.party_id not in parties:
-                await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                await interaction.followup.send("❌ Party not found.", ephemeral=True)
                 return
 
             old_title = parties[self.party_id]['name']
@@ -146,7 +152,7 @@ class EditPartyModal(discord.ui.Modal):
             reason
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "✅ Party updated successfully!",
             ephemeral=True
         )
@@ -200,6 +206,9 @@ class CreatePartyModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         title = self.title_input.value.strip()
         description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
@@ -208,7 +217,7 @@ class CreatePartyModal(discord.ui.Modal):
         # Parse and validate allow_multiple setting
         allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
         if error:
-            await interaction.response.send_message(error, ephemeral=True)
+            await interaction.followup.send(error, ephemeral=True)
             return
 
         # Parse roles from text
@@ -217,7 +226,7 @@ class CreatePartyModal(discord.ui.Modal):
         # Validate roles
         error = Party.validate_roles(unique_roles)
         if error:
-            await interaction.response.send_message(error, ephemeral=True)
+            await interaction.followup.send(error, ephemeral=True)
             return
 
         # Generate a unique party ID
@@ -269,7 +278,7 @@ class CreatePartyModal(discord.ui.Modal):
         )
 
         # Respond to the interaction
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Party created! ID: `{party_id}`",
             ephemeral=True
         )
@@ -329,6 +338,9 @@ class EditPartyFullModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
@@ -337,7 +349,7 @@ class EditPartyFullModal(discord.ui.Modal):
         # Parse and validate allow_multiple setting
         allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
         if error:
-            await interaction.response.send_message(error, ephemeral=True)
+            await interaction.followup.send(error, ephemeral=True)
             return
 
         # Parse roles from text
@@ -346,13 +358,13 @@ class EditPartyFullModal(discord.ui.Modal):
         # Validate roles
         error = Party.validate_roles(unique_roles)
         if error:
-            await interaction.response.send_message(error, ephemeral=True)
+            await interaction.followup.send(error, ephemeral=True)
             return
 
         # Update the party data
         async with self.cog.config.guild(interaction.guild).parties() as parties:
             if self.party_id not in parties:
-                await interaction.response.send_message("❌ Party not found.", ephemeral=True)
+                await interaction.followup.send("❌ Party not found.", ephemeral=True)
                 return
 
             old_title = parties[self.party_id]['name']
@@ -451,7 +463,7 @@ class EditPartyFullModal(discord.ui.Modal):
             reason
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "✅ Party updated successfully!",
             ephemeral=True
         )
@@ -482,6 +494,9 @@ class RoleSelectView(discord.ui.View):
 
     async def select_callback(self, interaction: discord.Interaction):
         """Handle role selection from dropdown."""
+        # Defer immediately to prevent interaction timeout
+        await interaction.response.defer(ephemeral=True)
+
         selected_role = self.role_select.values[0]
 
         # Disable all components in the view after selection
@@ -489,7 +504,7 @@ class RoleSelectView(discord.ui.View):
             item.disabled = True
 
         # Sign up the user (this will handle the interaction response)
-        await self.cog.signup_user(interaction, self.party_id, selected_role, disabled_view=self)
+        await self.cog.signup_user(interaction, self.party_id, selected_role, disabled_view=self, deferred=True)
 
 
 class PartyView(discord.ui.View):
@@ -813,7 +828,8 @@ class Party(commands.Cog):
         interaction: discord.Interaction,
         party_id: str,
         role: str,
-        disabled_view: Optional[discord.ui.View] = None
+        disabled_view: Optional[discord.ui.View] = None,
+        deferred: bool = False
     ):
         """Sign up a user for a party with a specific role.
 
@@ -824,6 +840,8 @@ class Party(commands.Cog):
             disabled_view: A pre-disabled view to include in the response message.
                           If provided, the original message will be edited instead of sending a new one.
                           If None, a new ephemeral message is sent.
+            deferred: Whether the interaction has already been deferred. If True, uses followup/edit_original_response.
+                     If False, uses response methods.
         """
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
@@ -832,15 +850,27 @@ class Party(commands.Cog):
             if party_id not in parties:
                 if disabled_view:
                     # Edit the original message to show error and remove the select view
-                    await interaction.response.edit_message(
-                        content="❌ Party not found.",
-                        view=None
-                    )
+                    if deferred:
+                        await interaction.edit_original_response(
+                            content="❌ Party not found.",
+                            view=None
+                        )
+                    else:
+                        await interaction.response.edit_message(
+                            content="❌ Party not found.",
+                            view=None
+                        )
                 else:
-                    await interaction.response.send_message(
-                        "❌ Party not found.",
-                        ephemeral=True
-                    )
+                    if deferred:
+                        await interaction.followup.send(
+                            "❌ Party not found.",
+                            ephemeral=True
+                        )
+                    else:
+                        await interaction.response.send_message(
+                            "❌ Party not found.",
+                            ephemeral=True
+                        )
                 return
 
             party = parties[party_id]
@@ -859,15 +889,27 @@ class Party(commands.Cog):
             if not allow_multiple and len(party["signups"][role]) > 0:
                 if disabled_view:
                     # Edit the original message to show error and remove the select view
-                    await interaction.response.edit_message(
-                        content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                        view=None
-                    )
+                    if deferred:
+                        await interaction.edit_original_response(
+                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                            view=None
+                        )
+                    else:
+                        await interaction.response.edit_message(
+                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                            view=None
+                        )
                 else:
-                    await interaction.response.send_message(
-                        f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                        ephemeral=True
-                    )
+                    if deferred:
+                        await interaction.followup.send(
+                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                            ephemeral=True
+                        )
+                    else:
+                        await interaction.response.send_message(
+                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                            ephemeral=True
+                        )
                 return
 
             # Add user to the role
@@ -876,15 +918,27 @@ class Party(commands.Cog):
         # Send success response
         if disabled_view:
             # Edit the original message to show success and remove the select view
-            await interaction.response.edit_message(
-                content=f"✅ You've signed up as **{role}**!",
-                view=None
-            )
+            if deferred:
+                await interaction.edit_original_response(
+                    content=f"✅ You've signed up as **{role}**!",
+                    view=None
+                )
+            else:
+                await interaction.response.edit_message(
+                    content=f"✅ You've signed up as **{role}**!",
+                    view=None
+                )
         else:
-            await interaction.response.send_message(
-                f"✅ You've signed up as **{role}**!",
-                ephemeral=True
-            )
+            if deferred:
+                await interaction.followup.send(
+                    f"✅ You've signed up as **{role}**!",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"✅ You've signed up as **{role}**!",
+                    ephemeral=True
+                )
         await self.update_party_message(guild_id, party_id)
 
     async def leave_party(self, guild_id: int, party_id: str, user_id: int) -> bool:
