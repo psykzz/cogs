@@ -824,10 +824,11 @@ class Party(commands.Cog):
 
         Args:
             user_id: The Discord user ID
-            guild: Optional guild to get member display name from
+            guild: Optional guild to get member display name/nickname from
 
         Returns:
-            The user's display name, username, or "Unknown User" as fallback
+            The user's display name (if in guild with nickname), username (if not in guild),
+            or "Unknown User" as fallback if user cannot be found
         """
         if guild:
             # Try to get member from guild (includes display name/nickname)
