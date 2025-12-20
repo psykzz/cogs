@@ -1058,7 +1058,7 @@ class Party(commands.Cog):
         signups = party.get("signups", {})
         roles = party.get("roles", [])
 
-        # Add each role as an inline field
+        # Add each role as a field
         for role in roles:
             users = signups.get(role, [])
             user_mentions = self._get_user_mentions(users)
