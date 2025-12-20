@@ -13,6 +13,9 @@ IDENTIFIER = 2847102938475019
 # Discord embed field character limit
 EMBED_FIELD_MAX_LENGTH = 1024
 
+# Whether embed fields should be displayed inline
+EMBED_FIELD_INLINE = False
+
 
 class RoleSelectionModal(discord.ui.Modal):
     """Modal for selecting a role when signing up for a party (for freeform entry)."""
@@ -1055,7 +1058,7 @@ class Party(commands.Cog):
         signups = party.get("signups", {})
         roles = party.get("roles", [])
 
-        # Add each role as an inline field
+        # Add each role as a field
         for role in roles:
             users = signups.get(role, [])
             user_mentions = self._get_user_mentions(users)
@@ -1067,7 +1070,7 @@ class Party(commands.Cog):
             else:
                 value = "-"
 
-            embed.add_field(name=role, value=value, inline=True)
+            embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
@@ -1077,11 +1080,11 @@ class Party(commands.Cog):
                     value = ', '.join(user_mentions)
                     if len(value) > EMBED_FIELD_MAX_LENGTH:
                         value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
-                    embed.add_field(name=role, value=value, inline=True)
+                    embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
 
         # If no roles defined and no signups, show a message
         if not roles and not any(users for users in signups.values()):
-            embed.add_field(name="Signups", value="-", inline=True)
+            embed.add_field(name="Signups", value="-", inline=EMBED_FIELD_INLINE)
 
         # Get owner name for footer
         owner_name = await self._get_user_display_name(party['author_id'], guild)
@@ -1362,7 +1365,7 @@ class Party(commands.Cog):
                 f"**Author**: <@{party['author_id']}>"
                 f"{link_text}"
             )
-            embed.add_field(name=party["name"], value=value, inline=True)
+            embed.add_field(name=party["name"], value=value, inline=EMBED_FIELD_INLINE)
 
         await ctx.send(embed=embed)
 
