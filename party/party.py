@@ -819,6 +819,35 @@ class Party(commands.Cog):
                 continue
         return mentions
 
+    async def _get_user_display_name(self, user_id: int, guild: discord.Guild = None) -> str:
+        """Get the display name for a user.
+
+        Args:
+            user_id: The Discord user ID
+            guild: Optional guild to get member display name from
+
+        Returns:
+            The user's display name, username, or "Unknown User" as fallback
+        """
+        if guild:
+            # Try to get member from guild (includes display name/nickname)
+            member = guild.get_member(user_id)
+            if member:
+                return member.display_name
+
+        # Try to fetch user from bot cache/API
+        try:
+            user = self.bot.get_user(user_id)
+            if not user:
+                user = await self.bot.fetch_user(user_id)
+            if user:
+                return user.name
+        except (discord.NotFound, discord.HTTPException):
+            # User not found or API error, use fallback
+            pass
+
+        return "Unknown User"
+
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
         all_guilds = await self.config.all_guilds()
@@ -998,8 +1027,8 @@ class Party(commands.Cog):
         except discord.NotFound:
             return
 
-        # Build the updated embed (pass guild from channel)
-        guild = channel.guild if hasattr(channel, 'guild') else None
+        # Build the updated embed (pass guild from channel if available)
+        guild = getattr(channel, 'guild', None)
         embed = await self.create_party_embed(party, guild)
 
         # Update the message
@@ -1054,34 +1083,7 @@ class Party(commands.Cog):
             embed.add_field(name="Signups", value="-", inline=True)
 
         # Get owner name for footer
-        owner_name = "Unknown User"
-        author_id = party['author_id']
-
-        if guild:
-            # Try to get member from guild (includes display name/nickname)
-            member = guild.get_member(author_id)
-            if member:
-                owner_name = member.display_name
-            else:
-                # User might have left the server, try to fetch user object
-                try:
-                    user = await self.bot.fetch_user(author_id)
-                    if user:
-                        owner_name = user.name
-                except (discord.NotFound, discord.HTTPException):
-                    # User not found or API error, use fallback
-                    pass
-        else:
-            # No guild provided, try to fetch user from bot cache/API
-            try:
-                user = self.bot.get_user(author_id)
-                if not user:
-                    user = await self.bot.fetch_user(author_id)
-                if user:
-                    owner_name = user.name
-            except (discord.NotFound, discord.HTTPException):
-                # User not found or API error, use fallback
-                pass
+        owner_name = await self._get_user_display_name(party['author_id'], guild)
 
         # Set footer with party owner name and party ID
         embed.set_footer(text=f"Owner: {owner_name} | Party ID: {party['id']}")
