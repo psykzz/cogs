@@ -1072,15 +1072,11 @@ class Party(commands.Cog):
                     # User not found or API error, use fallback
                     pass
         else:
-            # No guild provided, try to fetch user from bot
+            # No guild provided, try to fetch user from bot cache/API
             try:
-                user = self.bot.get_user(author_id)
+                user = self.bot.get_user(author_id) or await self.bot.fetch_user(author_id)
                 if user:
                     owner_name = user.name
-                else:
-                    user = await self.bot.fetch_user(author_id)
-                    if user:
-                        owner_name = user.name
             except (discord.NotFound, discord.HTTPException):
                 # User not found or API error, use fallback
                 pass
