@@ -52,12 +52,14 @@ class AlbionAva(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=73602, force_registration=True)
+        self.config.register_global(
+            portaler_token=None,  # Global token for all API requests
+        )
         self.config.register_guild(
-            portaler_token=None,
-            portaler_guild_id=None,  # Extracted from first successful API call
             home_zone=None,
             last_map_data=None,  # Cache of last successful map data
             max_connections=10,  # Default max connections to display
+            guild_ids=[],  # Complete list of guild IDs to query (not merged with server guild)
         )
         self._check_task = None
 
@@ -99,30 +101,57 @@ class AlbionAva(commands.Cog):
                 await asyncio.sleep(300)  # Wait 5 minutes before retrying on error
 
     async def _fetch_all_guilds_data(self):
-        """Fetch data for all guilds with configured tokens"""
+        """Fetch data for all guilds with configured guild IDs"""
+        # Get the global token
+        token = await self.config.portaler_token()
+
+        if not token:
+            log.debug("No global Portaler token configured")
+            return
+
         for guild in self.bot.guilds:
             try:
-                token = await self.config.guild(guild).portaler_token()
-                guild_id = await self.config.guild(guild).portaler_guild_id()
+                guild_ids = await self.config.guild(guild).guild_ids()
 
-                if not token:
+                if not guild_ids:
+                    log.debug(f"No Portaler guild IDs configured for {guild.name}")
                     continue
 
-                # If we don't have a guild_id yet, try to get it from the API
-                if not guild_id:
-                    # The guild_id would typically be in the API URL
-                    # For now, we'll skip guilds without a guild_id
-                    log.debug(f"No Portaler guild ID configured for {guild.name}")
-                    continue
+                # Fetch data from all configured guild IDs
+                all_map_data = []
 
-                map_data = await self._fetch_portaler_data(guild_id, token)
-                if map_data:
-                    # API returns an array, so we store it as-is
-                    await self.config.guild(guild).last_map_data.set(map_data)
-                    log.debug(f"Updated map data for guild {guild.name}")
+                for portaler_guild_id in guild_ids:
+                    try:
+                        map_data = await self._fetch_portaler_data(portaler_guild_id, token)
+                        if map_data:
+                            all_map_data.append(map_data)
+                            log.debug(f"Fetched data from guild {portaler_guild_id} for {guild.name}")
+                    except Exception as e:
+                        log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
+
+                # Merge all data (method handles single dataset case efficiently)
+                if all_map_data:
+                    merged_data = self._merge_all_map_data(all_map_data)
+                    await self.config.guild(guild).last_map_data.set(merged_data)
+                    log.debug(f"Updated data from {len(all_map_data)} guild(s) for {guild.name}")
 
             except Exception as e:
                 log.error(f"Error fetching data for guild {guild.name}: {e}", exc_info=True)
+
+    def _validate_guild_id(self, guild_id: str) -> tuple[bool, str]:
+        """Validate a Portaler guild ID
+
+        Args:
+            guild_id: The guild ID string to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not guild_id.isdigit():
+            return False, f"Invalid guild ID: `{guild_id}` (must be numeric)"
+        if len(guild_id) < 17 or len(guild_id) > 20:
+            return False, f"Invalid guild ID: `{guild_id}` (must be 17-20 digits)"
+        return True, ""
 
     async def _fetch_portaler_data(self, guild_id: str, token: str) -> Optional[List]:
         """Fetch map data from Portaler API
@@ -137,6 +166,59 @@ class AlbionAva(commands.Cog):
 
         log.debug(f"Fetching Portaler data for guild ID: {guild_id}")
         return await http_get(url, headers=headers)
+
+    def _merge_all_map_data(self, all_data: List[List]) -> List:
+        """Merge map data from multiple guilds efficiently
+
+        Args:
+            all_data: List of map data arrays from different guilds
+
+        Returns:
+            Merged array of map objects with combined portal connections
+        """
+        if not all_data:
+            return []
+
+        # Filter out None/empty entries
+        valid_data = [data for data in all_data if data]
+
+        if not valid_data:
+            return []
+        if len(valid_data) == 1:
+            return valid_data[0]
+
+        # Build a dictionary to track all connections by a unique key
+        # Key format: "fromZone|toZone|portalType"
+        connection_map = {}
+
+        # Process all datasets in a single pass
+        for map_data in valid_data:
+            for map_obj in map_data:
+                portal_connections = map_obj.get("portalConnections", [])
+                for conn in portal_connections:
+                    info = conn.get("info", {})
+                    from_zone_name = info.get("fromZone", {}).get("name", "")
+                    to_zone_name = info.get("toZone", {}).get("name", "")
+                    portal_type = info.get("portalType", "")
+
+                    key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
+                    # Store the connection, preferring newer expiry times
+                    if key not in connection_map:
+                        connection_map[key] = conn
+                    else:
+                        # Keep the connection with the later expiring date
+                        existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
+                        new_expiry = info.get("expiringDate", "")
+                        # ISO 8601 dates are lexicographically sortable
+                        # Empty string means no expiry, so always replace with a dated entry
+                        if new_expiry and (not existing_expiry or new_expiry > existing_expiry):
+                            connection_map[key] = conn
+
+        # Reconstruct the merged data structure
+        merged_map = {
+            "portalConnections": list(connection_map.values())
+        }
+        return [merged_map]
 
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
         """Extract connection data from Portaler API response
@@ -369,66 +451,34 @@ class AlbionAva(commands.Cog):
 
     @setava.command(name="token")
     @commands.dm_only()
-    async def setava_token(self, ctx, guild_id: str, *, token: str):
-        """Set the Portaler API bearer token (DM only for security)
+    async def setava_token(self, ctx, *, token: str):
+        """Set the Portaler API bearer token globally (DM only for security)
 
         This command must be used in a DM to keep your token secure.
         Get your token from Portaler.app (check browser dev tools or Portaler documentation).
+        The token will be used for all Portaler API requests across all servers.
 
-        Usage: [p]setava token <token> <guild_id>
-        Example: [p]setava token eyJhbGci... 123456789012345678
+        Usage: [p]setava token <token>
+        Example: [p]setava token eyJhbGci...
 
-        The guild_id is your Discord server's ID (enable Developer Mode in Discord settings,
-        right-click your server icon, and select "Copy Server ID").
+        Note: Only bot owners can set the global token.
         """
-        # Validate that the bot is in the guild
-        guild = self.bot.get_guild(int(guild_id))
-        if not guild:
+        # Check if user is bot owner
+        if not await self.bot.is_owner(ctx.author):
             await ctx.send(
-                f"❌ I'm not in a server with ID `{guild_id}`.\n"
-                "Please check the guild ID and make sure I'm a member of that server."
+                "❌ Only the bot owner can set the global Portaler token."
             )
             return
 
-        # Check if the user is an admin in that guild
-        member = guild.get_member(ctx.author.id)
-        if not member:
-            await ctx.send(
-                f"❌ You are not a member of the server with ID `{guild_id}`."
-            )
-            return
+        # Store the token globally
+        await self.config.portaler_token.set(token)
+        log.debug(f"Set global Portaler token via DM from {ctx.author}")
 
-        # Check if user has admin permissions
-        if not (member.guild_permissions.administrator or
-                member.guild_permissions.manage_guild or
-                await self.bot.is_owner(ctx.author)):
-            await ctx.send(
-                f"❌ You don't have administrator or manage server permissions in **{guild.name}**."
-            )
-            return
-
-        # Store both token and guild_id
-        await self.config.guild(guild).portaler_token.set(token)
-        await self.config.guild(guild).portaler_guild_id.set(guild_id)
-        log.debug(f"Set Portaler token for {guild.name} (ID: {guild_id}) via DM from {ctx.author}")
-
-        # Try to fetch data immediately to validate the token
-        map_data = await self._fetch_portaler_data(guild_id, token)
-        if map_data:
-            await self.config.guild(guild).last_map_data.set(map_data)
-            await ctx.send(
-                f"✅ Portaler token set successfully for **{guild.name}** (ID: `{guild_id}`)!\n"
-                "Data fetched and cached."
-            )
-        else:
-            await ctx.send(
-                f"⚠️ Portaler token set for **{guild.name}**, but failed to fetch data.\n"
-                f"Using guild ID: `{guild_id}`\n"
-                "Please verify:\n"
-                "1. Your token is correct\n"
-                "2. The guild ID is correct\n"
-                "3. You have access to the Portaler guild"
-            )
+        await ctx.send(
+            "✅ Portaler token set successfully!\n"
+            "The token will be used for all Portaler API requests across all servers.\n"
+            "Use `[p]setava guilds <guild_id> ...` in each server to configure which Portaler guilds to query."
+        )
 
     @setava.command(name="home")
     @commands.guild_only()
@@ -466,6 +516,50 @@ class AlbionAva(commands.Cog):
         await self.config.guild(ctx.guild).max_connections.set(number)
         log.debug(f"Set max connections to {number} for {ctx.guild.name}")
         await ctx.send(f"✅ Maximum connections set to **{number}**")
+
+    @setava.command(name="guilds")
+    @commands.guild_only()
+    async def setava_guilds(self, ctx, *guild_ids: str):
+        """Set Portaler guild IDs to query for this server
+
+        Specify ALL Portaler guild IDs you want to query. This is the complete list,
+        not additional guilds. Connection data from all specified guilds will be merged together.
+        Use this command without arguments to clear all guild IDs.
+
+        Usage: [p]setava guilds <guild_id> [<guild_id> ...]
+        Example: [p]setava guilds 123456 789012 345678
+
+        To clear all guild IDs: [p]setava guilds
+        """
+        if not guild_ids:
+            # Clear all guild IDs
+            await self.config.guild(ctx.guild).guild_ids.set([])
+            log.debug(f"Cleared all Portaler guild IDs for {ctx.guild.name}")
+            await ctx.send("✅ Cleared all Portaler guild IDs")
+            return
+
+        # Validate and store guild IDs
+        valid_ids = []
+        for guild_id in guild_ids:
+            is_valid, error_msg = self._validate_guild_id(guild_id)
+            if not is_valid:
+                await ctx.send(f"⚠️ {error_msg}")
+                continue
+            valid_ids.append(guild_id)
+
+        if not valid_ids:
+            await ctx.send("❌ No valid guild IDs provided")
+            return
+
+        await self.config.guild(ctx.guild).guild_ids.set(valid_ids)
+        log.debug(f"Set Portaler guild IDs to {valid_ids} for {ctx.guild.name}")
+
+        guilds_str = ", ".join([f"`{gid}`" for gid in valid_ids])
+        await ctx.send(
+            f"✅ Set Portaler guild IDs: {guilds_str}\n"
+            f"Connection data from these {len(valid_ids)} guild(s) will be fetched and merged.\n"
+            f"Note: A global token must be configured by the bot owner using `[p]setava token` in DM."
+        )
 
     @commands.guild_only()
     @commands.group(name="ava", invoke_without_command=True)
