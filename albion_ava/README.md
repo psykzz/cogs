@@ -24,21 +24,21 @@ Load the cog using Red's standard installation:
 
 1. Visit [Portaler.app](https://portaler.app)
 2. Log in with your Discord account
-3. Navigate to your guild's map
-4. Look at the URL - it contains your guild ID (e.g., `https://portaler.app/map/1265396129902629046`)
-5. Obtain your API bearer token (check Portaler documentation or browser dev tools)
+3. Obtain your API bearer token (check Portaler documentation or browser dev tools)
+
+**Note:** The cog automatically uses your Discord server ID as the Portaler guild ID.
 
 ### 3. Configure the cog
 
-Set your Portaler token and guild ID:
+Set your Portaler token:
 
 ```
-[p]setava token <guild_id> <token>
+[p]setava token <token>
 ```
 
 Example:
 ```
-[p]setava token 1265396129902629046 your_bearer_token_here
+[p]setava token your_bearer_token_here
 ```
 
 Set your home zone (the zone you want to see connections from):
@@ -80,7 +80,7 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 
 | Command | Permission | Description |
 |---------|------------|-------------|
-| `[p]setava token <guild_id> <token>` | Admin | Set Portaler API bearer token and guild ID |
+| `[p]setava token <token>` | Admin | Set Portaler API bearer token (uses Discord server ID automatically) |
 | `[p]setava home <zone>` | Admin | Set home zone to focus connections from |
 | `[p]ava` | Everyone | Display connections from home zone |
 

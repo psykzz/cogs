@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import httpx
@@ -51,8 +52,11 @@ class AlbionAva(commands.Cog):
 
     async def cog_load(self):
         """Start the background task when cog loads"""
-        self._check_task = self.bot.loop.create_task(self._update_loop())
-        log.debug("Started Portaler API check task")
+        try:
+            self._check_task = self.bot.loop.create_task(self._update_loop())
+            log.debug("Started Portaler API check task")
+        except Exception as e:
+            log.error(f"Failed to start Portaler API check task: {e}", exc_info=True)
 
     async def cog_unload(self):
         """Cancel the background task when cog unloads"""
@@ -64,6 +68,12 @@ class AlbionAva(commands.Cog):
         """Background task to check Portaler API periodically"""
         await self.bot.wait_until_ready()
         log.debug("Portaler update loop started")
+
+        # Do an initial fetch immediately
+        try:
+            await self._fetch_all_guilds_data()
+        except Exception as e:
+            log.error(f"Error in initial Portaler data fetch: {e}", exc_info=True)
 
         while True:
             try:
@@ -159,7 +169,6 @@ class AlbionAva(commands.Cog):
                     time_str = "Unknown"
                     if expiring_date:
                         try:
-                            from datetime import datetime, timezone
                             # Parse ISO format datetime
                             expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
                             now = datetime.now(timezone.utc)
@@ -204,29 +213,39 @@ class AlbionAva(commands.Cog):
             await ctx.send_help()
 
     @setava.command(name="token")
-    async def setava_token(self, ctx, guild_id: str, *, token: str):
-        """Set the Portaler API bearer token and guild ID
+    async def setava_token(self, ctx, *, token: str):
+        """Set the Portaler API bearer token
 
-        The guild_id is the numeric ID in the Portaler API URL.
-        The token is your Portaler API bearer token.
+        The Discord server ID will be automatically used as the Portaler guild ID.
+        Get your token from Portaler.app (check browser dev tools or Portaler documentation).
 
-        Usage: [p]setava token <guild_id> <token>
-        Example: [p]setava token 1265396129902629046 your_bearer_token_here
+        Usage: [p]setava token <token>
+        Example: [p]setava token your_bearer_token_here
         """
+        # Use Discord guild ID as the Portaler guild ID
+        guild_id = str(ctx.guild.id)
+
         # Store both token and guild_id
         await self.config.guild(ctx.guild).portaler_token.set(token)
         await self.config.guild(ctx.guild).portaler_guild_id.set(guild_id)
-        log.debug(f"Set Portaler token and guild ID for {ctx.guild.name}")
+        log.debug(f"Set Portaler token for {ctx.guild.name} using Discord guild ID: {guild_id}")
 
         # Try to fetch data immediately to validate the token
         map_data = await self._fetch_portaler_data(guild_id, token)
         if map_data:
             await self.config.guild(ctx.guild).last_map_data.set(map_data)
-            await ctx.send("✅ Portaler token and guild ID set successfully! Data fetched and cached.")
+            await ctx.send(
+                f"✅ Portaler token set successfully! Using Discord server ID `{guild_id}` as Portaler guild ID.\n"
+                "Data fetched and cached."
+            )
         else:
             await ctx.send(
-                "⚠️ Portaler token and guild ID set, but failed to fetch data. "
-                "Please verify your token and guild ID are correct."
+                f"⚠️ Portaler token set, but failed to fetch data.\n"
+                f"Using Discord server ID: `{guild_id}`\n"
+                "Please verify:\n"
+                "1. Your token is correct\n"
+                "2. The Discord server ID matches your Portaler guild ID\n"
+                "3. You have access to the Portaler guild"
             )
 
     @setava.command(name="home")
