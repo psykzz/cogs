@@ -56,6 +56,19 @@ Example:
 [p]setava home Lymhurst
 ```
 
+Set the maximum number of connections to display (optional):
+
+```
+[p]setava connections <number>
+```
+
+Example:
+```
+[p]setava connections 15
+```
+
+The cog will prioritize showing connections to royal cities and portal rooms.
+
 ## Usage
 
 ### Display connections
@@ -93,6 +106,7 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 |---------|------------|-------------|
 | `[p]setava token <token> <guild_id>` | Admin (DM only) | Set Portaler API bearer token for a specific server |
 | `[p]setava home <zone>` | Admin (Server only) | Set home zone to focus connections from |
+| `[p]setava connections <number>` | Admin (Server only) | Set maximum number of connections to display (default: 10) |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |
 | `[p]ava image` | Everyone | Display connections as a visual graph image |
 

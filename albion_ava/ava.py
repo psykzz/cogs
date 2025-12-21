@@ -51,6 +51,7 @@ class AlbionAva(commands.Cog):
             portaler_guild_id=None,  # Extracted from first successful API call
             home_zone=None,
             last_map_data=None,  # Cache of last successful map data
+            max_connections=10,  # Default max connections to display
         )
         self._check_task = None
 
@@ -131,15 +132,16 @@ class AlbionAva(commands.Cog):
         log.debug(f"Fetching Portaler data for guild ID: {guild_id}")
         return await http_get(url, headers=headers)
 
-    def _get_connections_data(self, map_data: List, home_zone: str) -> List[dict]:
+    def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
         """Extract connection data from Portaler API response
 
         Args:
             map_data: Array of map objects from Portaler API
             home_zone: The zone to show connections from
+            max_connections: Maximum number of connections to return (None for all)
 
         Returns:
-            List of connection dictionaries
+            List of connection dictionaries, prioritized by royal cities and portal rooms
         """
         if not map_data:
             return []
@@ -186,14 +188,32 @@ class AlbionAva(commands.Cog):
                             log.warning(f"Failed to parse expiring date: {e}")
                             time_str = "Unknown"
 
+                    # Determine priority (lower number = higher priority)
+                    # Royal cities get priority 1, portal rooms priority 2, others priority 3
+                    royal_cities = ["caerleon", "bridgewatch", "fort sterling", "lymhurst", "martlock", "thetford"]
+                    priority = 3
+
+                    if to_zone_name.lower() in royal_cities:
+                        priority = 1
+                    elif "royalgate" in to_zone_type.lower() or "portal" in to_zone_type.lower():
+                        priority = 2
+
                     found_connections.append({
                         "to_zone": to_zone_name,
                         "tier": to_zone_tier,
                         "type": to_zone_type,
                         "color": to_zone_color,
                         "portal_type": portal_type,
-                        "time_remaining": time_str
+                        "time_remaining": time_str,
+                        "priority": priority
                     })
+
+        # Sort by priority (ascending) and then by zone name
+        found_connections.sort(key=lambda x: (x["priority"], x["to_zone"]))
+
+        # Apply max_connections limit if specified
+        if max_connections is not None and len(found_connections) > max_connections:
+            found_connections = found_connections[:max_connections]
 
         return found_connections
 
@@ -415,6 +435,29 @@ class AlbionAva(commands.Cog):
         log.debug(f"Set home zone to '{zone}' for {ctx.guild.name}")
         await ctx.send(f"✅ Home zone set to **{zone}**")
 
+    @setava.command(name="connections")
+    @commands.guild_only()
+    async def setava_connections(self, ctx, number: int):
+        """Set the maximum number of connections to display
+
+        Sets how many connections should be shown from your home zone.
+        The cog will prioritize showing connections to royal cities and portal rooms.
+
+        Usage: [p]setava connections <number>
+        Example: [p]setava connections 15
+        """
+        if number < 1:
+            await ctx.send("❌ Number of connections must be at least 1")
+            return
+
+        if number > 50:
+            await ctx.send("❌ Number of connections cannot exceed 50")
+            return
+
+        await self.config.guild(ctx.guild).max_connections.set(number)
+        log.debug(f"Set max connections to {number} for {ctx.guild.name}")
+        await ctx.send(f"✅ Maximum connections set to **{number}**")
+
     @commands.guild_only()
     @commands.group(name="ava", invoke_without_command=True)
     async def ava(self, ctx):
@@ -432,6 +475,7 @@ class AlbionAva(commands.Cog):
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
             map_data = await self.config.guild(ctx.guild).last_map_data()
+            max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
                 await ctx.send(
@@ -447,7 +491,7 @@ class AlbionAva(commands.Cog):
                 return
 
             # Get connections data
-            connections = self._get_connections_data(map_data, home_zone)
+            connections = self._get_connections_data(map_data, home_zone, max_connections)
 
             # Build connection text
             graph_lines = self._build_connection_text(connections, home_zone)
@@ -489,6 +533,7 @@ class AlbionAva(commands.Cog):
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
             map_data = await self.config.guild(ctx.guild).last_map_data()
+            max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
                 await ctx.send(
@@ -504,7 +549,7 @@ class AlbionAva(commands.Cog):
                 return
 
             # Get connections data
-            connections = self._get_connections_data(map_data, home_zone)
+            connections = self._get_connections_data(map_data, home_zone, max_connections)
 
             # Generate graph image
             try:
