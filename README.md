@@ -81,6 +81,48 @@ Authenticate and verify users with Albion Online player names.
 
 ---
 
+### Albion Ava
+
+Track Roads of Avalon connections via Portaler API with background updates and connection graphs.
+
+**Requirements:** `httpx>=0.14.1`, `Pillow>=10.2.0`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs albion_ava
+[p]load albion_ava
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]setava token <token> <guild_id>` | Set Portaler API bearer token (Admin, DM only for security) |
+| `[p]setava home <zone>` | Set home zone to focus connections from (Admin, Server only) |
+| `[p]ava` | Display connections from home zone (text format) |
+| `[p]ava image` | Display connections as a visual graph image |
+
+**Setup:**
+
+1. Visit [Portaler.app](https://portaler.app) and log in with your Discord account
+2. Obtain your API bearer token (check Portaler documentation or browser dev tools)
+3. Get your Discord server ID (enable Developer Mode, right-click server icon, "Copy Server ID")
+4. Configure the cog with `[p]setava token <token> <guild_id>` in a DM to the bot
+5. Set your home zone with `[p]setava home <zone>` (e.g., `Lymhurst`) in your server
+6. Use `[p]ava` or `[p]ava image` to display current connections
+
+**Features:**
+- Automatic background updates every 5 minutes
+- Text and visual graph display options
+- Shows zone tier, type, and portal type
+- Displays time remaining for each connection
+- Integrates with Portaler's public and private maps
+- Color-coded zones in graph view
+
+For more information about Roads of Avalon, see the [official Albion Online guide](https://albiononline.com/guides/article/the-roads-of-avalon+107).
+
+---
+
 ### Albion Bandits
 
 Track Albion Online bandit event role mentions and timing predictions.

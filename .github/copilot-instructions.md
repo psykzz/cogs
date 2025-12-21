@@ -68,6 +68,7 @@ async def setup(bot):
 ### Key Cogs
 - **activity_stats/**: Discord activity and game statistics tracking (no external deps)
 - **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)
+- **albion_ava/**: Roads of Avalon connection tracker via Portaler API with background updates and connection graphs (requires: httpx>=0.14.1, Pillow>=10.2.0)
 - **albion_bandits/**: Albion Online bandit event tracking with timing predictions (no external deps)
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)
@@ -105,7 +106,7 @@ pip3 install dependency_name==version
 # For movie_vote cog
 pip3 install cinemagoer==2022.12.27
 
-# For albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
+# For albion_auth, albion_ava, albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
 
 # For game_embed cog (Steam server monitoring)
