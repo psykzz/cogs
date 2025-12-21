@@ -1,0 +1,16 @@
+{
+    "author": ["PsyKzz"],
+    "name": "Albion Ava",
+    "short": "Track Roads of Avalon connections via Portaler API",
+    "description": "Background task that regularly checks the Portaler endpoints for Avalon road connections. Displays a graph showing connections from a configured home zone. Helps guilds track and navigate the Roads of Avalon efficiently.",
+    "requirements": [
+        "httpx>=0.14.1"
+    ],
+    "tags": [
+        "Albion Online",
+        "API",
+        "Avalon",
+        "Portaler",
+        "Roads"
+    ]
+}
