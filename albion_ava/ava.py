@@ -129,17 +129,29 @@ class AlbionAva(commands.Cog):
                     except Exception as e:
                         log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
 
-                # Merge all data if we have multiple datasets
-                if len(all_map_data) > 1:
+                # Merge all data (method handles single dataset case efficiently)
+                if all_map_data:
                     merged_data = self._merge_all_map_data(all_map_data)
                     await self.config.guild(guild).last_map_data.set(merged_data)
-                    log.debug(f"Merged and updated data from {len(all_map_data)} guilds for {guild.name}")
-                elif len(all_map_data) == 1:
-                    await self.config.guild(guild).last_map_data.set(all_map_data[0])
-                    log.debug(f"Updated map data for guild {guild.name}")
+                    log.debug(f"Updated data from {len(all_map_data)} guild(s) for {guild.name}")
 
             except Exception as e:
                 log.error(f"Error fetching data for guild {guild.name}: {e}", exc_info=True)
+
+    def _validate_guild_id(self, guild_id: str) -> tuple[bool, str]:
+        """Validate a Portaler guild ID
+
+        Args:
+            guild_id: The guild ID string to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not guild_id.isdigit():
+            return False, f"Invalid guild ID: `{guild_id}` (must be numeric)"
+        if len(guild_id) < 17 or len(guild_id) > 20:
+            return False, f"Invalid guild ID: `{guild_id}` (must be 17-20 digits)"
+        return True, ""
 
     async def _fetch_portaler_data(self, guild_id: str, token: str) -> Optional[List]:
         """Fetch map data from Portaler API
@@ -197,7 +209,9 @@ class AlbionAva(commands.Cog):
                         # Keep the connection with the later expiring date
                         existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
                         new_expiry = info.get("expiringDate", "")
-                        if new_expiry > existing_expiry:
+                        # ISO 8601 dates are lexicographically sortable
+                        # Empty string means no expiry, so always replace with a dated entry
+                        if new_expiry and (not existing_expiry or new_expiry > existing_expiry):
                             connection_map[key] = conn
 
         # Reconstruct the merged data structure
@@ -527,12 +541,9 @@ class AlbionAva(commands.Cog):
         # Validate and store guild IDs
         valid_ids = []
         for guild_id in guild_ids:
-            # Validate guild ID format (Discord snowflakes are typically 17-20 digits)
-            if not guild_id.isdigit():
-                await ctx.send(f"⚠️ Invalid guild ID: `{guild_id}` (must be numeric)")
-                continue
-            if len(guild_id) < 17 or len(guild_id) > 20:
-                await ctx.send(f"⚠️ Invalid guild ID: `{guild_id}` (must be 17-20 digits)")
+            is_valid, error_msg = self._validate_guild_id(guild_id)
+            if not is_valid:
+                await ctx.send(f"⚠️ {error_msg}")
                 continue
             valid_ids.append(guild_id)
 
