@@ -49,6 +49,68 @@ class AlbionAva(commands.Cog):
         "lymhurst", "martlock", "thetford"
     ])
 
+    def _classify_zone_color(self, color: str, zone_type: str) -> str:
+        """Classify a zone based on its color code and type
+        
+        Args:
+            color: Hex color code from the zone data
+            zone_type: Zone type string from the zone data
+            
+        Returns:
+            String classification: 'yellow', 'blue', 'black', 'red', 'road', or 'unknown'
+        """
+        if not color or not color.startswith('#'):
+            return 'unknown'
+        
+        color_lower = color.lower()
+        
+        # Yellow zones (safe zones) - typically gold/yellow colors
+        if color_lower in ['#ffff00', '#ffd700', '#ffeb3b', '#ffc107', '#yellow']:
+            return 'yellow'
+        
+        # Blue zones - typically blue colors
+        if color_lower in ['#0000ff', '#2196f3', '#1976d2', '#blue']:
+            return 'blue'
+        
+        # Red zones - typically red/orange colors
+        if color_lower in ['#ff0000', '#f44336', '#e91e63', '#ff5722', '#red']:
+            return 'red'
+        
+        # Black zones - typically dark/black colors
+        if color_lower in ['#000000', '#212121', '#424242', '#black']:
+            return 'black'
+        
+        # Check by RGB values for more flexibility
+        try:
+            # Remove # and parse hex
+            hex_color = color_lower.lstrip('#')
+            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+            
+            # Yellow: high red and green, low blue
+            if r > 200 and g > 200 and b < 100:
+                return 'yellow'
+            
+            # Blue: high blue, low red and green
+            if b > 150 and r < 100 and g < 150:
+                return 'blue'
+            
+            # Red: high red, low green and blue
+            if r > 200 and g < 100 and b < 100:
+                return 'red'
+            
+            # Black: all low values
+            if r < 50 and g < 50 and b < 50:
+                return 'black'
+        except (ValueError, IndexError):
+            pass
+        
+        # Check zone type for additional hints
+        zone_type_lower = zone_type.lower() if zone_type else ''
+        if 'road' in zone_type_lower or 'tunnel' in zone_type_lower:
+            return 'road'
+        
+        return 'unknown'
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=73602, force_registration=True)
@@ -307,19 +369,31 @@ class AlbionAva(commands.Cog):
             # Get the final destination
             last_conn = chain[-1]
             final_zone = last_conn["to_zone"]
+            final_color = last_conn["color"]
+            final_type = last_conn["type"]
 
             # Calculate time remaining for the first connection in chain (most critical)
             first_conn = chain[0]
             time_str = self._calculate_time_remaining(first_conn.get("expiring_date"))
 
-            # Determine priority
-            # 1. Chains ending at royal cities (shorter chains preferred)
-            # 2. Longer chains to non-royal destinations
-            # 3. Shorter chains to non-royal destinations
-            if final_zone.lower() in self.ROYAL_CITIES:
-                priority = (1, len(chain))  # Royal city, prefer shorter
+            # Classify the zone
+            zone_color_class = self._classify_zone_color(final_color, final_type)
+
+            # Determine priority based on requirements:
+            # 1. Royal city or portal (highest priority)
+            # 2. Yellow or blue zone (medium priority)
+            # 3. Black zone out of roads (lowest priority)
+            is_royal = final_zone.lower() in self.ROYAL_CITIES
+            
+            if is_royal:
+                priority = (1, len(chain))  # Royal city, prefer shorter chains
+            elif zone_color_class in ['yellow', 'blue']:
+                priority = (2, len(chain))  # Yellow/Blue zone, prefer shorter chains
+            elif zone_color_class == 'black':
+                priority = (3, len(chain))  # Black zone, prefer shorter chains
             else:
-                priority = (2, -len(chain))  # Non-royal, prefer longer chains
+                # Other zones (red, roads, unknown) - lower priority
+                priority = (4, len(chain))
 
             found_connections.append({
                 "chain": chain,
@@ -328,8 +402,10 @@ class AlbionAva(commands.Cog):
                 "tier": last_conn["tier"],
                 "type": last_conn["type"],
                 "color": last_conn["color"],
+                "zone_color_class": zone_color_class,
                 "time_remaining": time_str,
-                "priority": priority
+                "priority": priority,
+                "is_royal": is_royal
             })
 
         # Sort by priority
@@ -871,7 +947,6 @@ class AlbionAva(commands.Cog):
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
-            max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
                 await ctx.send(
@@ -889,38 +964,45 @@ class AlbionAva(commands.Cog):
                 )
                 return
 
-            # Get connections data
-            connections = self._get_connections_data(map_data, home_zone, max_connections)
+            # Get connections data (get all, we'll pick the best one)
+            connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
-            # Build connection text
-            graph_lines = self._build_connection_text(connections, home_zone)
-            graph_text = "\n".join(graph_lines)
-
-            # Send the text
-            if len(graph_text) <= 2000:
-                await ctx.send(graph_text)
+            # Filter to get only connections that match our criteria:
+            # 1. Royal city or portal
+            # 2. Yellow or blue zone
+            # 3. Black zone out of roads
+            suitable_connections = []
+            for conn in connections:
+                zone_class = conn.get('zone_color_class', 'unknown')
+                is_royal = conn.get('is_royal', False)
+                
+                # Accept if royal, yellow, blue, or black zone
+                if is_royal or zone_class in ['yellow', 'blue', 'black']:
+                    suitable_connections.append(conn)
+            
+            # Pick the single best route (already sorted by priority)
+            if suitable_connections:
+                best_route = suitable_connections[0]
+                # Build connection text for single route
+                chain = best_route.get("chain", [])
+                chain_parts = [home_zone]
+                for hop in chain:
+                    chain_parts.append(hop["to_zone"])
+                
+                chain_str = " → ".join(chain_parts)
+                royal_marker = " 👑" if best_route.get('is_royal', False) else ""
+                zone_class = best_route.get('zone_color_class', 'unknown')
+                zone_class_display = f" ({zone_class.capitalize()} Zone)" if zone_class != 'unknown' else ""
+                
+                message = (
+                    f"**Route from {home_zone}:**\n\n"
+                    f"{chain_str}{royal_marker}{zone_class_display}\n"
+                    f"Tier: T{best_route['tier']} {best_route['type']}\n"
+                    f"Time remaining: {best_route['time_remaining']}"
+                )
+                await ctx.send(message)
             else:
-                # Split into multiple messages if needed
-                chunks = []
-                current_chunk = []
-                current_length = 0
-
-                for line in graph_lines:
-                    line_length = len(line) + 1  # +1 for newline
-                    if current_length + line_length > 1900:
-                        chunks.append("\n".join(current_chunk))
-                        current_chunk = [line]
-                        current_length = line_length
-                    else:
-                        current_chunk.append(line)
-                        current_length += line_length
-
-                if current_chunk:
-                    chunks.append("\n".join(current_chunk))
-
-                for chunk in chunks:
-                    await ctx.send(chunk)
-                    await asyncio.sleep(0.5)
+                await ctx.send("No routes available")
 
     @ava.command(name="image")
     async def ava_image(self, ctx):
