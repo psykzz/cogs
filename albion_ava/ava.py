@@ -63,10 +63,10 @@ class AlbionAva(commands.Cog):
 
     async def _fetch_guild_data(self, guild):
         """Fetch and merge data for a specific guild's configured Portaler guild IDs
-        
+
         Args:
             guild: Discord guild object
-            
+
         Returns:
             Merged map data from all configured guild IDs, or None if no data available
         """
