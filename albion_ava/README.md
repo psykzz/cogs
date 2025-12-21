@@ -26,27 +26,40 @@ Load the cog using Red's standard installation:
 1. Visit [Portaler.app](https://portaler.app)
 2. Log in with your Discord account
 3. Obtain your API bearer token (check Portaler documentation or browser dev tools)
-
-**Note:** The cog automatically uses your Discord server ID as the Portaler guild ID.
+4. Get the Portaler guild ID(s) you want to query from the Portaler website
 
 ### 3. Configure the cog
 
-Set your Portaler token (must be done in a DM for security):
+**Step 1: Set the global Portaler token** (bot owner only, must be done in a DM for security):
 
 ```
-[p]setava token <token> <guild_id>
+[p]setava token <token>
 ```
 
 Example:
 ```
-[p]setava token eyJhbGci... 123456789012345678
+[p]setava token eyJhbGci...
 ```
 
-To get your guild ID:
-1. Enable Developer Mode in Discord (User Settings > Advanced > Developer Mode)
-2. Right-click your server icon and select "Copy Server ID"
+The token will be used globally for all Portaler API requests across all servers.
 
-Set your home zone (must be done in the server):
+**Step 2: Configure Portaler guild IDs** (must be done in each server):
+
+```
+[p]setava guilds <guild_id> [<guild_id> ...]
+```
+
+Example:
+```
+[p]setava guilds 123456789 987654321
+```
+
+This sets which Portaler guilds to query for this Discord server. You can specify multiple guild IDs to merge their connection data together. To clear all guild IDs:
+```
+[p]setava guilds
+```
+
+**Step 3: Set your home zone** (must be done in the server):
 
 ```
 [p]setava home <zone>
@@ -57,7 +70,7 @@ Example:
 [p]setava home Lymhurst
 ```
 
-Set the maximum number of connections to display (optional):
+**Step 4: Set the maximum number of connections to display** (optional):
 
 ```
 [p]setava connections <number>
@@ -69,22 +82,6 @@ Example:
 ```
 
 The cog will prioritize showing connections to royal cities and portal rooms.
-
-Subscribe to other guilds' Portaler data (optional):
-
-```
-[p]setava guilds <guild_id> [<guild_id> ...]
-```
-
-Example:
-```
-[p]setava guilds 123456 789012
-```
-
-This allows you to merge connection data from multiple Portaler guilds into your view. Use this without arguments to clear subscriptions:
-```
-[p]setava guilds
-```
 
 ## Usage
 
@@ -121,10 +118,10 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 
 | Command | Permission | Description |
 |---------|------------|-------------|
-| `[p]setava token <token> <guild_id>` | Admin (DM only) | Set Portaler API bearer token for a specific server |
+| `[p]setava token <token>` | Bot Owner (DM only) | Set global Portaler API bearer token for all servers |
+| `[p]setava guilds <guild_id> ...` | Admin (Server only) | Set which Portaler guild IDs to query (complete list, not additive) |
 | `[p]setava home <zone>` | Admin (Server only) | Set home zone to focus connections from |
 | `[p]setava connections <number>` | Admin (Server only) | Set maximum number of connections to display (default: 10) |
-| `[p]setava guilds <guild_id> ...` | Admin (Server only) | Subscribe to other guilds' Portaler data to merge with your own |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |
 | `[p]ava image` | Everyone | Display connections as a visual graph image |
 
