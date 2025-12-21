@@ -97,8 +97,8 @@ Track Roads of Avalon connections via Portaler API with background updates and c
 
 | Command | Description |
 |---------|-------------|
-| `[p]setava token <token>` | Set Portaler API bearer token (Admin) |
-| `[p]setava home <zone>` | Set home zone to focus connections from (Admin) |
+| `[p]setava token <token> <guild_id>` | Set Portaler API bearer token (Admin, DM only for security) |
+| `[p]setava home <zone>` | Set home zone to focus connections from (Admin, Server only) |
 | `[p]ava` | Display connections from home zone (text format) |
 | `[p]ava image` | Display connections as a visual graph image |
 
@@ -106,9 +106,10 @@ Track Roads of Avalon connections via Portaler API with background updates and c
 
 1. Visit [Portaler.app](https://portaler.app) and log in with your Discord account
 2. Obtain your API bearer token (check Portaler documentation or browser dev tools)
-3. Configure the cog with `[p]setava token <token>` (uses Discord server ID automatically)
-4. Set your home zone with `[p]setava home <zone>` (e.g., `Lymhurst`)
-5. Use `[p]ava` to display current connections
+3. Get your Discord server ID (enable Developer Mode, right-click server icon, "Copy Server ID")
+4. Configure the cog with `[p]setava token <token> <guild_id>` in a DM to the bot
+5. Set your home zone with `[p]setava home <zone>` (e.g., `Lymhurst`) in your server
+6. Use `[p]ava` or `[p]ava image` to display current connections
 
 **Features:**
 - Automatic background updates every 5 minutes

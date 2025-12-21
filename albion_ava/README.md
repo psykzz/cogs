@@ -30,18 +30,22 @@ Load the cog using Red's standard installation:
 
 ### 3. Configure the cog
 
-Set your Portaler token:
+Set your Portaler token (must be done in a DM for security):
 
 ```
-[p]setava token <token>
+[p]setava token <token> <guild_id>
 ```
 
 Example:
 ```
-[p]setava token your_bearer_token_here
+[p]setava token eyJhbGci... 123456789012345678
 ```
 
-Set your home zone (the zone you want to see connections from):
+To get your guild ID:
+1. Enable Developer Mode in Discord (User Settings > Advanced > Developer Mode)
+2. Right-click your server icon and select "Copy Server ID"
+
+Set your home zone (must be done in the server):
 
 ```
 [p]setava home <zone>
@@ -87,8 +91,8 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 
 | Command | Permission | Description |
 |---------|------------|-------------|
-| `[p]setava token <token>` | Admin | Set Portaler API bearer token (uses Discord server ID automatically) |
-| `[p]setava home <zone>` | Admin | Set home zone to focus connections from |
+| `[p]setava token <token> <guild_id>` | Admin (DM only) | Set Portaler API bearer token for a specific server |
+| `[p]setava home <zone>` | Admin (Server only) | Set home zone to focus connections from |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |
 | `[p]ava image` | Everyone | Display connections as a visual graph image |
 

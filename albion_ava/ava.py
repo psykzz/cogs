@@ -331,7 +331,6 @@ class AlbionAva(commands.Cog):
 
         return lines
 
-    @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
     @commands.group(name="setava")
     async def setava(self, ctx):
@@ -340,42 +339,70 @@ class AlbionAva(commands.Cog):
             await ctx.send_help()
 
     @setava.command(name="token")
-    async def setava_token(self, ctx, *, token: str):
-        """Set the Portaler API bearer token
+    @commands.dm_only()
+    async def setava_token(self, ctx, guild_id: str, *, token: str):
+        """Set the Portaler API bearer token (DM only for security)
 
-        The Discord server ID will be automatically used as the Portaler guild ID.
+        This command must be used in a DM to keep your token secure.
         Get your token from Portaler.app (check browser dev tools or Portaler documentation).
 
-        Usage: [p]setava token <token>
-        Example: [p]setava token your_bearer_token_here
+        Usage: [p]setava token <token> <guild_id>
+        Example: [p]setava token eyJhbGci... 123456789012345678
+
+        The guild_id is your Discord server's ID (enable Developer Mode in Discord settings,
+        right-click your server icon, and select "Copy Server ID").
         """
-        # Use Discord guild ID as the Portaler guild ID
-        guild_id = str(ctx.guild.id)
+        # Validate that the bot is in the guild
+        guild = self.bot.get_guild(int(guild_id))
+        if not guild:
+            await ctx.send(
+                f"❌ I'm not in a server with ID `{guild_id}`.\n"
+                "Please check the guild ID and make sure I'm a member of that server."
+            )
+            return
+
+        # Check if the user is an admin in that guild
+        member = guild.get_member(ctx.author.id)
+        if not member:
+            await ctx.send(
+                f"❌ You are not a member of the server with ID `{guild_id}`."
+            )
+            return
+
+        # Check if user has admin permissions
+        if not (member.guild_permissions.administrator or
+                member.guild_permissions.manage_guild or
+                await self.bot.is_owner(ctx.author)):
+            await ctx.send(
+                f"❌ You don't have administrator or manage server permissions in **{guild.name}**."
+            )
+            return
 
         # Store both token and guild_id
-        await self.config.guild(ctx.guild).portaler_token.set(token)
-        await self.config.guild(ctx.guild).portaler_guild_id.set(guild_id)
-        log.debug(f"Set Portaler token for {ctx.guild.name} using Discord guild ID: {guild_id}")
+        await self.config.guild(guild).portaler_token.set(token)
+        await self.config.guild(guild).portaler_guild_id.set(guild_id)
+        log.debug(f"Set Portaler token for {guild.name} (ID: {guild_id}) via DM from {ctx.author}")
 
         # Try to fetch data immediately to validate the token
         map_data = await self._fetch_portaler_data(guild_id, token)
         if map_data:
-            await self.config.guild(ctx.guild).last_map_data.set(map_data)
+            await self.config.guild(guild).last_map_data.set(map_data)
             await ctx.send(
-                f"✅ Portaler token set successfully! Using Discord server ID `{guild_id}` as Portaler guild ID.\n"
+                f"✅ Portaler token set successfully for **{guild.name}** (ID: `{guild_id}`)!\n"
                 "Data fetched and cached."
             )
         else:
             await ctx.send(
-                f"⚠️ Portaler token set, but failed to fetch data.\n"
-                f"Using Discord server ID: `{guild_id}`\n"
+                f"⚠️ Portaler token set for **{guild.name}**, but failed to fetch data.\n"
+                f"Using guild ID: `{guild_id}`\n"
                 "Please verify:\n"
                 "1. Your token is correct\n"
-                "2. The Discord server ID matches your Portaler guild ID\n"
+                "2. The guild ID is correct\n"
                 "3. You have access to the Portaler guild"
             )
 
     @setava.command(name="home")
+    @commands.guild_only()
     async def setava_home(self, ctx, *, zone: str):
         """Set the home zone to focus connections from
 
