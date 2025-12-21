@@ -58,6 +58,7 @@ class AlbionAva(commands.Cog):
             home_zone=None,
             last_map_data=None,  # Cache of last successful map data
             max_connections=10,  # Default max connections to display
+            subscribed_guild_ids=[],  # List of additional guild IDs to query
         )
         self._check_task = None
 
@@ -104,6 +105,7 @@ class AlbionAva(commands.Cog):
             try:
                 token = await self.config.guild(guild).portaler_token()
                 guild_id = await self.config.guild(guild).portaler_guild_id()
+                subscribed_guild_ids = await self.config.guild(guild).subscribed_guild_ids()
 
                 if not token:
                     continue
@@ -115,7 +117,25 @@ class AlbionAva(commands.Cog):
                     log.debug(f"No Portaler guild ID configured for {guild.name}")
                     continue
 
+                # Fetch data for the primary guild
                 map_data = await self._fetch_portaler_data(guild_id, token)
+
+                # Fetch and merge data from subscribed guilds
+                if subscribed_guild_ids:
+                    for sub_guild_id in subscribed_guild_ids:
+                        try:
+                            sub_map_data = await self._fetch_portaler_data(sub_guild_id, token)
+                            if sub_map_data and map_data:
+                                # Merge the map data
+                                map_data = self._merge_map_data(map_data, sub_map_data)
+                                log.debug(f"Merged data from subscribed guild {sub_guild_id} for {guild.name}")
+                            elif sub_map_data and not map_data:
+                                # If primary guild data is None, use subscribed guild data
+                                map_data = sub_map_data
+                                log.debug(f"Using data from subscribed guild {sub_guild_id} for {guild.name}")
+                        except Exception as e:
+                            log.error(f"Error fetching data for subscribed guild {sub_guild_id}: {e}", exc_info=True)
+
                 if map_data:
                     # API returns an array, so we store it as-is
                     await self.config.guild(guild).last_map_data.set(map_data)
@@ -137,6 +157,77 @@ class AlbionAva(commands.Cog):
 
         log.debug(f"Fetching Portaler data for guild ID: {guild_id}")
         return await http_get(url, headers=headers)
+
+    def _merge_map_data(self, primary_data: List, secondary_data: List) -> List:
+        """Merge map data from two different guilds
+
+        Args:
+            primary_data: Primary guild's map data array
+            secondary_data: Secondary guild's map data array
+
+        Returns:
+            Merged array of map objects with combined portal connections
+        """
+        if not primary_data:
+            return secondary_data
+        if not secondary_data:
+            return primary_data
+
+        # Create a deep copy of primary data to avoid modifying the original
+        merged_data = []
+
+        # Build a dictionary to track connections by a unique key
+        # Key format: "fromZone|toZone|portalType"
+        connection_map = {}
+
+        # Process primary data first
+        for map_obj in primary_data:
+            portal_connections = map_obj.get("portalConnections", [])
+            for conn in portal_connections:
+                info = conn.get("info", {})
+                from_zone_name = info.get("fromZone", {}).get("name", "")
+                to_zone_name = info.get("toZone", {}).get("name", "")
+                portal_type = info.get("portalType", "")
+
+                key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
+                # Store the connection, preferring newer expiry times
+                if key not in connection_map:
+                    connection_map[key] = conn
+                else:
+                    # Keep the connection with the later expiring date
+                    existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
+                    new_expiry = info.get("expiringDate", "")
+                    if new_expiry > existing_expiry:
+                        connection_map[key] = conn
+
+        # Process secondary data
+        for map_obj in secondary_data:
+            portal_connections = map_obj.get("portalConnections", [])
+            for conn in portal_connections:
+                info = conn.get("info", {})
+                from_zone_name = info.get("fromZone", {}).get("name", "")
+                to_zone_name = info.get("toZone", {}).get("name", "")
+                portal_type = info.get("portalType", "")
+
+                key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
+                # Add if not already present, or replace if newer
+                if key not in connection_map:
+                    connection_map[key] = conn
+                else:
+                    # Keep the connection with the later expiring date
+                    existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
+                    new_expiry = info.get("expiringDate", "")
+                    if new_expiry > existing_expiry:
+                        connection_map[key] = conn
+
+        # Reconstruct the merged data structure
+        # Create a single map object with all merged connections
+        merged_map = {
+            "portalConnections": list(connection_map.values())
+        }
+        merged_data.append(merged_map)
+
+        return merged_data
 
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
         """Extract connection data from Portaler API response
@@ -466,6 +557,50 @@ class AlbionAva(commands.Cog):
         await self.config.guild(ctx.guild).max_connections.set(number)
         log.debug(f"Set max connections to {number} for {ctx.guild.name}")
         await ctx.send(f"✅ Maximum connections set to **{number}**")
+
+    @setava.command(name="guilds")
+    @commands.guild_only()
+    async def setava_guilds(self, ctx, *guild_ids: str):
+        """Set additional Portaler guild IDs to subscribe to
+
+        Subscribe to other guilds' Portaler data to see their connections merged with yours.
+        You can specify multiple guild IDs separated by spaces.
+        Use this command without arguments to clear all subscriptions.
+
+        Usage: [p]setava guilds <guild_id> [<guild_id> ...]
+        Example: [p]setava guilds 123456 789012
+
+        To clear subscriptions: [p]setava guilds
+        """
+        if not guild_ids:
+            # Clear subscriptions
+            await self.config.guild(ctx.guild).subscribed_guild_ids.set([])
+            log.debug(f"Cleared subscribed guilds for {ctx.guild.name}")
+            await ctx.send("✅ Cleared all guild subscriptions")
+            return
+
+        # Validate and store guild IDs
+        valid_ids = []
+        for guild_id in guild_ids:
+            # Basic validation - should be numeric
+            if not guild_id.isdigit():
+                await ctx.send(f"⚠️ Invalid guild ID: `{guild_id}` (must be numeric)")
+                continue
+            valid_ids.append(guild_id)
+
+        if not valid_ids:
+            await ctx.send("❌ No valid guild IDs provided")
+            return
+
+        await self.config.guild(ctx.guild).subscribed_guild_ids.set(valid_ids)
+        log.debug(f"Set subscribed guilds to {valid_ids} for {ctx.guild.name}")
+
+        guilds_str = ", ".join([f"`{gid}`" for gid in valid_ids])
+        await ctx.send(
+            f"✅ Subscribed to guilds: {guilds_str}\n"
+            f"Connection data from these guilds will be merged with your own data.\n"
+            f"Note: You must have a valid token configured to query other guilds."
+        )
 
     @commands.guild_only()
     @commands.group(name="ava", invoke_without_command=True)
