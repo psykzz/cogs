@@ -213,8 +213,8 @@ class AlbionAva(commands.Cog):
                         "priority": priority
                     })
 
-        # Sort by priority (ascending) and then by zone name
-        found_connections.sort(key=lambda x: (x["priority"], x["to_zone"]))
+        # Sort by priority (ascending) and then by zone name (case-insensitive)
+        found_connections.sort(key=lambda x: (x["priority"], x["to_zone"].lower()))
 
         # Apply max_connections limit if specified
         if max_connections is not None and len(found_connections) > max_connections:
