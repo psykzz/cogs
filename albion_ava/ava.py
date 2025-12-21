@@ -345,23 +345,7 @@ class AlbionAva(commands.Cog):
 
             # Calculate time remaining for the first connection in chain (most critical)
             first_conn = chain[0]
-            time_str = "Unknown"
-            expiring_date = first_conn.get("expiring_date")
-            if expiring_date:
-                try:
-                    expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
-                    now = datetime.now(timezone.utc)
-                    time_delta = expiry - now
-
-                    if time_delta.total_seconds() > 0:
-                        hours = int(time_delta.total_seconds() // 3600)
-                        minutes = int((time_delta.total_seconds() % 3600) // 60)
-                        time_str = f"{hours}h {minutes}m"
-                    else:
-                        time_str = "Expired"
-                except Exception as e:
-                    log.warning(f"Failed to parse expiring date: {e}")
-                    time_str = "Unknown"
+            time_str = self._calculate_time_remaining(first_conn.get("expiring_date"))
 
             # Determine priority
             # 1. Chains ending at royal cities (shorter chains preferred)
@@ -391,6 +375,33 @@ class AlbionAva(commands.Cog):
             found_connections = found_connections[:max_connections]
 
         return found_connections
+
+    def _calculate_time_remaining(self, expiring_date: Optional[str]) -> str:
+        """Calculate time remaining from an expiring date string
+
+        Args:
+            expiring_date: ISO 8601 formatted expiring date string
+
+        Returns:
+            Formatted time string (e.g., "2h 30m", "Expired", "Unknown")
+        """
+        if not expiring_date:
+            return "Unknown"
+
+        try:
+            expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            time_delta = expiry - now
+
+            if time_delta.total_seconds() > 0:
+                hours = int(time_delta.total_seconds() // 3600)
+                minutes = int((time_delta.total_seconds() % 3600) // 60)
+                return f"{hours}h {minutes}m"
+            else:
+                return "Expired"
+        except Exception as e:
+            log.warning(f"Failed to parse expiring date: {e}")
+            return "Unknown"
 
     def _generate_graph_image(self, home_zone: str, connections: List[dict]) -> io.BytesIO:
         """Generate a visual graph image showing full connection chains
@@ -530,14 +541,17 @@ class AlbionAva(commands.Cog):
                             (line_end_x - arrow_size, line_end_y + arrow_size)
                         ], fill='#99AAB5')
 
-                # Draw time remaining for the first connection in chain
-                if chain:
-                    time_text = f"⏱ {conn['time_remaining']}"
-                    # Position time text near the start of the chain (between home and first zone)
-                    time_x = margin + node_width + horizontal_spacing // 2
-                    time_y = y + node_height + 5
-                    draw.text((time_x, time_y), time_text, fill='#FFFF00',
-                              font=info_font, anchor="mt")
+                        # Draw time remaining for this connection
+                        # Get the hop that leads from current zone to next zone
+                        hop = chain[zone_idx]
+                        time_str = self._calculate_time_remaining(hop.get('expiring_date'))
+                        time_text = f"⏱ {time_str}"
+                        
+                        # Position time text in the middle of the arrow
+                        time_x = line_start_x + horizontal_spacing // 2
+                        time_y = y + node_height // 2 - 10
+                        draw.text((time_x, time_y), time_text, fill='#FFFF00',
+                                  font=info_font, anchor="mm")
 
         # Save to BytesIO
         output = io.BytesIO()
