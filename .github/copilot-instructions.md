@@ -80,6 +80,7 @@ async def setup(bot):
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
 - **party/**: Party signup system with role-based composition management using Discord buttons and modals (no external deps)
+- **psymin/**: Bot owner administration commands for viewing permissions across all servers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
 - **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
