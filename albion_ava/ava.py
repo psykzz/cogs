@@ -220,6 +220,95 @@ class AlbionAva(commands.Cog):
         }
         return [merged_map]
 
+    def _build_connection_graph(self, map_data: List) -> dict:
+        """Build a complete graph of all connections from the map data
+
+        Args:
+            map_data: Array of map objects from Portaler API
+
+        Returns:
+            Dictionary mapping from_zone -> list of (to_zone, connection_info) tuples
+        """
+        graph = {}
+
+        for map_obj in map_data:
+            portal_connections = map_obj.get("portalConnections", [])
+
+            for connection in portal_connections:
+                info = connection.get("info", {})
+                from_zone = info.get("fromZone", {})
+                to_zone = info.get("toZone", {})
+
+                from_zone_name = from_zone.get("name", "")
+                to_zone_name = to_zone.get("name", "")
+
+                if not from_zone_name or not to_zone_name:
+                    continue
+
+                # Store connection info we'll need later
+                conn_info = {
+                    "to_zone": to_zone_name,
+                    "tier": to_zone.get("tier", "?"),
+                    "type": to_zone.get("type", "Unknown"),
+                    "color": to_zone.get("color", "#888888"),
+                    "portal_type": info.get("portalType", "Unknown"),
+                    "expiring_date": info.get("expiringDate", None),
+                }
+
+                # Add to graph (adjacency list)
+                if from_zone_name not in graph:
+                    graph[from_zone_name] = []
+                graph[from_zone_name].append(conn_info)
+
+        return graph
+
+    def _find_connection_chains(self, graph: dict, home_zone: str, max_depth: int = 5) -> List[List[dict]]:
+        """Find all connection chains starting from home zone using BFS
+
+        Args:
+            graph: Connection graph from _build_connection_graph
+            home_zone: Starting zone
+            max_depth: Maximum chain length to explore
+
+        Returns:
+            List of chains, where each chain is a list of connection_info dicts
+        """
+        from collections import deque
+
+        if home_zone not in graph:
+            return []
+
+        chains = []
+        queue = deque()
+
+        # Initialize with direct connections from home
+        for conn in graph[home_zone]:
+            queue.append([conn])
+
+        while queue:
+            current_chain = queue.popleft()
+            last_zone = current_chain[-1]["to_zone"]
+
+            # Add this chain to results
+            chains.append(current_chain)
+
+            # If we haven't reached max depth and this zone has outgoing connections
+            if len(current_chain) < max_depth and last_zone in graph:
+                # Build set of all zones already in this chain path
+                # Include home zone and all destination zones in the chain
+                chain_zones = {home_zone}
+                chain_zones.update(conn["to_zone"] for conn in current_chain)
+
+                for next_conn in graph[last_zone]:
+                    next_zone = next_conn["to_zone"]
+                    # Avoid cycles by checking if this zone is already in the path
+                    if next_zone not in chain_zones:
+                        # Create new chain with this connection added
+                        new_chain = current_chain + [next_conn]
+                        queue.append(new_chain)
+
+        return chains
+
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
         """Extract connection data from Portaler API response
 
@@ -229,74 +318,73 @@ class AlbionAva(commands.Cog):
             max_connections: Maximum number of connections to return (None for all)
 
         Returns:
-            List of connection dictionaries, prioritized by royal cities and portal rooms
+            List of connection chain dictionaries, prioritized by royal cities and chain length
         """
         if not map_data:
             return []
 
+        # Build complete connection graph
+        graph = self._build_connection_graph(map_data)
+
+        if not graph:
+            return []
+
+        # Find all chains from home zone
+        chains = self._find_connection_chains(graph, home_zone, max_depth=5)
+
+        if not chains:
+            return []
+
+        # Process chains into display format
         found_connections = []
 
-        # Iterate through all maps in the array
-        for map_obj in map_data:
-            portal_connections = map_obj.get("portalConnections", [])
+        for chain in chains:
+            # Get the final destination
+            last_conn = chain[-1]
+            final_zone = last_conn["to_zone"]
 
-            # Look for connections where fromZone matches our home zone
-            for connection in portal_connections:
-                info = connection.get("info", {})
-                from_zone = info.get("fromZone", {})
-                to_zone = info.get("toZone", {})
+            # Calculate time remaining for the first connection in chain (most critical)
+            first_conn = chain[0]
+            time_str = "Unknown"
+            expiring_date = first_conn.get("expiring_date")
+            if expiring_date:
+                try:
+                    expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
+                    now = datetime.now(timezone.utc)
+                    time_delta = expiry - now
 
-                from_zone_name = from_zone.get("name", "")
-
-                # Check if this connection starts from our home zone
-                if from_zone_name.lower() == home_zone.lower():
-                    to_zone_name = to_zone.get("name", "Unknown")
-                    to_zone_tier = to_zone.get("tier", "?")
-                    to_zone_type = to_zone.get("type", "Unknown")
-                    to_zone_color = to_zone.get("color", "#888888")
-                    portal_type = info.get("portalType", "Unknown")
-                    expiring_date = info.get("expiringDate", None)
-
-                    # Calculate time remaining if expiring date is provided
+                    if time_delta.total_seconds() > 0:
+                        hours = int(time_delta.total_seconds() // 3600)
+                        minutes = int((time_delta.total_seconds() % 3600) // 60)
+                        time_str = f"{hours}h {minutes}m"
+                    else:
+                        time_str = "Expired"
+                except Exception as e:
+                    log.warning(f"Failed to parse expiring date: {e}")
                     time_str = "Unknown"
-                    if expiring_date:
-                        try:
-                            # Parse ISO format datetime
-                            expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
-                            now = datetime.now(timezone.utc)
-                            time_delta = expiry - now
 
-                            if time_delta.total_seconds() > 0:
-                                hours = int(time_delta.total_seconds() // 3600)
-                                minutes = int((time_delta.total_seconds() % 3600) // 60)
-                                time_str = f"{hours}h {minutes}m"
-                            else:
-                                time_str = "Expired"
-                        except Exception as e:
-                            log.warning(f"Failed to parse expiring date: {e}")
-                            time_str = "Unknown"
+            # Determine priority
+            # 1. Chains ending at royal cities (shorter chains preferred)
+            # 2. Longer chains to non-royal destinations
+            # 3. Shorter chains to non-royal destinations
+            if final_zone.lower() in self.ROYAL_CITIES:
+                priority = (1, len(chain))  # Royal city, prefer shorter
+            else:
+                priority = (2, -len(chain))  # Non-royal, prefer longer chains
 
-                    # Determine priority (lower number = higher priority)
-                    # Royal cities get priority 1, portal rooms priority 2, others priority 3
-                    priority = 3
+            found_connections.append({
+                "chain": chain,
+                "final_zone": final_zone,
+                "chain_length": len(chain),
+                "tier": last_conn["tier"],
+                "type": last_conn["type"],
+                "color": last_conn["color"],
+                "time_remaining": time_str,
+                "priority": priority
+            })
 
-                    if to_zone_name.lower() in self.ROYAL_CITIES:
-                        priority = 1
-                    elif "royalgate" in to_zone_type.lower() or "portal" in to_zone_type.lower():
-                        priority = 2
-
-                    found_connections.append({
-                        "to_zone": to_zone_name,
-                        "tier": to_zone_tier,
-                        "type": to_zone_type,
-                        "color": to_zone_color,
-                        "portal_type": portal_type,
-                        "time_remaining": time_str,
-                        "priority": priority
-                    })
-
-        # Sort by priority (ascending) and then by zone name (case-insensitive)
-        found_connections.sort(key=lambda x: (x["priority"], x["to_zone"].lower()))
+        # Sort by priority
+        found_connections.sort(key=lambda x: (x["priority"], x["final_zone"].lower()))
 
         # Apply max_connections limit if specified
         if max_connections is not None and len(found_connections) > max_connections:
@@ -309,7 +397,7 @@ class AlbionAva(commands.Cog):
 
         Args:
             home_zone: The home zone name
-            connections: List of connection dictionaries
+            connections: List of connection chain dictionaries
 
         Returns:
             BytesIO object containing the PNG image
@@ -354,6 +442,7 @@ class AlbionAva(commands.Cog):
                       font=node_font, anchor="mm")
 
             # Position connected zones in a circle around the home zone
+            # For simplicity, we show final destinations
             num_connections = len(connections)
             orbit_radius = 250
             angle_step = 2 * math.pi / num_connections
@@ -364,11 +453,10 @@ class AlbionAva(commands.Cog):
                 x = center_x + int(orbit_radius * math.cos(angle))
                 y = center_y + int(orbit_radius * math.sin(angle))
 
-                # Get zone color (convert hex to RGB if needed)
+                # Get zone info (final destination)
+                zone_name = conn['final_zone']
                 zone_color = conn['color']
-                if zone_color.startswith('#'):
-                    zone_color = zone_color
-                else:
+                if not zone_color.startswith('#'):
                     zone_color = '#888888'
 
                 # Draw connection line
@@ -380,11 +468,11 @@ class AlbionAva(commands.Cog):
                               x + node_radius, y + node_radius],
                              fill=zone_color, outline='#FFFFFF', width=2)
 
-                # Draw zone name
-                zone_name = conn['to_zone']
-                if len(zone_name) > 15:
-                    zone_name = zone_name[:12] + "..."
-                draw.text((x, y - 10), zone_name, fill='#FFFFFF',
+                # Draw zone name (truncate if too long)
+                display_name = zone_name
+                if len(display_name) > 15:
+                    display_name = display_name[:12] + "..."
+                draw.text((x, y - 10), display_name, fill='#FFFFFF',
                           font=info_font, anchor="mm")
 
                 # Draw tier and type
@@ -392,19 +480,19 @@ class AlbionAva(commands.Cog):
                 draw.text((x, y + 5), tier_type, fill='#FFFFFF',
                           font=info_font, anchor="mm")
 
-                # Draw portal type badge and time remaining near the line (on the edge)
+                # Draw chain length indicator and time remaining near the line
                 mid_x = center_x + int((orbit_radius / 2) * math.cos(angle))
                 mid_y = center_y + int((orbit_radius / 2) * math.sin(angle))
-                portal_text = conn['portal_type'][:3].upper()
 
-                # Draw background for portal type
-                bbox = draw.textbbox((mid_x, mid_y), portal_text, font=info_font, anchor="mm")
+                # Show number of hops
+                hops_text = f"{conn['chain_length']} hop{'s' if conn['chain_length'] > 1 else ''}"
+                bbox = draw.textbbox((mid_x, mid_y), hops_text, font=info_font, anchor="mm")
                 draw.rectangle([bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2],
                                fill='#23272A', outline='#7289DA')
-                draw.text((mid_x, mid_y), portal_text, fill='#7289DA',
+                draw.text((mid_x, mid_y), hops_text, fill='#7289DA',
                           font=info_font, anchor="mm")
 
-                # Draw time remaining on the edge (below portal type)
+                # Draw time remaining below hop count
                 time_y = mid_y + 15
                 time_bbox = draw.textbbox((mid_x, time_y), conn['time_remaining'], font=info_font, anchor="mm")
                 draw.rectangle([time_bbox[0]-2, time_bbox[1]-2, time_bbox[2]+2, time_bbox[3]+2],
@@ -422,7 +510,7 @@ class AlbionAva(commands.Cog):
         """Build a text representation of connections
 
         Args:
-            connections: List of connection dictionaries
+            connections: List of connection chain dictionaries
             home_zone: The home zone name
 
         Returns:
@@ -433,11 +521,29 @@ class AlbionAva(commands.Cog):
 
         lines = [f"**Connections from {home_zone}:**", ""]
 
-        # Build the connection list
+        # Build the connection list showing full chains
         for i, conn in enumerate(connections, 1):
+            chain = conn.get("chain", [])
+
+            if not chain:
+                continue
+
+            # Build the chain string: Home -> Zone A -> Zone B -> Final
+            chain_parts = [home_zone]
+            for hop in chain:
+                chain_parts.append(hop["to_zone"])
+
+            chain_str = " → ".join(chain_parts)
+
+            # Get info about the final destination
+            final_zone = conn["final_zone"]
+            is_royal = final_zone.lower() in self.ROYAL_CITIES
+            royal_marker = " 👑" if is_royal else ""
+
             lines.append(
-                f"{i}. **{conn['to_zone']}** (T{conn['tier']} {conn['type']}) - "
-                f"Portal: {conn['portal_type']} - Time: {conn['time_remaining']}"
+                f"{i}. {chain_str}{royal_marker} "
+                f"(T{conn['tier']} {conn['type']}) - "
+                f"Time: {conn['time_remaining']}"
             )
 
         return lines
