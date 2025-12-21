@@ -9,6 +9,7 @@ This cog integrates with the Portaler API to track and display Roads of Avalon c
 - **Background Updates**: Automatically fetches connection data every 5 minutes
 - **Connection Graphs**: Display connections from a configured home zone
 - **Portaler Integration**: Uses Portaler API for accurate, real-time connection data
+- **Multi-Guild Support**: Subscribe to multiple Portaler guilds to merge their connection data
 
 ## Setup
 
@@ -69,6 +70,22 @@ Example:
 
 The cog will prioritize showing connections to royal cities and portal rooms.
 
+Subscribe to other guilds' Portaler data (optional):
+
+```
+[p]setava guilds <guild_id> [<guild_id> ...]
+```
+
+Example:
+```
+[p]setava guilds 123456 789012
+```
+
+This allows you to merge connection data from multiple Portaler guilds into your view. Use this without arguments to clear subscriptions:
+```
+[p]setava guilds
+```
+
 ## Usage
 
 ### Display connections
@@ -107,6 +124,7 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 | `[p]setava token <token> <guild_id>` | Admin (DM only) | Set Portaler API bearer token for a specific server |
 | `[p]setava home <zone>` | Admin (Server only) | Set home zone to focus connections from |
 | `[p]setava connections <number>` | Admin (Server only) | Set maximum number of connections to display (default: 10) |
+| `[p]setava guilds <guild_id> ...` | Admin (Server only) | Subscribe to other guilds' Portaler data to merge with your own |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |
 | `[p]ava image` | Everyone | Display connections as a visual graph image |
 
