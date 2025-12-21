@@ -16,7 +16,6 @@ class Psymin(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @psymin.command(name="permissions")
-    @commands.is_owner()
     async def permissions(self, ctx):
         """List effective permissions granted by roles for each server.
 
