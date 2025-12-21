@@ -393,7 +393,7 @@ class AlbionAva(commands.Cog):
         return found_connections
 
     def _generate_graph_image(self, home_zone: str, connections: List[dict]) -> io.BytesIO:
-        """Generate a visual graph image showing connections
+        """Generate a visual graph image showing full connection chains
 
         Args:
             home_zone: The home zone name
@@ -402,9 +402,21 @@ class AlbionAva(commands.Cog):
         Returns:
             BytesIO object containing the PNG image
         """
-        # Image dimensions
-        width = 1200
-        height = 800
+        # Calculate image dimensions based on content
+        node_width = 120
+        node_height = 60
+        horizontal_spacing = 40
+        vertical_spacing = 20
+        margin = 80
+        title_height = 80
+
+        # Find the maximum chain length to determine width
+        max_chain_length = max([len(conn.get('chain', [])) for conn in connections], default=0) if connections else 0
+        # Total columns: home + chain zones
+        total_columns = max_chain_length + 1
+
+        width = max(1200, margin * 2 + total_columns * node_width + (total_columns - 1) * horizontal_spacing)
+        height = max(600, title_height + len(connections) * (node_height + vertical_spacing) + margin)
 
         # Create image with dark background
         img = Image.new('RGB', (width, height), color='#2C2F33')
@@ -412,9 +424,9 @@ class AlbionAva(commands.Cog):
 
         # Try to use a reasonable font, fallback to default
         try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            node_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-            info_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
+            node_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
+            info_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
         except Exception:
             title_font = ImageFont.load_default()
             node_font = ImageFont.load_default()
@@ -429,76 +441,101 @@ class AlbionAva(commands.Cog):
             draw.text((width // 2, height // 2), "No connections found",
                       fill='#99AAB5', font=node_font, anchor="mm")
         else:
-            # Calculate positions for nodes
-            center_x = width // 2
-            center_y = height // 2
+            # Draw each chain horizontally
+            for chain_idx, conn in enumerate(connections):
+                chain = conn.get('chain', [])
+                if not chain:
+                    continue
 
-            # Home zone in the center
-            home_radius = 60
-            draw.ellipse([center_x - home_radius, center_y - home_radius,
-                          center_x + home_radius, center_y + home_radius],
-                         fill='#7289DA', outline='#FFFFFF', width=3)
-            draw.text((center_x, center_y), home_zone, fill='#FFFFFF',
-                      font=node_font, anchor="mm")
+                # Calculate y position for this chain
+                y = title_height + chain_idx * (node_height + vertical_spacing)
 
-            # Position connected zones in a circle around the home zone
-            # For simplicity, we show final destinations
-            num_connections = len(connections)
-            orbit_radius = 250
-            angle_step = 2 * math.pi / num_connections
+                # Build full zone list: [home_zone] + all zones in chain
+                zones = [home_zone]
+                for hop in chain:
+                    zones.append(hop['to_zone'])
 
-            for i, conn in enumerate(connections):
-                # Calculate position
-                angle = i * angle_step - math.pi / 2  # Start from top
-                x = center_x + int(orbit_radius * math.cos(angle))
-                y = center_y + int(orbit_radius * math.sin(angle))
+                # Draw nodes and connections for this chain
+                for zone_idx, zone_name in enumerate(zones):
+                    # Calculate x position
+                    x = margin + zone_idx * (node_width + horizontal_spacing)
 
-                # Get zone info (final destination)
-                zone_name = conn['final_zone']
-                zone_color = conn['color']
-                if not zone_color.startswith('#'):
-                    zone_color = '#888888'
+                    # Determine node color
+                    if zone_idx == 0:
+                        # Home zone - special color
+                        node_color = '#7289DA'
+                        zone_tier = ""
+                        zone_type = ""
+                    else:
+                        # Get color from the hop that leads to this zone
+                        hop = chain[zone_idx - 1]
+                        node_color = hop.get('color', '#888888')
+                        if not node_color.startswith('#'):
+                            node_color = '#888888'
+                        zone_tier = hop.get('tier', '?')
+                        zone_type = hop.get('type', '')
 
-                # Draw connection line
-                draw.line([center_x, center_y, x, y], fill='#99AAB5', width=2)
+                    # Check if this is a royal city
+                    is_royal = zone_name.lower() in self.ROYAL_CITIES
 
-                # Draw zone node
-                node_radius = 50
-                draw.ellipse([x - node_radius, y - node_radius,
-                              x + node_radius, y + node_radius],
-                             fill=zone_color, outline='#FFFFFF', width=2)
+                    # Draw node rectangle
+                    node_x1 = x
+                    node_y1 = y
+                    node_x2 = x + node_width
+                    node_y2 = y + node_height
 
-                # Draw zone name (truncate if too long)
-                display_name = zone_name
-                if len(display_name) > 15:
-                    display_name = display_name[:12] + "..."
-                draw.text((x, y - 10), display_name, fill='#FFFFFF',
-                          font=info_font, anchor="mm")
+                    # Add royal city indicator with gold outline
+                    if is_royal:
+                        draw.rectangle([node_x1, node_y1, node_x2, node_y2],
+                                       fill=node_color, outline='#FFD700', width=3)
+                    else:
+                        draw.rectangle([node_x1, node_y1, node_x2, node_y2],
+                                       fill=node_color, outline='#FFFFFF', width=2)
 
-                # Draw tier and type
-                tier_type = f"T{conn['tier']} {conn['type'][:3]}"
-                draw.text((x, y + 5), tier_type, fill='#FFFFFF',
-                          font=info_font, anchor="mm")
+                    # Draw zone name (truncate if too long)
+                    display_name = zone_name
+                    if len(display_name) > 12:
+                        display_name = display_name[:9] + "..."
 
-                # Draw chain length indicator and time remaining near the line
-                mid_x = center_x + int((orbit_radius / 2) * math.cos(angle))
-                mid_y = center_y + int((orbit_radius / 2) * math.sin(angle))
+                    text_y = y + node_height // 2
+                    if zone_tier:
+                        # Draw name above center, tier/type below
+                        draw.text((x + node_width // 2, y + node_height // 2 - 8),
+                                  display_name, fill='#FFFFFF', font=node_font, anchor="mm")
+                        tier_text = f"T{zone_tier} {zone_type[:3]}"
+                        draw.text((x + node_width // 2, y + node_height // 2 + 8),
+                                  tier_text, fill='#FFFFFF', font=info_font, anchor="mm")
+                    else:
+                        # Just draw name centered
+                        draw.text((x + node_width // 2, text_y),
+                                  display_name, fill='#FFFFFF', font=node_font, anchor="mm")
 
-                # Show number of hops
-                hops_text = f"{conn['chain_length']} hop{'s' if conn['chain_length'] > 1 else ''}"
-                bbox = draw.textbbox((mid_x, mid_y), hops_text, font=info_font, anchor="mm")
-                draw.rectangle([bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2],
-                               fill='#23272A', outline='#7289DA')
-                draw.text((mid_x, mid_y), hops_text, fill='#7289DA',
-                          font=info_font, anchor="mm")
+                    # Draw arrow to next zone
+                    if zone_idx < len(zones) - 1:
+                        # Draw line from this node to next
+                        line_start_x = node_x2
+                        line_start_y = y + node_height // 2
+                        line_end_x = x + node_width + horizontal_spacing
+                        line_end_y = y + node_height // 2
 
-                # Draw time remaining below hop count
-                time_y = mid_y + 15
-                time_bbox = draw.textbbox((mid_x, time_y), conn['time_remaining'], font=info_font, anchor="mm")
-                draw.rectangle([time_bbox[0]-2, time_bbox[1]-2, time_bbox[2]+2, time_bbox[3]+2],
-                               fill='#23272A', outline='#FFFF00')
-                draw.text((mid_x, time_y), conn['time_remaining'], fill='#FFFF00',
-                          font=info_font, anchor="mm")
+                        draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
+                                  fill='#99AAB5', width=2)
+
+                        # Draw arrowhead
+                        arrow_size = 6
+                        draw.polygon([
+                            (line_end_x, line_end_y),
+                            (line_end_x - arrow_size, line_end_y - arrow_size),
+                            (line_end_x - arrow_size, line_end_y + arrow_size)
+                        ], fill='#99AAB5')
+
+                # Draw time remaining for the first connection in chain
+                if chain:
+                    time_text = f"⏱ {conn['time_remaining']}"
+                    time_x = margin + (node_width + horizontal_spacing) // 2
+                    time_y = y + node_height + 5
+                    draw.text((time_x, time_y), time_text, fill='#FFFF00',
+                              font=info_font, anchor="mt")
 
         # Save to BytesIO
         output = io.BytesIO()
