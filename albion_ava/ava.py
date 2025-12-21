@@ -57,86 +57,51 @@ class AlbionAva(commands.Cog):
         )
         self.config.register_guild(
             home_zone=None,
-            last_map_data=None,  # Cache of last successful map data
             max_connections=10,  # Default max connections to display
             guild_ids=[],  # Complete list of guild IDs to query (not merged with server guild)
         )
-        self._check_task = None
 
-    async def cog_load(self):
-        """Start the background task when cog loads"""
-        try:
-            self._check_task = self.bot.loop.create_task(self._update_loop())
-            log.debug("Started Portaler API check task")
-        except Exception as e:
-            log.error(f"Failed to start Portaler API check task: {e}", exc_info=True)
+    async def _fetch_guild_data(self, guild):
+        """Fetch and merge data for a specific guild's configured Portaler guild IDs
 
-    async def cog_unload(self):
-        """Cancel the background task when cog unloads"""
-        if self._check_task:
-            self._check_task.cancel()
-            log.debug("Cancelled Portaler API check task")
+        Args:
+            guild: Discord guild object
 
-    async def _update_loop(self):
-        """Background task to check Portaler API periodically"""
-        await self.bot.wait_until_ready()
-        log.debug("Portaler update loop started")
-
-        # Do an initial fetch immediately
-        try:
-            await self._fetch_all_guilds_data()
-        except Exception as e:
-            log.error(f"Error in initial Portaler data fetch: {e}", exc_info=True)
-
-        while True:
-            try:
-                # Check every 5 minutes
-                await asyncio.sleep(300)
-                await self._fetch_all_guilds_data()
-            except asyncio.CancelledError:
-                log.debug("Portaler update loop cancelled")
-                break
-            except Exception as e:
-                log.error(f"Error in Portaler update loop: {e}", exc_info=True)
-                await asyncio.sleep(300)  # Wait 5 minutes before retrying on error
-
-    async def _fetch_all_guilds_data(self):
-        """Fetch data for all guilds with configured guild IDs"""
+        Returns:
+            Merged map data from all configured guild IDs, or None if no data available
+        """
         # Get the global token
         token = await self.config.portaler_token()
 
         if not token:
             log.debug("No global Portaler token configured")
-            return
+            return None
 
-        for guild in self.bot.guilds:
+        guild_ids = await self.config.guild(guild).guild_ids()
+
+        if not guild_ids:
+            log.debug(f"No Portaler guild IDs configured for {guild.name}")
+            return None
+
+        # Fetch data from all configured guild IDs
+        all_map_data = []
+
+        for portaler_guild_id in guild_ids:
             try:
-                guild_ids = await self.config.guild(guild).guild_ids()
-
-                if not guild_ids:
-                    log.debug(f"No Portaler guild IDs configured for {guild.name}")
-                    continue
-
-                # Fetch data from all configured guild IDs
-                all_map_data = []
-
-                for portaler_guild_id in guild_ids:
-                    try:
-                        map_data = await self._fetch_portaler_data(portaler_guild_id, token)
-                        if map_data:
-                            all_map_data.append(map_data)
-                            log.debug(f"Fetched data from guild {portaler_guild_id} for {guild.name}")
-                    except Exception as e:
-                        log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
-
-                # Merge all data (method handles single dataset case efficiently)
-                if all_map_data:
-                    merged_data = self._merge_all_map_data(all_map_data)
-                    await self.config.guild(guild).last_map_data.set(merged_data)
-                    log.debug(f"Updated data from {len(all_map_data)} guild(s) for {guild.name}")
-
+                map_data = await self._fetch_portaler_data(portaler_guild_id, token)
+                if map_data:
+                    all_map_data.append(map_data)
+                    log.debug(f"Fetched data from guild {portaler_guild_id} for {guild.name}")
             except Exception as e:
-                log.error(f"Error fetching data for guild {guild.name}: {e}", exc_info=True)
+                log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
+
+        # Merge all data (method handles single dataset case efficiently)
+        if all_map_data:
+            merged_data = self._merge_all_map_data(all_map_data)
+            log.debug(f"Merged data from {len(all_map_data)} guild(s) for {guild.name}")
+            return merged_data
+
+        return None
 
     def _validate_guild_id(self, guild_id: str) -> tuple[bool, str]:
         """Validate a Portaler guild ID
@@ -683,7 +648,6 @@ class AlbionAva(commands.Cog):
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
-            map_data = await self.config.guild(ctx.guild).last_map_data()
             max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
@@ -692,10 +656,13 @@ class AlbionAva(commands.Cog):
                 )
                 return
 
+            # Fetch data on-demand
+            map_data = await self._fetch_guild_data(ctx.guild)
+
             if not map_data:
                 await ctx.send(
-                    "❌ No map data available. Please configure your Portaler token first with "
-                    "`[p]setava token <token>`, or wait for the next data refresh."
+                    "❌ No map data available. Please ensure your Portaler token is configured with "
+                    "`[p]setava token <token>`, and that guild IDs are set with `[p]setava guilds <id> ...`."
                 )
                 return
 
@@ -741,7 +708,6 @@ class AlbionAva(commands.Cog):
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
-            map_data = await self.config.guild(ctx.guild).last_map_data()
             max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
@@ -750,10 +716,13 @@ class AlbionAva(commands.Cog):
                 )
                 return
 
+            # Fetch data on-demand
+            map_data = await self._fetch_guild_data(ctx.guild)
+
             if not map_data:
                 await ctx.send(
-                    "❌ No map data available. Please configure your Portaler token first with "
-                    "`[p]setava token <token>`, or wait for the next data refresh."
+                    "❌ No map data available. Please ensure your Portaler token is configured with "
+                    "`[p]setava token <token>`, and that guild IDs are set with `[p]setava guilds <id> ...`."
                 )
                 return
 
