@@ -6,7 +6,7 @@ Track Roads of Avalon connections via Portaler API.
 
 This cog integrates with the Portaler API to track and display Roads of Avalon connections in Albion Online. It features:
 
-- **Background Updates**: Automatically fetches connection data every 5 minutes
+- **On-Demand Fetching**: Fetches connection data when you request it (via commands)
 - **Connection Graphs**: Display connections from a configured home zone
 - **Portaler Integration**: Uses Portaler API for accurate, real-time connection data
 - **Multi-Guild Support**: Subscribe to multiple Portaler guilds to merge their connection data
@@ -104,9 +104,7 @@ Both commands will display:
 - Portal sizes
 - Time remaining
 
-## Background Updates
-
-The cog automatically checks the Portaler API every 5 minutes to keep connection data up to date. This happens in the background without any user intervention.
+The data is fetched fresh from the Portaler API each time you run these commands.
 
 ## Requirements
 
