@@ -444,6 +444,7 @@ class AlbionAva(commands.Cog):
             # Draw each chain horizontally
             for chain_idx, conn in enumerate(connections):
                 chain = conn.get('chain', [])
+                # Skip any connections with empty chains (shouldn't happen but protects against malformed data)
                 if not chain:
                     continue
 
