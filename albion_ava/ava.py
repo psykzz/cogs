@@ -49,6 +49,24 @@ class AlbionAva(commands.Cog):
         "lymhurst", "martlock", "thetford"
     ])
 
+    # Zone color classification constants
+    ZONE_COLORS = {
+        'yellow': ['#ffff00', '#ffd700', '#ffeb3b', '#ffc107'],
+        'blue': ['#0000ff', '#2196f3', '#1976d2'],
+        'red': ['#ff0000', '#f44336', '#e91e63', '#ff5722'],
+        'black': ['#000000', '#212121', '#424242']
+    }
+
+    # RGB thresholds for color classification
+    RGB_YELLOW_MIN_RG = 200  # Minimum red and green for yellow
+    RGB_YELLOW_MAX_B = 100   # Maximum blue for yellow
+    RGB_BLUE_MIN_B = 150     # Minimum blue for blue zones
+    RGB_BLUE_MAX_R = 100     # Maximum red for blue zones
+    RGB_BLUE_MAX_G = 150     # Maximum green for blue zones
+    RGB_RED_MIN_R = 200      # Minimum red for red zones
+    RGB_RED_MAX_GB = 100     # Maximum green/blue for red zones
+    RGB_BLACK_MAX_ALL = 50   # Maximum RGB values for black zones
+
     def _classify_zone_color(self, color: str, zone_type: str) -> str:
         """Classify a zone based on its color code and type
         
@@ -64,42 +82,35 @@ class AlbionAva(commands.Cog):
         
         color_lower = color.lower()
         
-        # Yellow zones (safe zones) - typically gold/yellow colors
-        if color_lower in ['#ffff00', '#ffd700', '#ffeb3b', '#ffc107', '#yellow']:
-            return 'yellow'
-        
-        # Blue zones - typically blue colors
-        if color_lower in ['#0000ff', '#2196f3', '#1976d2', '#blue']:
-            return 'blue'
-        
-        # Red zones - typically red/orange colors
-        if color_lower in ['#ff0000', '#f44336', '#e91e63', '#ff5722', '#red']:
-            return 'red'
-        
-        # Black zones - typically dark/black colors
-        if color_lower in ['#000000', '#212121', '#424242', '#black']:
-            return 'black'
+        # Check against known color lists
+        for zone_class, color_list in self.ZONE_COLORS.items():
+            if color_lower in color_list:
+                return zone_class
         
         # Check by RGB values for more flexibility
         try:
-            # Remove # and parse hex
+            # Remove # and parse hex (validate length first)
             hex_color = color_lower.lstrip('#')
+            if len(hex_color) != 6:
+                # Handle short hex codes by padding or rejecting
+                return 'unknown'
+            
             r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
             
             # Yellow: high red and green, low blue
-            if r > 200 and g > 200 and b < 100:
+            if r > self.RGB_YELLOW_MIN_RG and g > self.RGB_YELLOW_MIN_RG and b < self.RGB_YELLOW_MAX_B:
                 return 'yellow'
             
             # Blue: high blue, low red and green
-            if b > 150 and r < 100 and g < 150:
+            if b > self.RGB_BLUE_MIN_B and r < self.RGB_BLUE_MAX_R and g < self.RGB_BLUE_MAX_G:
                 return 'blue'
             
             # Red: high red, low green and blue
-            if r > 200 and g < 100 and b < 100:
+            if r > self.RGB_RED_MIN_R and g < self.RGB_RED_MAX_GB and b < self.RGB_RED_MAX_GB:
                 return 'red'
             
             # Black: all low values
-            if r < 50 and g < 50 and b < 50:
+            if r < self.RGB_BLACK_MAX_ALL and g < self.RGB_BLACK_MAX_ALL and b < self.RGB_BLACK_MAX_ALL:
                 return 'black'
         except (ValueError, IndexError):
             pass
