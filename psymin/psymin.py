@@ -6,6 +6,11 @@ from redbot.core import commands
 class Psymin(commands.Cog):
     """Bot owner administration commands"""
 
+    # Configuration constants
+    PERMISSIONS_PER_CHUNK = 20
+    MAX_DENIED_PERMISSIONS = 10
+    RATE_LIMIT_DELAY = 0.5
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -84,7 +89,7 @@ class Psymin(commands.Cog):
             # Add granted permissions
             if granted_perms:
                 # Split into chunks if too long
-                perm_chunks = self._chunk_list(granted_perms, 20)
+                perm_chunks = self._chunk_list(granted_perms, self.PERMISSIONS_PER_CHUNK)
                 for i, chunk in enumerate(perm_chunks):
                     field_name = "Granted Permissions" if i == 0 else f"Granted Permissions (cont. {i+1})"
                     embed.add_field(
@@ -93,9 +98,9 @@ class Psymin(commands.Cog):
                         inline=True
                     )
 
-            # Add denied permissions (only first 10 to keep embed reasonable)
+            # Add denied permissions (limited to keep embed reasonable)
             if denied_perms:
-                denied_preview = denied_perms[:10]
+                denied_preview = denied_perms[:self.MAX_DENIED_PERMISSIONS]
                 remaining = len(denied_perms) - len(denied_preview)
                 field_value = "❌ " + "\n❌ ".join(denied_preview)
                 if remaining > 0:
@@ -113,8 +118,8 @@ class Psymin(commands.Cog):
             # Send the embed
             await ctx.send(embed=embed)
 
-            # Add a small delay to avoid rate limiting when bot is in many servers
-            await asyncio.sleep(0.5)
+            # Add a delay to avoid rate limiting when bot is in many servers
+            await asyncio.sleep(self.RATE_LIMIT_DELAY)
 
     def _chunk_list(self, lst, chunk_size):
         """Split a list into chunks of specified size."""
