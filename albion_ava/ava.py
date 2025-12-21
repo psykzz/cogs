@@ -439,9 +439,13 @@ class AlbionAva(commands.Cog):
             start_x, start_y: Starting position
 
         Returns:
-            Tuple of (positions dict, max_x, max_y) where positions maps node_id -> (x, y, node_data)
+            Tuple of (positions dict, edges list, max_x, max_y)
+            - positions: dict mapping node_id -> (x, y, node_data)
+            - edges: list of (parent_node_id, child_node_id, edge_info) tuples
         """
         positions = {}
+        edges = []
+        node_counter = [0]  # Use list to make it mutable in nested function
         
         def assign_positions(node, depth, y_offset):
             """Recursively assign positions using depth-first traversal"""
@@ -449,17 +453,28 @@ class AlbionAva(commands.Cog):
             x = start_x + depth * (node_width + horizontal_spacing)
             y = y_offset
             
-            # Store position with unique key (name + depth to handle duplicate zone names at different depths)
-            node_id = f"{node['name']}_{depth}_{y}"
+            # Store position with unique node ID
+            node_id = f"node_{node_counter[0]}"
+            node_counter[0] += 1
             positions[node_id] = (x, y, node)
             
             # Process children
             current_y = y_offset
             for child in node['children']:
-                child_id = assign_positions(child, depth + 1, current_y)
-                current_y += node_height + vertical_spacing
+                child_id, child_height = assign_positions(child, depth + 1, current_y)
+                # Record edge from this node to child, including connection info
+                edges.append((node_id, child_id, child['info']))
+                current_y += child_height
             
-            return node_id
+            # Calculate total height consumed by this subtree
+            if node['children']:
+                # Height is from first child to last child plus one node height
+                subtree_height = current_y - y_offset
+            else:
+                # Leaf node height
+                subtree_height = node_height + vertical_spacing
+            
+            return node_id, subtree_height
         
         # Start positioning from root
         assign_positions(root, 0, start_y)
@@ -468,7 +483,7 @@ class AlbionAva(commands.Cog):
         max_x = max((pos[0] for pos in positions.values()), default=start_x) + node_width
         max_y = max((pos[1] for pos in positions.values()), default=start_y) + node_height
         
-        return positions, max_x, max_y
+        return positions, edges, max_x, max_y
 
     def _generate_graph_image(self, home_zone: str, connections: List[dict]) -> io.BytesIO:
         """Generate a visual graph image showing connected nodes (tree structure)
@@ -514,7 +529,7 @@ class AlbionAva(commands.Cog):
             tree = self._build_graph_tree(connections, home_zone)
             
             # Calculate node positions
-            positions, max_x, max_y = self._calculate_tree_positions(
+            positions, edges, max_x, max_y = self._calculate_tree_positions(
                 tree, node_width, node_height, horizontal_spacing, vertical_spacing,
                 margin, title_height
             )
@@ -532,59 +547,38 @@ class AlbionAva(commands.Cog):
             draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
             
             # Draw edges first (so they appear behind nodes)
-            # Build a lookup for quick position finding
-            pos_by_name_depth = {}
-            for node_id, (x, y, node_data) in positions.items():
-                # Extract depth from node_id format: "name_depth_y"
-                parts = node_id.rsplit('_', 2)
-                name = '_'.join(parts[:-2]) if len(parts) > 2 else parts[0]
-                depth = int(parts[-2]) if len(parts) > 2 else 0
-                key = f"{name}_{depth}"
-                if key not in pos_by_name_depth:
-                    pos_by_name_depth[key] = []
-                pos_by_name_depth[key].append((x, y, node_id, node_data))
-            
-            # Draw edges from parents to children
-            for node_id, (parent_x, parent_y, parent_node) in positions.items():
-                parts = node_id.rsplit('_', 2)
-                parent_depth = int(parts[-2]) if len(parts) > 2 else 0
+            for parent_id, child_id, edge_info in edges:
+                if parent_id not in positions or child_id not in positions:
+                    continue
                 
-                for child in parent_node['children']:
-                    child_depth = parent_depth + 1
-                    child_key = f"{child['name']}_{child_depth}"
-                    
-                    # Find the matching child position
-                    if child_key in pos_by_name_depth:
-                        for child_x, child_y, child_id, child_data in pos_by_name_depth[child_key]:
-                            # Verify this is actually a child of this specific parent instance
-                            # by checking if the y-coordinate is within range
-                            if abs(child_y - parent_y) <= (node_height + vertical_spacing) * 10:
-                                # Draw edge from parent to child
-                                line_start_x = parent_x + node_width
-                                line_start_y = parent_y + node_height // 2
-                                line_end_x = child_x
-                                line_end_y = child_y + node_height // 2
-                                
-                                draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
-                                         fill='#99AAB5', width=2)
-                                
-                                # Draw arrowhead
-                                arrow_size = 6
-                                draw.polygon([
-                                    (line_end_x, line_end_y),
-                                    (line_end_x - arrow_size, line_end_y - arrow_size),
-                                    (line_end_x - arrow_size, line_end_y + arrow_size)
-                                ], fill='#99AAB5')
-                                
-                                # Draw time remaining on the edge
-                                if child['info']:
-                                    time_str = child['info']['time']
-                                    time_text = f"⏱ {time_str}"
-                                    time_x = (line_start_x + line_end_x) // 2
-                                    time_y = (line_start_y + line_end_y) // 2 - 10
-                                    draw.text((time_x, time_y), time_text, fill='#FFFF00',
-                                             font=info_font, anchor="mm")
-                                break
+                parent_x, parent_y, parent_node = positions[parent_id]
+                child_x, child_y, child_node = positions[child_id]
+                
+                # Draw edge from parent to child
+                line_start_x = parent_x + node_width
+                line_start_y = parent_y + node_height // 2
+                line_end_x = child_x
+                line_end_y = child_y + node_height // 2
+                
+                draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
+                         fill='#99AAB5', width=2)
+                
+                # Draw arrowhead
+                arrow_size = 6
+                draw.polygon([
+                    (line_end_x, line_end_y),
+                    (line_end_x - arrow_size, line_end_y - arrow_size),
+                    (line_end_x - arrow_size, line_end_y + arrow_size)
+                ], fill='#99AAB5')
+                
+                # Draw time remaining on the edge
+                if edge_info:
+                    time_str = edge_info.get('time', 'Unknown')
+                    time_text = f"⏱ {time_str}"
+                    time_x = (line_start_x + line_end_x) // 2
+                    time_y = (line_start_y + line_end_y) // 2 - 10
+                    draw.text((time_x, time_y), time_text, fill='#FFFF00',
+                             font=info_font, anchor="mm")
             
             # Draw nodes on top of edges
             for node_id, (x, y, node_data) in positions.items():
