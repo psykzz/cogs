@@ -368,8 +368,110 @@ class AlbionAva(commands.Cog):
             log.warning(f"Failed to parse expiring date: {e}")
             return "Unknown"
 
+    def _build_graph_tree(self, connections: List[dict], home_zone: str) -> dict:
+        """Build a tree structure from connection chains for graph visualization
+
+        Args:
+            connections: List of connection chain dictionaries
+            home_zone: The home zone name
+
+        Returns:
+            Tree structure with nodes containing: {
+                'name': zone_name,
+                'children': [child_nodes],
+                'info': connection_info (tier, type, color, time),
+                'is_royal': bool
+            }
+        """
+        # Build tree structure
+        root = {
+            'name': home_zone,
+            'children': [],
+            'info': None,
+            'is_royal': home_zone.lower() in self.ROYAL_CITIES
+        }
+        
+        for conn in connections:
+            chain = conn.get('chain', [])
+            if not chain:
+                continue
+            
+            # Traverse/build the tree for this chain
+            current = root
+            for hop_idx, hop in enumerate(chain):
+                zone_name = hop['to_zone']
+                
+                # Check if this child already exists
+                child_node = None
+                for child in current['children']:
+                    if child['name'] == zone_name:
+                        child_node = child
+                        break
+                
+                # Create new child if it doesn't exist
+                if child_node is None:
+                    child_node = {
+                        'name': zone_name,
+                        'children': [],
+                        'info': {
+                            'tier': hop.get('tier', '?'),
+                            'type': hop.get('type', 'Unknown'),
+                            'color': hop.get('color', '#888888'),
+                            'time': self._calculate_time_remaining(hop.get('expiring_date'))
+                        },
+                        'is_royal': zone_name.lower() in self.ROYAL_CITIES
+                    }
+                    current['children'].append(child_node)
+                
+                current = child_node
+        
+        return root
+
+    def _calculate_tree_positions(self, root: dict, node_width: int, node_height: int,
+                                  horizontal_spacing: int, vertical_spacing: int,
+                                  start_x: int, start_y: int) -> tuple:
+        """Calculate positions for all nodes in the tree using a hierarchical layout
+
+        Args:
+            root: Tree root node
+            node_width, node_height: Node dimensions
+            horizontal_spacing, vertical_spacing: Spacing between nodes
+            start_x, start_y: Starting position
+
+        Returns:
+            Tuple of (positions dict, max_x, max_y) where positions maps node_id -> (x, y, node_data)
+        """
+        positions = {}
+        
+        def assign_positions(node, depth, y_offset):
+            """Recursively assign positions using depth-first traversal"""
+            # Calculate x position based on depth
+            x = start_x + depth * (node_width + horizontal_spacing)
+            y = y_offset
+            
+            # Store position with unique key (name + depth to handle duplicate zone names at different depths)
+            node_id = f"{node['name']}_{depth}_{y}"
+            positions[node_id] = (x, y, node)
+            
+            # Process children
+            current_y = y_offset
+            for child in node['children']:
+                child_id = assign_positions(child, depth + 1, current_y)
+                current_y += node_height + vertical_spacing
+            
+            return node_id
+        
+        # Start positioning from root
+        assign_positions(root, 0, start_y)
+        
+        # Calculate bounds
+        max_x = max((pos[0] for pos in positions.values()), default=start_x) + node_width
+        max_y = max((pos[1] for pos in positions.values()), default=start_y) + node_height
+        
+        return positions, max_x, max_y
+
     def _generate_graph_image(self, home_zone: str, connections: List[dict]) -> io.BytesIO:
-        """Generate a visual graph image showing full connection chains
+        """Generate a visual graph image showing connected nodes (tree structure)
 
         Args:
             home_zone: The home zone name
@@ -378,25 +480,13 @@ class AlbionAva(commands.Cog):
         Returns:
             BytesIO object containing the PNG image
         """
-        # Calculate image dimensions based on content
+        # Node and spacing configuration
         node_width = 120
         node_height = 60
         horizontal_spacing = 40
         vertical_spacing = 20
         margin = 80
         title_height = 80
-
-        # Find the maximum chain length to determine width
-        max_chain_length = max([len(conn.get('chain', [])) for conn in connections], default=0)
-        # Total columns: home + chain zones
-        total_columns = max_chain_length + 1
-
-        width = max(1200, margin * 2 + total_columns * node_width + (total_columns - 1) * horizontal_spacing)
-        height = max(600, title_height + len(connections) * (node_height + vertical_spacing) + margin)
-
-        # Create image with dark background
-        img = Image.new('RGB', (width, height), color='#2C2F33')
-        draw = ImageDraw.Draw(img)
 
         # Try to use a reasonable font, fallback to default
         try:
@@ -408,115 +498,144 @@ class AlbionAva(commands.Cog):
             node_font = ImageFont.load_default()
             info_font = ImageFont.load_default()
 
-        # Draw title
-        title = f"Roads of Avalon - Connections from {home_zone}"
-        draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
-
         if not connections:
-            # Draw "no connections" message
+            # Create minimal image for no connections
+            width = 1200
+            height = 600
+            img = Image.new('RGB', (width, height), color='#2C2F33')
+            draw = ImageDraw.Draw(img)
+            
+            title = f"Roads of Avalon - Connections from {home_zone}"
+            draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
             draw.text((width // 2, height // 2), "No connections found",
                       fill='#99AAB5', font=node_font, anchor="mm")
         else:
-            # Draw each chain horizontally
-            for chain_idx, conn in enumerate(connections):
-                chain = conn.get('chain', [])
-                # Skip any connections with empty chains (shouldn't happen but protects against malformed data)
-                if not chain:
-                    continue
-
-                # Calculate y position for this chain
-                y = title_height + chain_idx * (node_height + vertical_spacing)
-
-                # Build full zone list: [home_zone] + all zones in chain
-                zones = [home_zone]
-                for hop in chain:
-                    zones.append(hop['to_zone'])
-
-                # Draw nodes and connections for this chain
-                for zone_idx, zone_name in enumerate(zones):
-                    # Calculate x position
-                    x = margin + zone_idx * (node_width + horizontal_spacing)
-
-                    # Determine node color
-                    if zone_idx == 0:
-                        # Home zone - special color
-                        node_color = '#7289DA'
-                        zone_tier = ""
-                        zone_type = ""
-                    else:
-                        # Get color from the hop that leads to this zone
-                        hop = chain[zone_idx - 1]
-                        node_color = hop.get('color', '#888888')
-                        if not node_color.startswith('#'):
-                            node_color = '#888888'
-                        zone_tier = hop.get('tier', '?')
-                        zone_type = hop.get('type', '')
-
-                    # Check if this is a royal city
-                    is_royal = zone_name.lower() in self.ROYAL_CITIES
-
-                    # Draw node rectangle
-                    node_x1 = x
-                    node_y1 = y
-                    node_x2 = x + node_width
-                    node_y2 = y + node_height
-
-                    # Add royal city indicator with gold outline
-                    if is_royal:
-                        draw.rectangle([node_x1, node_y1, node_x2, node_y2],
-                                       fill=node_color, outline='#FFD700', width=3)
-                    else:
-                        draw.rectangle([node_x1, node_y1, node_x2, node_y2],
-                                       fill=node_color, outline='#FFFFFF', width=2)
-
-                    # Draw zone name (truncate if too long)
-                    display_name = zone_name
-                    if len(display_name) > 12:
-                        display_name = display_name[:9] + "..."
-
-                    text_y = y + node_height // 2
-                    if zone_tier:
-                        # Draw name above center, tier/type below
-                        draw.text((x + node_width // 2, y + node_height // 2 - 8),
-                                  display_name, fill='#FFFFFF', font=node_font, anchor="mm")
-                        tier_text = f"T{zone_tier} {zone_type[:3]}"
-                        draw.text((x + node_width // 2, y + node_height // 2 + 8),
-                                  tier_text, fill='#FFFFFF', font=info_font, anchor="mm")
-                    else:
-                        # Just draw name centered
-                        draw.text((x + node_width // 2, text_y),
-                                  display_name, fill='#FFFFFF', font=node_font, anchor="mm")
-
-                    # Draw arrow to next zone
-                    if zone_idx < len(zones) - 1:
-                        # Draw line from this node to next
-                        line_start_x = node_x2
-                        line_start_y = y + node_height // 2
-                        line_end_x = x + node_width + horizontal_spacing
-                        line_end_y = y + node_height // 2
-
-                        draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
-                                  fill='#99AAB5', width=2)
-
-                        # Draw arrowhead
-                        arrow_size = 6
-                        draw.polygon([
-                            (line_end_x, line_end_y),
-                            (line_end_x - arrow_size, line_end_y - arrow_size),
-                            (line_end_x - arrow_size, line_end_y + arrow_size)
-                        ], fill='#99AAB5')
-
-                        # Draw time remaining for this connection
-                        # Get the hop that leads from current zone to next zone
-                        hop = chain[zone_idx]
-                        time_str = self._calculate_time_remaining(hop.get('expiring_date'))
-                        time_text = f"⏱ {time_str}"
-                        
-                        # Position time text in the middle of the arrow
-                        time_x = line_start_x + horizontal_spacing // 2
-                        time_y = y + node_height // 2 - 10
-                        draw.text((time_x, time_y), time_text, fill='#FFFF00',
-                                  font=info_font, anchor="mm")
+            # Build tree structure from connections
+            tree = self._build_graph_tree(connections, home_zone)
+            
+            # Calculate node positions
+            positions, max_x, max_y = self._calculate_tree_positions(
+                tree, node_width, node_height, horizontal_spacing, vertical_spacing,
+                margin, title_height
+            )
+            
+            # Calculate image size
+            width = max(1200, max_x + margin)
+            height = max(600, max_y + margin)
+            
+            # Create image with dark background
+            img = Image.new('RGB', (width, height), color='#2C2F33')
+            draw = ImageDraw.Draw(img)
+            
+            # Draw title
+            title = f"Roads of Avalon - Connections from {home_zone}"
+            draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
+            
+            # Draw edges first (so they appear behind nodes)
+            # Build a lookup for quick position finding
+            pos_by_name_depth = {}
+            for node_id, (x, y, node_data) in positions.items():
+                # Extract depth from node_id format: "name_depth_y"
+                parts = node_id.rsplit('_', 2)
+                name = '_'.join(parts[:-2]) if len(parts) > 2 else parts[0]
+                depth = int(parts[-2]) if len(parts) > 2 else 0
+                key = f"{name}_{depth}"
+                if key not in pos_by_name_depth:
+                    pos_by_name_depth[key] = []
+                pos_by_name_depth[key].append((x, y, node_id, node_data))
+            
+            # Draw edges from parents to children
+            for node_id, (parent_x, parent_y, parent_node) in positions.items():
+                parts = node_id.rsplit('_', 2)
+                parent_depth = int(parts[-2]) if len(parts) > 2 else 0
+                
+                for child in parent_node['children']:
+                    child_depth = parent_depth + 1
+                    child_key = f"{child['name']}_{child_depth}"
+                    
+                    # Find the matching child position
+                    if child_key in pos_by_name_depth:
+                        for child_x, child_y, child_id, child_data in pos_by_name_depth[child_key]:
+                            # Verify this is actually a child of this specific parent instance
+                            # by checking if the y-coordinate is within range
+                            if abs(child_y - parent_y) <= (node_height + vertical_spacing) * 10:
+                                # Draw edge from parent to child
+                                line_start_x = parent_x + node_width
+                                line_start_y = parent_y + node_height // 2
+                                line_end_x = child_x
+                                line_end_y = child_y + node_height // 2
+                                
+                                draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
+                                         fill='#99AAB5', width=2)
+                                
+                                # Draw arrowhead
+                                arrow_size = 6
+                                draw.polygon([
+                                    (line_end_x, line_end_y),
+                                    (line_end_x - arrow_size, line_end_y - arrow_size),
+                                    (line_end_x - arrow_size, line_end_y + arrow_size)
+                                ], fill='#99AAB5')
+                                
+                                # Draw time remaining on the edge
+                                if child['info']:
+                                    time_str = child['info']['time']
+                                    time_text = f"⏱ {time_str}"
+                                    time_x = (line_start_x + line_end_x) // 2
+                                    time_y = (line_start_y + line_end_y) // 2 - 10
+                                    draw.text((time_x, time_y), time_text, fill='#FFFF00',
+                                             font=info_font, anchor="mm")
+                                break
+            
+            # Draw nodes on top of edges
+            for node_id, (x, y, node_data) in positions.items():
+                zone_name = node_data['name']
+                is_royal = node_data['is_royal']
+                info = node_data['info']
+                
+                # Determine node color
+                if info is None:
+                    # Home zone - special color
+                    node_color = '#7289DA'
+                    zone_tier = ""
+                    zone_type = ""
+                else:
+                    node_color = info.get('color', '#888888')
+                    if not node_color.startswith('#'):
+                        node_color = '#888888'
+                    zone_tier = info.get('tier', '?')
+                    zone_type = info.get('type', '')
+                
+                # Draw node rectangle
+                node_x1 = x
+                node_y1 = y
+                node_x2 = x + node_width
+                node_y2 = y + node_height
+                
+                # Add royal city indicator with gold outline
+                if is_royal:
+                    draw.rectangle([node_x1, node_y1, node_x2, node_y2],
+                                   fill=node_color, outline='#FFD700', width=3)
+                else:
+                    draw.rectangle([node_x1, node_y1, node_x2, node_y2],
+                                   fill=node_color, outline='#FFFFFF', width=2)
+                
+                # Draw zone name (truncate if too long)
+                display_name = zone_name
+                if len(display_name) > 12:
+                    display_name = display_name[:9] + "..."
+                
+                text_y = y + node_height // 2
+                if zone_tier:
+                    # Draw name above center, tier/type below
+                    draw.text((x + node_width // 2, y + node_height // 2 - 8),
+                              display_name, fill='#FFFFFF', font=node_font, anchor="mm")
+                    tier_text = f"T{zone_tier} {zone_type[:3]}"
+                    draw.text((x + node_width // 2, y + node_height // 2 + 8),
+                              tier_text, fill='#FFFFFF', font=info_font, anchor="mm")
+                else:
+                    # Just draw name centered
+                    draw.text((x + node_width // 2, text_y),
+                              display_name, fill='#FFFFFF', font=node_font, anchor="mm")
 
         # Save to BytesIO
         output = io.BytesIO()
@@ -525,7 +644,7 @@ class AlbionAva(commands.Cog):
         return output
 
     def _build_connection_text(self, connections: List[dict], home_zone: str) -> List[str]:
-        """Build a text representation of connections
+        """Build a text representation of connections with grouped common prefixes
 
         Args:
             connections: List of connection chain dictionaries
@@ -539,30 +658,93 @@ class AlbionAva(commands.Cog):
 
         lines = [f"**Connections from {home_zone}:**", ""]
 
-        # Build the connection list showing full chains
-        for i, conn in enumerate(connections, 1):
-            chain = conn.get("chain", [])
-
-            if not chain:
+        # Group connections by their chain prefix
+        i = 0
+        while i < len(connections):
+            current_conn = connections[i]
+            current_chain = current_conn.get("chain", [])
+            
+            if not current_chain:
+                i += 1
                 continue
 
-            # Build the chain string: Home -> Zone A -> Zone B -> Final
+            # Build the chain parts for current connection
             chain_parts = [home_zone]
-            for hop in chain:
+            for hop in current_chain:
                 chain_parts.append(hop["to_zone"])
 
-            chain_str = " → ".join(chain_parts)
-
-            # Get info about the final destination
-            final_zone = conn["final_zone"]
-            is_royal = final_zone.lower() in self.ROYAL_CITIES
-            royal_marker = " 👑" if is_royal else ""
-
-            lines.append(
-                f"{i}. {chain_str}{royal_marker} "
-                f"(T{conn['tier']} {conn['type']}) - "
-                f"Time: {conn['time_remaining']}"
-            )
+            # Find all connections that share the same prefix (all but last zone)
+            prefix = chain_parts[:-1]  # Everything except the final destination
+            grouped = [current_conn]
+            
+            # Look ahead to find connections with the same prefix
+            j = i + 1
+            while j < len(connections):
+                next_conn = connections[j]
+                next_chain = next_conn.get("chain", [])
+                
+                if not next_chain:
+                    j += 1
+                    continue
+                
+                # Build chain parts for next connection
+                next_parts = [home_zone]
+                for hop in next_chain:
+                    next_parts.append(hop["to_zone"])
+                
+                # Check if this connection shares the same prefix
+                next_prefix = next_parts[:-1]
+                if len(next_prefix) == len(prefix) and next_prefix == prefix:
+                    grouped.append(next_conn)
+                    j += 1
+                else:
+                    break
+            
+            # Now output the grouped connections
+            if len(grouped) == 1:
+                # Single connection, show full path
+                conn = grouped[0]
+                chain_str = " → ".join(chain_parts)
+                
+                final_zone = conn["final_zone"]
+                is_royal = final_zone.lower() in self.ROYAL_CITIES
+                royal_marker = " 👑" if is_royal else ""
+                
+                lines.append(
+                    f"{chain_str}{royal_marker} "
+                    f"(T{conn['tier']} {conn['type']}) - "
+                    f"Time: {conn['time_remaining']}"
+                )
+            else:
+                # Multiple connections with same prefix, show prefix once
+                prefix_str = " → ".join(prefix)
+                
+                for idx, conn in enumerate(grouped):
+                    final_zone = conn["final_zone"]
+                    is_royal = final_zone.lower() in self.ROYAL_CITIES
+                    royal_marker = " 👑" if is_royal else ""
+                    
+                    if idx == 0:
+                        # First line shows full prefix
+                        lines.append(
+                            f"{prefix_str} → {final_zone}{royal_marker} "
+                            f"(T{conn['tier']} {conn['type']}) - "
+                            f"Time: {conn['time_remaining']}"
+                        )
+                    else:
+                        # Subsequent lines show only the final zone with indentation
+                        indent = " " * len(prefix_str)
+                        lines.append(
+                            f"{indent} → {final_zone}{royal_marker} "
+                            f"(T{conn['tier']} {conn['type']}) - "
+                            f"Time: {conn['time_remaining']}"
+                        )
+            
+            # Add blank line between groups for readability
+            lines.append("")
+            
+            # Move to next group
+            i = j if j > i + 1 else i + 1
 
         return lines
 
