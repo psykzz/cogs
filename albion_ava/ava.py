@@ -736,13 +736,12 @@ class AlbionAva(commands.Cog):
     async def ava_image(self, ctx):
         """Display connections as a visual graph image
 
-        Generates an image showing Roads of Avalon connections from your home zone.
+        Generates an image showing ALL Roads of Avalon connections from your home zone.
         """
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
             map_data = await self.config.guild(ctx.guild).last_map_data()
-            max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
                 await ctx.send(
@@ -757,8 +756,8 @@ class AlbionAva(commands.Cog):
                 )
                 return
 
-            # Get connections data
-            connections = self._get_connections_data(map_data, home_zone, max_connections)
+            # Get ALL connections data (no limit for image rendering)
+            connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
             # Generate graph image
             try:
