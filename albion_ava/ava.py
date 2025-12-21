@@ -411,7 +411,7 @@ class AlbionAva(commands.Cog):
         title_height = 80
 
         # Find the maximum chain length to determine width
-        max_chain_length = max([len(conn.get('chain', [])) for conn in connections], default=0) if connections else 0
+        max_chain_length = max([len(conn.get('chain', [])) for conn in connections], default=0)
         # Total columns: home + chain zones
         total_columns = max_chain_length + 1
 
@@ -532,7 +532,8 @@ class AlbionAva(commands.Cog):
                 # Draw time remaining for the first connection in chain
                 if chain:
                     time_text = f"⏱ {conn['time_remaining']}"
-                    time_x = margin + (node_width + horizontal_spacing) // 2
+                    # Position time text near the start of the chain (between home and first zone)
+                    time_x = margin + node_width + horizontal_spacing // 2
                     time_y = y + node_height + 5
                     draw.text((time_x, time_y), time_text, fill='#FFFF00',
                               font=info_font, anchor="mt")
