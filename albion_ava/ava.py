@@ -294,13 +294,15 @@ class AlbionAva(commands.Cog):
 
             # If we haven't reached max depth and this zone has outgoing connections
             if len(current_chain) < max_depth and last_zone in graph:
-                # Avoid cycles by checking if we've already visited this zone in this chain
-                chain_zones = set(conn["to_zone"] for conn in current_chain)
+                # Build set of all zones already in this chain path
+                # Include home zone and all destination zones in the chain
+                chain_zones = {home_zone}
+                chain_zones.update(conn["to_zone"] for conn in current_chain)
 
                 for next_conn in graph[last_zone]:
                     next_zone = next_conn["to_zone"]
-                    # Avoid cycles and don't go back to home
-                    if next_zone not in chain_zones and next_zone.lower() != home_zone.lower():
+                    # Avoid cycles by checking if this zone is already in the path
+                    if next_zone not in chain_zones:
                         # Create new chain with this connection added
                         new_chain = current_chain + [next_conn]
                         queue.append(new_chain)
