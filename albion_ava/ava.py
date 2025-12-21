@@ -445,17 +445,19 @@ class AlbionAva(commands.Cog):
         """
         positions = {}
         edges = []
-        node_counter = [0]  # Use list to make it mutable in nested function
+        node_counter = 0
         
         def assign_positions(node, depth, y_offset):
             """Recursively assign positions using depth-first traversal"""
+            nonlocal node_counter
+            
             # Calculate x position based on depth
             x = start_x + depth * (node_width + horizontal_spacing)
             y = y_offset
             
             # Store position with unique node ID
-            node_id = f"node_{node_counter[0]}"
-            node_counter[0] += 1
+            node_id = f"node_{node_counter}"
+            node_counter += 1
             positions[node_id] = (x, y, node)
             
             # Process children
@@ -652,57 +654,51 @@ class AlbionAva(commands.Cog):
 
         lines = [f"**Connections from {home_zone}:**", ""]
 
-        # Group connections by their chain prefix
-        i = 0
-        while i < len(connections):
-            current_conn = connections[i]
-            current_chain = current_conn.get("chain", [])
-            
-            if not current_chain:
-                i += 1
+        # Preprocess all chain parts to avoid rebuilding in nested loops
+        processed_connections = []
+        for conn in connections:
+            chain = conn.get("chain", [])
+            if not chain:
                 continue
-
-            # Build the chain parts for current connection
+            
+            # Build the chain parts for this connection
             chain_parts = [home_zone]
-            for hop in current_chain:
+            for hop in chain:
                 chain_parts.append(hop["to_zone"])
+            
+            processed_connections.append({
+                'chain_parts': chain_parts,
+                'prefix': chain_parts[:-1],  # Everything except the final destination
+                'final_zone': conn["final_zone"],
+                'tier': conn['tier'],
+                'type': conn['type'],
+                'time_remaining': conn['time_remaining'],
+                'is_royal': conn["final_zone"].lower() in self.ROYAL_CITIES
+            })
 
-            # Find all connections that share the same prefix (all but last zone)
-            prefix = chain_parts[:-1]  # Everything except the final destination
-            grouped = [current_conn]
+        # Group connections by their prefix
+        i = 0
+        while i < len(processed_connections):
+            current = processed_connections[i]
+            prefix = current['prefix']
+            grouped = [current]
             
             # Look ahead to find connections with the same prefix
             j = i + 1
-            while j < len(connections):
-                next_conn = connections[j]
-                next_chain = next_conn.get("chain", [])
-                
-                if not next_chain:
-                    j += 1
-                    continue
-                
-                # Build chain parts for next connection
-                next_parts = [home_zone]
-                for hop in next_chain:
-                    next_parts.append(hop["to_zone"])
-                
-                # Check if this connection shares the same prefix
-                next_prefix = next_parts[:-1]
-                if len(next_prefix) == len(prefix) and next_prefix == prefix:
+            while j < len(processed_connections):
+                next_conn = processed_connections[j]
+                if next_conn['prefix'] == prefix:
                     grouped.append(next_conn)
                     j += 1
                 else:
                     break
             
-            # Now output the grouped connections
+            # Output the grouped connections
             if len(grouped) == 1:
                 # Single connection, show full path
                 conn = grouped[0]
-                chain_str = " → ".join(chain_parts)
-                
-                final_zone = conn["final_zone"]
-                is_royal = final_zone.lower() in self.ROYAL_CITIES
-                royal_marker = " 👑" if is_royal else ""
+                chain_str = " → ".join(conn['chain_parts'])
+                royal_marker = " 👑" if conn['is_royal'] else ""
                 
                 lines.append(
                     f"{chain_str}{royal_marker} "
@@ -714,14 +710,12 @@ class AlbionAva(commands.Cog):
                 prefix_str = " → ".join(prefix)
                 
                 for idx, conn in enumerate(grouped):
-                    final_zone = conn["final_zone"]
-                    is_royal = final_zone.lower() in self.ROYAL_CITIES
-                    royal_marker = " 👑" if is_royal else ""
+                    royal_marker = " 👑" if conn['is_royal'] else ""
                     
                     if idx == 0:
                         # First line shows full prefix
                         lines.append(
-                            f"{prefix_str} → {final_zone}{royal_marker} "
+                            f"{prefix_str} → {conn['final_zone']}{royal_marker} "
                             f"(T{conn['tier']} {conn['type']}) - "
                             f"Time: {conn['time_remaining']}"
                         )
@@ -729,7 +723,7 @@ class AlbionAva(commands.Cog):
                         # Subsequent lines show only the final zone with indentation
                         indent = " " * len(prefix_str)
                         lines.append(
-                            f"{indent} → {final_zone}{royal_marker} "
+                            f"{indent} → {conn['final_zone']}{royal_marker} "
                             f"(T{conn['tier']} {conn['type']}) - "
                             f"Time: {conn['time_remaining']}"
                         )
