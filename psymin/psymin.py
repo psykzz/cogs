@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from redbot.core import commands
 
@@ -47,9 +48,16 @@ class Psymin(commands.Cog):
             )
 
             # Add guild info
+            owner_info = "Unknown"
+            if guild.owner:
+                try:
+                    owner_info = guild.owner.mention
+                except AttributeError:
+                    owner_info = str(guild.owner)
+
             embed.add_field(
                 name="Guild Info",
-                value=f"Members: {guild.member_count}\nOwner: {guild.owner.mention if guild.owner else 'Unknown'}",
+                value=f"Members: {guild.member_count}\nOwner: {owner_info}",
                 inline=False
             )
 
@@ -105,6 +113,9 @@ class Psymin(commands.Cog):
 
             # Send the embed
             await ctx.send(embed=embed)
+
+            # Add a small delay to avoid rate limiting when bot is in many servers
+            await asyncio.sleep(0.5)
 
     def _chunk_list(self, lst, chunk_size):
         """Split a list into chunks of specified size."""
