@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import httpx
 from redbot.core import commands, Config, checks
@@ -96,14 +96,18 @@ class AlbionAva(commands.Cog):
 
                 map_data = await self._fetch_portaler_data(guild_id, token)
                 if map_data:
+                    # API returns an array, so we store it as-is
                     await self.config.guild(guild).last_map_data.set(map_data)
                     log.debug(f"Updated map data for guild {guild.name}")
 
             except Exception as e:
                 log.error(f"Error fetching data for guild {guild.name}: {e}", exc_info=True)
 
-    async def _fetch_portaler_data(self, guild_id: str, token: str) -> Optional[Dict]:
-        """Fetch map data from Portaler API"""
+    async def _fetch_portaler_data(self, guild_id: str, token: str) -> Optional[List]:
+        """Fetch map data from Portaler API
+
+        Returns an array of map objects from the API
+        """
         url = f"https://portaler.app/api/map/list/{guild_id}?mergeWithPublic=true"
         headers = {
             "Accept": "application/json, text/plain, */*",
@@ -113,11 +117,11 @@ class AlbionAva(commands.Cog):
         log.debug(f"Fetching Portaler data for guild ID: {guild_id}")
         return await http_get(url, headers=headers)
 
-    def _build_connection_graph(self, map_data: Dict, home_zone: str) -> List[str]:
+    def _build_connection_graph(self, map_data: List, home_zone: str) -> List[str]:
         """Build a text representation of connections from home zone
 
         Args:
-            map_data: Map data from Portaler API
+            map_data: Array of map objects from Portaler API
             home_zone: The zone to show connections from
 
         Returns:
@@ -126,36 +130,68 @@ class AlbionAva(commands.Cog):
         if not map_data:
             return ["No map data available"]
 
-        # The Portaler API returns a structure with zones and connections
-        # We need to parse it and build a graph showing connections from home_zone
+        # API returns an array of maps, iterate through all portal connections
         lines = [f"**Connections from {home_zone}:**", ""]
 
-        zones = map_data.get("zones", [])
-        if not zones:
-            return ["No zones found in map data"]
+        found_connections = []
 
-        # Find the home zone in the data
-        home_zone_data = None
-        for zone in zones:
-            zone_name = zone.get("name", "")
-            if zone_name.lower() == home_zone.lower():
-                home_zone_data = zone
-                break
+        # Iterate through all maps in the array
+        for map_obj in map_data:
+            portal_connections = map_obj.get("portalConnections", [])
 
-        if not home_zone_data:
-            return [f"Home zone '{home_zone}' not found in current map data"]
+            # Look for connections where fromZone matches our home zone
+            for connection in portal_connections:
+                info = connection.get("info", {})
+                from_zone = info.get("fromZone", {})
+                to_zone = info.get("toZone", {})
 
-        # Get connections from the home zone
-        connections = home_zone_data.get("connections", [])
-        if not connections:
+                from_zone_name = from_zone.get("name", "")
+
+                # Check if this connection starts from our home zone
+                if from_zone_name.lower() == home_zone.lower():
+                    to_zone_name = to_zone.get("name", "Unknown")
+                    to_zone_tier = to_zone.get("tier", "?")
+                    to_zone_type = to_zone.get("type", "Unknown")
+                    portal_type = info.get("portalType", "Unknown")
+                    expiring_date = info.get("expiringDate", None)
+
+                    # Calculate time remaining if expiring date is provided
+                    time_str = "Unknown"
+                    if expiring_date:
+                        try:
+                            from datetime import datetime, timezone
+                            # Parse ISO format datetime
+                            expiry = datetime.fromisoformat(expiring_date.replace('Z', '+00:00'))
+                            now = datetime.now(timezone.utc)
+                            time_delta = expiry - now
+
+                            if time_delta.total_seconds() > 0:
+                                hours = int(time_delta.total_seconds() // 3600)
+                                minutes = int((time_delta.total_seconds() % 3600) // 60)
+                                time_str = f"{hours}h {minutes}m"
+                            else:
+                                time_str = "Expired"
+                        except Exception as e:
+                            log.warning(f"Failed to parse expiring date: {e}")
+                            time_str = "Unknown"
+
+                    found_connections.append({
+                        "to_zone": to_zone_name,
+                        "tier": to_zone_tier,
+                        "type": to_zone_type,
+                        "portal_type": portal_type,
+                        "time_remaining": time_str
+                    })
+
+        if not found_connections:
             return [f"No connections found from {home_zone}"]
 
         # Build the connection list
-        for i, connection in enumerate(connections, 1):
-            target_zone = connection.get("targetZone", "Unknown")
-            portal_size = connection.get("size", "Unknown")
-            time_left = connection.get("timeLeft", "Unknown")
-            lines.append(f"{i}. **{target_zone}** (Size: {portal_size}, Time: {time_left})")
+        for i, conn in enumerate(found_connections, 1):
+            lines.append(
+                f"{i}. **{conn['to_zone']}** (T{conn['tier']} {conn['type']}) - "
+                f"Portal: {conn['portal_type']} - Time: {conn['time_remaining']}"
+            )
 
         return lines
 
