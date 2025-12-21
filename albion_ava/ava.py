@@ -761,6 +761,7 @@ class AlbionAva(commands.Cog):
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
+            max_connections = await self.config.guild(ctx.guild).max_connections()
 
             if not home_zone:
                 await ctx.send(
