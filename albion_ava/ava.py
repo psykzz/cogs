@@ -122,19 +122,23 @@ class AlbionAva(commands.Cog):
 
                 # Fetch and merge data from subscribed guilds
                 if subscribed_guild_ids:
+                    all_map_data = [map_data] if map_data else []
+
                     for sub_guild_id in subscribed_guild_ids:
                         try:
                             sub_map_data = await self._fetch_portaler_data(sub_guild_id, token)
-                            if sub_map_data and map_data:
-                                # Merge the map data
-                                map_data = self._merge_map_data(map_data, sub_map_data)
-                                log.debug(f"Merged data from subscribed guild {sub_guild_id} for {guild.name}")
-                            elif sub_map_data and not map_data:
-                                # If primary guild data is None, use subscribed guild data
-                                map_data = sub_map_data
-                                log.debug(f"Using data from subscribed guild {sub_guild_id} for {guild.name}")
+                            if sub_map_data:
+                                all_map_data.append(sub_map_data)
+                                log.debug(f"Fetched data from subscribed guild {sub_guild_id} for {guild.name}")
                         except Exception as e:
                             log.error(f"Error fetching data for subscribed guild {sub_guild_id}: {e}", exc_info=True)
+
+                    # Merge all data at once if we have multiple datasets
+                    if len(all_map_data) > 1:
+                        map_data = self._merge_all_map_data(all_map_data)
+                        log.debug(f"Merged data from {len(all_map_data)} guilds for {guild.name}")
+                    elif len(all_map_data) == 1:
+                        map_data = all_map_data[0]
 
                 if map_data:
                     # API returns an array, so we store it as-is
@@ -158,76 +162,56 @@ class AlbionAva(commands.Cog):
         log.debug(f"Fetching Portaler data for guild ID: {guild_id}")
         return await http_get(url, headers=headers)
 
-    def _merge_map_data(self, primary_data: List, secondary_data: List) -> List:
-        """Merge map data from two different guilds
+    def _merge_all_map_data(self, all_data: List[List]) -> List:
+        """Merge map data from multiple guilds efficiently
 
         Args:
-            primary_data: Primary guild's map data array
-            secondary_data: Secondary guild's map data array
+            all_data: List of map data arrays from different guilds
 
         Returns:
             Merged array of map objects with combined portal connections
         """
-        if not primary_data:
-            return secondary_data
-        if not secondary_data:
-            return primary_data
+        if not all_data:
+            return []
 
-        # Create a deep copy of primary data to avoid modifying the original
-        merged_data = []
+        # Filter out None/empty entries
+        valid_data = [data for data in all_data if data]
 
-        # Build a dictionary to track connections by a unique key
+        if not valid_data:
+            return []
+        if len(valid_data) == 1:
+            return valid_data[0]
+
+        # Build a dictionary to track all connections by a unique key
         # Key format: "fromZone|toZone|portalType"
         connection_map = {}
 
-        # Process primary data first
-        for map_obj in primary_data:
-            portal_connections = map_obj.get("portalConnections", [])
-            for conn in portal_connections:
-                info = conn.get("info", {})
-                from_zone_name = info.get("fromZone", {}).get("name", "")
-                to_zone_name = info.get("toZone", {}).get("name", "")
-                portal_type = info.get("portalType", "")
+        # Process all datasets in a single pass
+        for map_data in valid_data:
+            for map_obj in map_data:
+                portal_connections = map_obj.get("portalConnections", [])
+                for conn in portal_connections:
+                    info = conn.get("info", {})
+                    from_zone_name = info.get("fromZone", {}).get("name", "")
+                    to_zone_name = info.get("toZone", {}).get("name", "")
+                    portal_type = info.get("portalType", "")
 
-                key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
-                # Store the connection, preferring newer expiry times
-                if key not in connection_map:
-                    connection_map[key] = conn
-                else:
-                    # Keep the connection with the later expiring date
-                    existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
-                    new_expiry = info.get("expiringDate", "")
-                    if new_expiry > existing_expiry:
+                    key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
+                    # Store the connection, preferring newer expiry times
+                    if key not in connection_map:
                         connection_map[key] = conn
-
-        # Process secondary data
-        for map_obj in secondary_data:
-            portal_connections = map_obj.get("portalConnections", [])
-            for conn in portal_connections:
-                info = conn.get("info", {})
-                from_zone_name = info.get("fromZone", {}).get("name", "")
-                to_zone_name = info.get("toZone", {}).get("name", "")
-                portal_type = info.get("portalType", "")
-
-                key = f"{from_zone_name}|{to_zone_name}|{portal_type}"
-                # Add if not already present, or replace if newer
-                if key not in connection_map:
-                    connection_map[key] = conn
-                else:
-                    # Keep the connection with the later expiring date
-                    existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
-                    new_expiry = info.get("expiringDate", "")
-                    if new_expiry > existing_expiry:
-                        connection_map[key] = conn
+                    else:
+                        # Keep the connection with the later expiring date
+                        existing_expiry = connection_map[key].get("info", {}).get("expiringDate", "")
+                        new_expiry = info.get("expiringDate", "")
+                        if new_expiry > existing_expiry:
+                            connection_map[key] = conn
 
         # Reconstruct the merged data structure
-        # Create a single map object with all merged connections
         merged_map = {
             "portalConnections": list(connection_map.values())
         }
-        merged_data.append(merged_map)
-
-        return merged_data
+        return [merged_map]
 
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
         """Extract connection data from Portaler API response
@@ -582,9 +566,12 @@ class AlbionAva(commands.Cog):
         # Validate and store guild IDs
         valid_ids = []
         for guild_id in guild_ids:
-            # Basic validation - should be numeric
+            # Validate guild ID format (Discord snowflakes are typically 17-20 digits)
             if not guild_id.isdigit():
                 await ctx.send(f"⚠️ Invalid guild ID: `{guild_id}` (must be numeric)")
+                continue
+            if len(guild_id) < 17 or len(guild_id) > 20:
+                await ctx.send(f"⚠️ Invalid guild ID: `{guild_id}` (must be 17-20 digits)")
                 continue
             valid_ids.append(guild_id)
 
