@@ -43,6 +43,12 @@ async def http_get(url, headers=None):
 class AlbionAva(commands.Cog):
     """Track Roads of Avalon connections via Portaler API"""
 
+    # Royal cities for prioritization
+    ROYAL_CITIES = frozenset([
+        "caerleon", "bridgewatch", "fort sterling",
+        "lymhurst", "martlock", "thetford"
+    ])
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=73602, force_registration=True)
@@ -190,10 +196,9 @@ class AlbionAva(commands.Cog):
 
                     # Determine priority (lower number = higher priority)
                     # Royal cities get priority 1, portal rooms priority 2, others priority 3
-                    royal_cities = ["caerleon", "bridgewatch", "fort sterling", "lymhurst", "martlock", "thetford"]
                     priority = 3
 
-                    if to_zone_name.lower() in royal_cities:
+                    if to_zone_name.lower() in self.ROYAL_CITIES:
                         priority = 1
                     elif "royalgate" in to_zone_type.lower() or "portal" in to_zone_type.lower():
                         priority = 2
