@@ -305,11 +305,7 @@ class AlbionAva(commands.Cog):
                 draw.text((x, y + 5), tier_type, fill='#FFFFFF',
                           font=info_font, anchor="mm")
 
-                # Draw time remaining
-                draw.text((x, y + 20), conn['time_remaining'], fill='#FFFF00',
-                          font=info_font, anchor="mm")
-
-                # Draw portal type badge near the line
+                # Draw portal type badge and time remaining near the line (on the edge)
                 mid_x = center_x + int((orbit_radius / 2) * math.cos(angle))
                 mid_y = center_y + int((orbit_radius / 2) * math.sin(angle))
                 portal_text = conn['portal_type'][:3].upper()
@@ -319,6 +315,14 @@ class AlbionAva(commands.Cog):
                 draw.rectangle([bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2],
                                fill='#23272A', outline='#7289DA')
                 draw.text((mid_x, mid_y), portal_text, fill='#7289DA',
+                          font=info_font, anchor="mm")
+
+                # Draw time remaining on the edge (below portal type)
+                time_y = mid_y + 15
+                time_bbox = draw.textbbox((mid_x, time_y), conn['time_remaining'], font=info_font, anchor="mm")
+                draw.rectangle([time_bbox[0]-2, time_bbox[1]-2, time_bbox[2]+2, time_bbox[3]+2],
+                               fill='#23272A', outline='#FFFF00')
+                draw.text((mid_x, time_y), conn['time_remaining'], fill='#FFFF00',
                           font=info_font, anchor="mm")
 
         # Save to BytesIO
