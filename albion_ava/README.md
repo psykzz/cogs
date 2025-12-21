@@ -56,13 +56,19 @@ Example:
 
 ### Display connections
 
-To see current connections from your home zone:
+To see current connections from your home zone in text format:
 
 ```
 [p]ava
 ```
 
-This will display a graph showing all active connections from your configured home zone, including:
+To see connections as a visual graph image:
+
+```
+[p]ava image
+```
+
+Both commands will display:
 - Target zones
 - Portal sizes
 - Time remaining
@@ -73,7 +79,8 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 
 ## Requirements
 
-- `httpx>=0.14.1` (automatically installed with cog dependencies)
+- `httpx>=0.14.1` (for API requests)
+- `Pillow>=10.2.0` (for image generation)
 - Portaler API access (requires account on Portaler.app)
 
 ## Commands
@@ -82,7 +89,8 @@ The cog automatically checks the Portaler API every 5 minutes to keep connection
 |---------|------------|-------------|
 | `[p]setava token <token>` | Admin | Set Portaler API bearer token (uses Discord server ID automatically) |
 | `[p]setava home <zone>` | Admin | Set home zone to focus connections from |
-| `[p]ava` | Everyone | Display connections from home zone |
+| `[p]ava` | Everyone | Display connections from home zone (text format) |
+| `[p]ava image` | Everyone | Display connections as a visual graph image |
 
 ## About Roads of Avalon
 

@@ -68,7 +68,7 @@ async def setup(bot):
 ### Key Cogs
 - **activity_stats/**: Discord activity and game statistics tracking (no external deps)
 - **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)
-- **albion_ava/**: Roads of Avalon connection tracker via Portaler API with background updates and connection graphs (requires: httpx>=0.14.1)
+- **albion_ava/**: Roads of Avalon connection tracker via Portaler API with background updates and connection graphs (requires: httpx>=0.14.1, Pillow>=10.2.0)
 - **albion_bandits/**: Albion Online bandit event tracking with timing predictions (no external deps)
 - **albion_regear/**: Albion Online regear cost calculator (requires: httpx>=0.14.1)
 - **assign_roles/**: Role management system (no external deps)

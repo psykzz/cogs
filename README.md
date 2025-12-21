@@ -85,7 +85,7 @@ Authenticate and verify users with Albion Online player names.
 
 Track Roads of Avalon connections via Portaler API with background updates and connection graphs.
 
-**Requirements:** `httpx>=0.14.1`
+**Requirements:** `httpx>=0.14.1`, `Pillow>=10.2.0`
 
 **Installation:**
 ```
@@ -99,7 +99,8 @@ Track Roads of Avalon connections via Portaler API with background updates and c
 |---------|-------------|
 | `[p]setava token <token>` | Set Portaler API bearer token (Admin) |
 | `[p]setava home <zone>` | Set home zone to focus connections from (Admin) |
-| `[p]ava` | Display connections from home zone |
+| `[p]ava` | Display connections from home zone (text format) |
+| `[p]ava image` | Display connections as a visual graph image |
 
 **Setup:**
 
@@ -111,9 +112,11 @@ Track Roads of Avalon connections via Portaler API with background updates and c
 
 **Features:**
 - Automatic background updates every 5 minutes
+- Text and visual graph display options
 - Shows zone tier, type, and portal type
 - Displays time remaining for each connection
 - Integrates with Portaler's public and private maps
+- Color-coded zones in graph view
 
 For more information about Roads of Avalon, see the [official Albion Online guide](https://albiononline.com/guides/article/the-roads-of-avalon+107).
 
