@@ -311,6 +311,7 @@ class AlbionAva(commands.Cog):
                 # Store connection info we'll need later
                 # Keep original zone name for display purposes
                 conn_info = {
+                    "from_zone": from_zone_name,  # Add from_zone for reverse lookups
                     "to_zone": to_zone_name,
                     "tier": to_zone.get("tier", "?"),
                     "type": to_zone.get("type", "Unknown"),
@@ -334,6 +335,36 @@ class AlbionAva(commands.Cog):
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
 
         return graph
+
+    def _find_incoming_connections(self, graph: dict, target_zone: str, max_depth: int = 5) -> List[List[dict]]:
+        """Find connection chains that lead TO a target zone (reverse search)
+
+        Args:
+            graph: Connection graph from _build_connection_graph (keys are lowercase)
+            target_zone: Target zone to find paths to (will be normalized to lowercase)
+            max_depth: Maximum chain length to explore (currently only direct connections)
+
+        Returns:
+            List of chains that end at the target zone, where each chain is a list of connection_info dicts.
+        """
+        target_zone_key = target_zone.lower()
+
+        if target_zone_key not in graph:
+            log.warning(f"Target zone '{target_zone}' not found in connection graph.")
+            return []
+
+        # Find all zones that have a direct connection to target_zone
+        incoming_chains = []
+
+        # Search for zones that connect to the target
+        for from_zone_key, connections in graph.items():
+            for conn in connections:
+                if conn["to_zone"].lower() == target_zone_key:
+                    # Found a direct connection to target
+                    incoming_chains.append([conn])
+
+        log.info(f"Found {len(incoming_chains)} direct incoming connections to '{target_zone}'")
+        return incoming_chains
 
     def _find_connection_chains(self, graph: dict, home_zone: str, max_depth: int = 5) -> List[List[dict]]:
         """Find all connection chains starting from home zone using BFS
@@ -359,9 +390,13 @@ class AlbionAva(commands.Cog):
         home_connections = graph[home_zone_key]
 
         if not home_connections:
-            log.warning(f"Home zone '{home_zone}' exists but has no outgoing connections in the current data. "
-                       f"This zone may only appear as a destination. Try a different home zone.")
-            return []
+            log.warning(f"Home zone '{home_zone}' has no outgoing connections. "
+                       f"Searching for incoming connections instead...")
+            # Find zones that connect TO this zone
+            incoming_chains = self._find_incoming_connections(graph, home_zone, max_depth)
+            if incoming_chains:
+                log.info(f"Found {len(incoming_chains)} incoming connection(s) to '{home_zone}'")
+            return incoming_chains
 
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
         destinations = [conn['to_zone'] for conn in home_connections]
@@ -427,15 +462,32 @@ class AlbionAva(commands.Cog):
         if not chains:
             return []
 
+        # Check if these are incoming connections (reverse chains)
+        # Incoming connections will have from_zone set and to_zone matching home_zone
+        is_incoming = False
+        if chains and len(chains[0]) > 0:
+            first_hop = chains[0][0]
+            if first_hop.get("to_zone", "").lower() == home_zone.lower():
+                is_incoming = True
+
         # Process chains into display format
         found_connections = []
 
         for chain in chains:
-            # Get the final destination
-            last_conn = chain[-1]
-            final_zone = last_conn["to_zone"]
-            final_color = last_conn["color"]
-            final_type = last_conn["type"]
+            if is_incoming:
+                # For incoming connections, the "final zone" is the from_zone
+                first_conn = chain[0]
+                final_zone = first_conn.get("from_zone", "Unknown")
+                final_color = first_conn["color"]
+                final_type = first_conn["type"]
+                final_tier = first_conn["tier"]
+            else:
+                # For outgoing connections, the final zone is the last to_zone
+                last_conn = chain[-1]
+                final_zone = last_conn["to_zone"]
+                final_color = last_conn["color"]
+                final_type = last_conn["type"]
+                final_tier = last_conn["tier"]
 
             # Calculate time remaining for the first connection in chain (most critical)
             first_conn = chain[0]
@@ -464,13 +516,14 @@ class AlbionAva(commands.Cog):
                 "chain": chain,
                 "final_zone": final_zone,
                 "chain_length": len(chain),
-                "tier": last_conn["tier"],
-                "type": last_conn["type"],
-                "color": last_conn["color"],
+                "tier": final_tier,
+                "type": final_type,
+                "color": final_color,
                 "zone_color_class": zone_color_class,
                 "time_remaining": time_str,
                 "priority": priority,
-                "is_royal": is_royal
+                "is_royal": is_royal,
+                "is_incoming": is_incoming
             })
 
         # Sort by priority
@@ -1059,6 +1112,34 @@ class AlbionAva(commands.Cog):
 
             if not connections:
                 await ctx.send(self._format_no_connections_error(home_zone))
+                return
+
+            # Check if these are incoming connections (zone appears as destination only)
+            # Incoming connections will have from_zone in the first hop
+            is_incoming = False
+            if connections and connections[0].get("chain"):
+                first_hop = connections[0]["chain"][0]
+                if "from_zone" in first_hop and first_hop.get("to_zone", "").lower() == home_zone.lower():
+                    is_incoming = True
+
+            if is_incoming:
+                # Show incoming connections
+                message_lines = [f"**Incoming connections to {home_zone}:**\n"]
+                for i, conn in enumerate(connections[:5]):  # Show up to 5 incoming
+                    chain = conn.get("chain", [])
+                    if chain:
+                        hop = chain[0]
+                        from_zone = hop.get("from_zone", "Unknown")
+                        zone_class = conn.get('zone_color_class', 'unknown')
+                        zone_class_display = f" ({zone_class.capitalize()} Zone)" if zone_class != 'unknown' else ""
+                        
+                        message_lines.append(
+                            f"{from_zone} → **{home_zone}**{zone_class_display}\n"
+                            f"Tier: T{conn['tier']} {conn['type']}\n"
+                            f"Time remaining: {conn['time_remaining']}\n"
+                        )
+                
+                await ctx.send("\n".join(message_lines))
                 return
 
             # Filter to get only connections that match our criteria:
