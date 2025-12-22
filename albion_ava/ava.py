@@ -286,6 +286,10 @@ class AlbionAva(commands.Cog):
         graph = {}
         total_connections = 0
         skipped_connections = 0
+        
+        # Track existing connections for efficient deduplication
+        # Format: zone_key -> set of to_zone_keys
+        existing_connections = {}
 
         for map_obj in map_data:
             portal_connections = map_obj.get("portalConnections", [])
@@ -307,41 +311,36 @@ class AlbionAva(commands.Cog):
                 from_zone_key = from_zone_name.lower()
                 to_zone_key = to_zone_name.lower()
 
-                # Store connection info we'll need later
-                # Keep original zone name for display purposes
-                conn_info_forward = {
-                    "to_zone": to_zone_name,
-                    "tier": to_zone.get("tier", "?"),
-                    "type": to_zone.get("type", "Unknown"),
-                    "color": to_zone.get("color", "#888888"),
-                    "portal_type": info.get("portalType", "Unknown"),
-                    "expiring_date": info.get("expiringDate", None),
-                }
+                # Helper function to create connection info
+                def make_conn_info(dest_name, zone_obj, portal_info):
+                    return {
+                        "to_zone": dest_name,
+                        "tier": zone_obj.get("tier", "?"),
+                        "type": zone_obj.get("type", "Unknown"),
+                        "color": zone_obj.get("color", "#888888"),
+                        "portal_type": portal_info.get("portalType", "Unknown"),
+                        "expiring_date": portal_info.get("expiringDate", None),
+                    }
 
-                # Create reverse connection info (bidirectional)
-                conn_info_reverse = {
-                    "to_zone": from_zone_name,
-                    "tier": from_zone.get("tier", "?"),
-                    "type": from_zone.get("type", "Unknown"),
-                    "color": from_zone.get("color", "#888888"),
-                    "portal_type": info.get("portalType", "Unknown"),
-                    "expiring_date": info.get("expiringDate", None),
-                }
+                # Create forward and reverse connection info
+                conn_info_forward = make_conn_info(to_zone_name, to_zone, info)
+                conn_info_reverse = make_conn_info(from_zone_name, from_zone, info)
 
-                # Add to graph (adjacency list) using normalized key
-                # Connections are bidirectional - add both forward and reverse
-                # Use deduplication to prevent duplicate connections
+                # Initialize graph and deduplication tracking
                 graph.setdefault(from_zone_key, [])
                 graph.setdefault(to_zone_key, [])
+                existing_connections.setdefault(from_zone_key, set())
+                existing_connections.setdefault(to_zone_key, set())
 
-                # Check if this connection already exists (deduplicate)
-                # Compare by to_zone to avoid duplicate A->B connections
-                if not any(c["to_zone"].lower() == to_zone_name.lower() for c in graph[from_zone_key]):
+                # Add forward connection if not duplicate
+                if to_zone_key not in existing_connections[from_zone_key]:
                     graph[from_zone_key].append(conn_info_forward)
+                    existing_connections[from_zone_key].add(to_zone_key)
                 
-                # Add reverse connection with same deduplication
-                if not any(c["to_zone"].lower() == from_zone_name.lower() for c in graph[to_zone_key]):
+                # Add reverse connection if not duplicate
+                if from_zone_key not in existing_connections[to_zone_key]:
                     graph[to_zone_key].append(conn_info_reverse)
+                    existing_connections[to_zone_key].add(from_zone_key)
 
         # Count total bidirectional connections in graph
         total_graph_connections = sum(len(conns) for conns in graph.values())
