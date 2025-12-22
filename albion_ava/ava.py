@@ -278,7 +278,9 @@ class AlbionAva(commands.Cog):
             map_data: Array of map objects from Portaler API
 
         Returns:
-            Dictionary mapping from_zone -> list of (to_zone, connection_info) tuples
+            Dictionary mapping from_zone (lowercase) -> list of (to_zone, connection_info) tuples
+            Note: Zone names are normalized to lowercase for case-insensitive lookups,
+                  but original case is preserved in connection_info for display
         """
         graph = {}
         total_connections = 0
@@ -300,7 +302,11 @@ class AlbionAva(commands.Cog):
                     skipped_connections += 1
                     continue
 
+                # Normalize zone names to lowercase for case-insensitive lookups
+                from_zone_key = from_zone_name.lower()
+
                 # Store connection info we'll need later
+                # Keep original zone name for display purposes
                 conn_info = {
                     "to_zone": to_zone_name,
                     "tier": to_zone.get("tier", "?"),
@@ -310,10 +316,10 @@ class AlbionAva(commands.Cog):
                     "expiring_date": info.get("expiringDate", None),
                 }
 
-                # Add to graph (adjacency list)
-                if from_zone_name not in graph:
-                    graph[from_zone_name] = []
-                graph[from_zone_name].append(conn_info)
+                # Add to graph (adjacency list) using normalized key
+                if from_zone_key not in graph:
+                    graph[from_zone_key] = []
+                graph[from_zone_key].append(conn_info)
 
         log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
         if skipped_connections > 0:
@@ -326,8 +332,8 @@ class AlbionAva(commands.Cog):
         """Find all connection chains starting from home zone using BFS
 
         Args:
-            graph: Connection graph from _build_connection_graph
-            home_zone: Starting zone
+            graph: Connection graph from _build_connection_graph (keys are lowercase)
+            home_zone: Starting zone (will be normalized to lowercase for lookup)
             max_depth: Maximum chain length to explore
 
         Returns:
@@ -335,12 +341,15 @@ class AlbionAva(commands.Cog):
         """
         from collections import deque
 
-        if home_zone not in graph:
-            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())[:10]}...")
+        # Normalize home_zone for case-insensitive lookup
+        home_zone_key = home_zone.lower()
+
+        if home_zone_key not in graph:
+            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())}...")
             return []
 
         # Log connections from home zone
-        home_connections = graph[home_zone]
+        home_connections = graph[home_zone_key]
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
         if home_connections:
             destinations = [conn['to_zone'] for conn in home_connections]
@@ -350,27 +359,29 @@ class AlbionAva(commands.Cog):
         queue = deque()
 
         # Initialize with direct connections from home
-        for conn in graph[home_zone]:
+        for conn in graph[home_zone_key]:
             queue.append([conn])
 
         while queue:
             current_chain = queue.popleft()
             last_zone = current_chain[-1]["to_zone"]
+            last_zone_key = last_zone.lower()
 
             # Add this chain to results
             chains.append(current_chain)
 
             # If we haven't reached max depth and this zone has outgoing connections
-            if len(current_chain) < max_depth and last_zone in graph:
-                # Build set of all zones already in this chain path
+            if len(current_chain) < max_depth and last_zone_key in graph:
+                # Build set of all zones already in this chain path (use lowercase for comparison)
                 # Include home zone and all destination zones in the chain
-                chain_zones = {home_zone}
-                chain_zones.update(conn["to_zone"] for conn in current_chain)
+                chain_zones = {home_zone_key}
+                chain_zones.update(conn["to_zone"].lower() for conn in current_chain)
 
-                for next_conn in graph[last_zone]:
+                for next_conn in graph[last_zone_key]:
                     next_zone = next_conn["to_zone"]
+                    next_zone_key = next_zone.lower()
                     # Avoid cycles by checking if this zone is already in the path
-                    if next_zone not in chain_zones:
+                    if next_zone_key not in chain_zones:
                         # Create new chain with this connection added
                         new_chain = current_chain + [next_conn]
                         queue.append(new_chain)
