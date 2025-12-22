@@ -307,8 +307,9 @@ class AlbionAva(commands.Cog):
         total_connections = 0
         skipped_connections = 0
         
-        # Track existing connections for efficient deduplication
-        # Format: zone_key -> set of to_zone_keys
+        # Track existing connections for efficient O(1) deduplication
+        # Format: from_zone_key -> set of to_zone_keys
+        # Example: "caerleon" -> {"bridgewatch", "lymhurst", ...}
         existing_connections = {}
 
         for map_obj in map_data:
@@ -341,12 +342,14 @@ class AlbionAva(commands.Cog):
                 existing_connections.setdefault(from_zone_key, set())
                 existing_connections.setdefault(to_zone_key, set())
 
-                # Add forward connection if not duplicate
+                # Add forward connection if not duplicate (A→B)
+                # Each direction is checked independently because API data may contain
+                # only one direction, and we want to add the reverse even if forward exists
                 if to_zone_key not in existing_connections[from_zone_key]:
                     graph[from_zone_key].append(conn_info_forward)
                     existing_connections[from_zone_key].add(to_zone_key)
                 
-                # Add reverse connection if not duplicate
+                # Add reverse connection if not duplicate (B→A)
                 if from_zone_key not in existing_connections[to_zone_key]:
                     graph[to_zone_key].append(conn_info_reverse)
                     existing_connections[to_zone_key].add(from_zone_key)
