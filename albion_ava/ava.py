@@ -347,7 +347,9 @@ class AlbionAva(commands.Cog):
             Currently only returns direct (single-hop) connections.
 
         Note:
-            Multi-depth reverse searching is not implemented yet - only direct incoming connections are found.
+            This method currently only finds direct incoming connections (1-hop).
+            Multi-hop reverse path finding could be implemented in the future if needed,
+            but would require additional graph traversal and path reconstruction logic.
         """
         target_zone_key = target_zone.lower()
 
@@ -411,7 +413,7 @@ class AlbionAva(commands.Cog):
             log.warning(f"Home zone '{home_zone}' has no outgoing connections. "
                        f"Searching for incoming connections instead...")
             # Find zones that connect TO this zone
-            incoming_chains = self._find_incoming_connections(graph, home_zone, max_depth)
+            incoming_chains = self._find_incoming_connections(graph, home_zone)
             if incoming_chains:
                 log.info(f"Found {len(incoming_chains)} incoming connection(s) to '{home_zone}'")
             return incoming_chains
