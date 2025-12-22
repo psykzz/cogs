@@ -304,13 +304,11 @@ class AlbionAva(commands.Cog):
 
                 # Normalize zone names to lowercase for case-insensitive lookups
                 from_zone_key = from_zone_name.lower()
-                to_zone_key = to_zone_name.lower()
 
                 # Store connection info we'll need later
                 # Keep original zone name for display purposes
                 conn_info = {
                     "to_zone": to_zone_name,
-                    "to_zone_key": to_zone_key,
                     "tier": to_zone.get("tier", "?"),
                     "type": to_zone.get("type", "Unknown"),
                     "color": to_zone.get("color", "#888888"),
@@ -366,7 +364,8 @@ class AlbionAva(commands.Cog):
 
         while queue:
             current_chain = queue.popleft()
-            last_zone_key = current_chain[-1]["to_zone_key"]
+            last_zone = current_chain[-1]["to_zone"]
+            last_zone_key = last_zone.lower()
 
             # Add this chain to results
             chains.append(current_chain)
@@ -376,10 +375,11 @@ class AlbionAva(commands.Cog):
                 # Build set of all zones already in this chain path (use lowercase for comparison)
                 # Include home zone and all destination zones in the chain
                 chain_zones = {home_zone_key}
-                chain_zones.update(conn["to_zone_key"] for conn in current_chain)
+                chain_zones.update(conn["to_zone"].lower() for conn in current_chain)
 
                 for next_conn in graph[last_zone_key]:
-                    next_zone_key = next_conn["to_zone_key"]
+                    next_zone = next_conn["to_zone"]
+                    next_zone_key = next_zone.lower()
                     # Avoid cycles by checking if this zone is already in the path
                     if next_zone_key not in chain_zones:
                         # Create new chain with this connection added
