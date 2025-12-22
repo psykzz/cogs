@@ -67,6 +67,10 @@ class AlbionAva(commands.Cog):
     RGB_RED_MAX_GB = 100     # Maximum green/blue for red zones
     RGB_BLACK_MAX_ALL = 50   # Maximum RGB values for black zones
 
+    # Manual connection duration constraints
+    MIN_DURATION_HOURS = 1   # Minimum duration for manual connections
+    MAX_DURATION_HOURS = 24  # Maximum duration for manual connections
+
     def _classify_zone_color(self, color: str, zone_type: str) -> str:
         """Classify a zone based on its color code and type
         
@@ -146,9 +150,9 @@ class AlbionAva(commands.Cog):
         Returns:
             Connection object compatible with Portaler API format
         """
-        # Calculate expiring date
-        expiring_date = (datetime.now(timezone.utc) + 
-                        timedelta(hours=duration_hours)).isoformat().replace('+00:00', 'Z')
+        # Calculate expiring date in ISO 8601 format with 'Z' suffix
+        expiring_date = (datetime.now(timezone.utc).replace(microsecond=0) + 
+                        timedelta(hours=duration_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
         
         return {
             "info": {
@@ -1253,12 +1257,12 @@ class AlbionAva(commands.Cog):
         Example: [p]ava add Lymhurst "Thetford Portal" 4
         """
         # Validate duration
-        if duration_hours < 1:
-            await ctx.send("❌ Duration must be at least 1 hour")
+        if duration_hours < self.MIN_DURATION_HOURS:
+            await ctx.send(f"❌ Duration must be at least {self.MIN_DURATION_HOURS} hour")
             return
         
-        if duration_hours > 24:
-            await ctx.send("❌ Duration cannot exceed 24 hours")
+        if duration_hours > self.MAX_DURATION_HOURS:
+            await ctx.send(f"❌ Duration cannot exceed {self.MAX_DURATION_HOURS} hours")
             return
 
         # Get current manual connections
