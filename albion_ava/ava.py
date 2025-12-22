@@ -315,7 +315,7 @@ class AlbionAva(commands.Cog):
                     graph[from_zone_name] = []
                 graph[from_zone_name].append(conn_info)
 
-        log.info(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
+        log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
         if skipped_connections > 0:
             log.warning(f"Skipped {skipped_connections} connections with missing zone names")
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
@@ -375,7 +375,7 @@ class AlbionAva(commands.Cog):
                         new_chain = current_chain + [next_conn]
                         queue.append(new_chain)
 
-        log.info(f"Found {len(chains)} total connection chains from '{home_zone}'")
+        log.debug(f"Found {len(chains)} total connection chains from '{home_zone}'")
         return chains
 
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
@@ -459,8 +459,8 @@ class AlbionAva(commands.Cog):
         black_count = sum(1 for c in found_connections if c["zone_color_class"] == 'black')
         other_count = len(found_connections) - royal_count - yellow_blue_count - black_count
         
-        log.info(f"Processed {len(found_connections)} connections: {royal_count} royal, "
-                 f"{yellow_blue_count} yellow/blue, {black_count} black, {other_count} other")
+        log.debug(f"Processed {len(found_connections)} connections: {royal_count} royal, "
+                  f"{yellow_blue_count} yellow/blue, {black_count} black, {other_count} other")
 
         # Apply max_connections limit if specified
         if max_connections is not None and len(found_connections) > max_connections:
