@@ -280,7 +280,9 @@ class AlbionAva(commands.Cog):
         Returns:
             Dictionary mapping from_zone (lowercase) -> list of (to_zone, connection_info) tuples
             Note: Zone names are normalized to lowercase for case-insensitive lookups,
-                  but original case is preserved in connection_info for display
+                  but original case is preserved in connection_info for display.
+                  All zones (including destination-only zones) are added to the graph,
+                  even if they have no outgoing connections (empty list).
         """
         graph = {}
         total_connections = 0
@@ -304,6 +306,7 @@ class AlbionAva(commands.Cog):
 
                 # Normalize zone names to lowercase for case-insensitive lookups
                 from_zone_key = from_zone_name.lower()
+                to_zone_key = to_zone_name.lower()
 
                 # Store connection info we'll need later
                 # Keep original zone name for display purposes
@@ -317,8 +320,12 @@ class AlbionAva(commands.Cog):
                 }
 
                 # Add to graph (adjacency list) using normalized key
+                # Ensure both from_zone and to_zone exist in the graph
                 if from_zone_key not in graph:
                     graph[from_zone_key] = []
+                if to_zone_key not in graph:
+                    graph[to_zone_key] = []
+                    
                 graph[from_zone_key].append(conn_info)
 
         log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
@@ -350,10 +357,15 @@ class AlbionAva(commands.Cog):
 
         # Log connections from home zone
         home_connections = graph[home_zone_key]
+        
+        if not home_connections:
+            log.warning(f"Home zone '{home_zone}' exists but has no outgoing connections in the current data. "
+                       f"This zone may only appear as a destination. Try a different home zone.")
+            return []
+        
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
-        if home_connections:
-            destinations = [conn['to_zone'] for conn in home_connections]
-            log.debug(f"Direct connections from '{home_zone}': {destinations}")
+        destinations = [conn['to_zone'] for conn in home_connections]
+        log.debug(f"Direct connections from '{home_zone}': {destinations}")
 
         chains = []
         queue = deque()
@@ -1030,6 +1042,14 @@ class AlbionAva(commands.Cog):
             # Get connections data (get all, we'll pick the best one)
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
+            if not connections:
+                await ctx.send(
+                    f"❌ No outgoing connections found from **{home_zone}**.\n"
+                    f"This zone may only appear as a destination in the current data, or it may not exist.\n"
+                    f"Try setting a different home zone with `[p]setava home <zone>`."
+                )
+                return
+
             # Filter to get only connections that match our criteria:
             # 1. Royal city or portal
             # 2. Yellow or blue zone
@@ -1096,6 +1116,14 @@ class AlbionAva(commands.Cog):
 
             # Get ALL connections data (no limit for image rendering)
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
+
+            if not connections:
+                await ctx.send(
+                    f"❌ No outgoing connections found from **{home_zone}**.\n"
+                    f"This zone may only appear as a destination in the current data, or it may not exist.\n"
+                    f"Try setting a different home zone with `[p]setava home <zone>`."
+                )
+                return
 
             # Generate graph image
             try:
