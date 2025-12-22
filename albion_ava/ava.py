@@ -335,19 +335,19 @@ class AlbionAva(commands.Cog):
 
         return graph
 
-    def _find_incoming_connections(self, graph: dict, target_zone: str) -> List[List[dict]]:
-        """Find connection chains that lead TO a target zone (reverse search)
+    def _find_direct_incoming_connections(self, graph: dict, target_zone: str) -> List[List[dict]]:
+        """Find direct (1-hop) connections that lead TO a target zone
 
         Args:
             graph: Connection graph from _build_connection_graph (keys are lowercase)
             target_zone: Target zone to find paths to (will be normalized to lowercase)
 
         Returns:
-            List of chains that end at the target zone, where each chain is a list of connection_info dicts.
-            Currently only returns direct (single-hop) connections.
+            List of single-hop chains that end at the target zone.
+            Each chain contains one connection_info dict representing a direct connection to target_zone.
 
         Note:
-            This method currently only finds direct incoming connections (1-hop).
+            This method only finds direct incoming connections (1-hop).
             Multi-hop reverse path finding could be implemented in the future if needed,
             but would require additional graph traversal and path reconstruction logic.
         """
@@ -413,7 +413,7 @@ class AlbionAva(commands.Cog):
             log.warning(f"Home zone '{home_zone}' has no outgoing connections. "
                        f"Searching for incoming connections instead...")
             # Find zones that connect TO this zone
-            incoming_chains = self._find_incoming_connections(graph, home_zone)
+            incoming_chains = self._find_direct_incoming_connections(graph, home_zone)
             if incoming_chains:
                 log.info(f"Found {len(incoming_chains)} incoming connection(s) to '{home_zone}'")
             return incoming_chains
@@ -591,7 +591,7 @@ class AlbionAva(commands.Cog):
             return "Unknown"
 
     def _format_no_connections_error(self, home_zone: str) -> str:
-        """Format error message for when a zone has no outgoing connections
+        """Format error message for when a zone has no connections in any direction
 
         Args:
             home_zone: The zone name that has no connections
@@ -600,8 +600,9 @@ class AlbionAva(commands.Cog):
             Formatted error message string
         """
         return (
-            f"❌ No outgoing connections found from **{home_zone}**.\n"
-            f"This zone may only appear as a destination in the current data, or it may not exist.\n"
+            f"❌ No connections found for **{home_zone}**.\n"
+            f"This zone has no outgoing or incoming connections in the current data.\n"
+            f"The zone may not exist, or it may not be accessible right now.\n"
             f"Try setting a different home zone with `[p]setava home <zone>`."
         )
 
