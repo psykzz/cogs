@@ -330,13 +330,23 @@ class AlbionAva(commands.Cog):
 
                 # Add to graph (adjacency list) using normalized key
                 # Connections are bidirectional - add both forward and reverse
+                # Use deduplication to prevent duplicate connections
                 graph.setdefault(from_zone_key, [])
                 graph.setdefault(to_zone_key, [])
 
-                graph[from_zone_key].append(conn_info_forward)
-                graph[to_zone_key].append(conn_info_reverse)
+                # Check if this connection already exists (deduplicate)
+                # Compare by to_zone to avoid duplicate A->B connections
+                if not any(c["to_zone"].lower() == to_zone_name.lower() for c in graph[from_zone_key]):
+                    graph[from_zone_key].append(conn_info_forward)
+                
+                # Add reverse connection with same deduplication
+                if not any(c["to_zone"].lower() == from_zone_name.lower() for c in graph[to_zone_key]):
+                    graph[to_zone_key].append(conn_info_reverse)
 
-        log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
+        # Count total bidirectional connections in graph
+        total_graph_connections = sum(len(conns) for conns in graph.values())
+        log.debug(f"Built connection graph with {len(graph)} zones")
+        log.debug(f"Processed {total_connections} input connections, created {total_graph_connections} bidirectional connections")
         if skipped_connections > 0:
             log.warning(f"Skipped {skipped_connections} connections with missing zone names")
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
