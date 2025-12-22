@@ -335,17 +335,19 @@ class AlbionAva(commands.Cog):
 
         return graph
 
-    def _find_incoming_connections(self, graph: dict, target_zone: str, max_depth: int = 5) -> List[List[dict]]:
+    def _find_incoming_connections(self, graph: dict, target_zone: str) -> List[List[dict]]:
         """Find connection chains that lead TO a target zone (reverse search)
 
         Args:
             graph: Connection graph from _build_connection_graph (keys are lowercase)
             target_zone: Target zone to find paths to (will be normalized to lowercase)
-            max_depth: Maximum chain length to explore (not currently used - only direct connections are returned)
 
         Returns:
             List of chains that end at the target zone, where each chain is a list of connection_info dicts.
             Currently only returns direct (single-hop) connections.
+
+        Note:
+            Multi-depth reverse searching is not implemented yet - only direct incoming connections are found.
         """
         target_zone_key = target_zone.lower()
 
@@ -376,7 +378,7 @@ class AlbionAva(commands.Cog):
         Returns:
             True if this is an incoming connection (to_zone matches home_zone), False otherwise
         """
-        if not chain or len(chain) == 0:
+        if not chain:
             return False
 
         first_hop = chain[0]
@@ -481,7 +483,7 @@ class AlbionAva(commands.Cog):
         # Check if these are incoming connections (reverse chains)
         # Incoming connections will have from_zone set and to_zone matching home_zone
         is_incoming = False
-        if chains and len(chains[0]) > 0:
+        if chains and chains[0]:
             is_incoming = self._is_incoming_connection(chains[0], home_zone)
 
         # Process chains into display format
