@@ -371,7 +371,7 @@ class AlbionAva(commands.Cog):
         queue = deque()
 
         # Initialize with direct connections from home
-        for conn in graph[home_zone_key]:
+        for conn in home_connections:
             queue.append([conn])
 
         while queue:
@@ -518,6 +518,21 @@ class AlbionAva(commands.Cog):
         except Exception as e:
             log.warning(f"Failed to parse expiring date: {e}")
             return "Unknown"
+
+    def _format_no_connections_error(self, home_zone: str) -> str:
+        """Format error message for when a zone has no outgoing connections
+
+        Args:
+            home_zone: The zone name that has no connections
+
+        Returns:
+            Formatted error message string
+        """
+        return (
+            f"❌ No outgoing connections found from **{home_zone}**.\n"
+            f"This zone may only appear as a destination in the current data, or it may not exist.\n"
+            f"Try setting a different home zone with `[p]setava home <zone>`."
+        )
 
     def _build_graph_tree(self, connections: List[dict], home_zone: str) -> dict:
         """Build a tree structure from connection chains for graph visualization
@@ -1043,11 +1058,7 @@ class AlbionAva(commands.Cog):
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
             if not connections:
-                await ctx.send(
-                    f"❌ No outgoing connections found from **{home_zone}**.\n"
-                    f"This zone may only appear as a destination in the current data, or it may not exist.\n"
-                    f"Try setting a different home zone with `[p]setava home <zone>`."
-                )
+                await ctx.send(self._format_no_connections_error(home_zone))
                 return
 
             # Filter to get only connections that match our criteria:
@@ -1118,11 +1129,7 @@ class AlbionAva(commands.Cog):
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
             if not connections:
-                await ctx.send(
-                    f"❌ No outgoing connections found from **{home_zone}**.\n"
-                    f"This zone may only appear as a destination in the current data, or it may not exist.\n"
-                    f"Try setting a different home zone with `[p]setava home <zone>`."
-                )
+                await ctx.send(self._format_no_connections_error(home_zone))
                 return
 
             # Generate graph image
