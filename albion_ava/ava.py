@@ -271,20 +271,46 @@ class AlbionAva(commands.Cog):
         }
         return [merged_map]
 
+    def _make_connection_info(self, dest_name: str, zone_obj: dict, portal_info: dict) -> dict:
+        """Create a connection info dictionary
+
+        Args:
+            dest_name: Destination zone name (original case)
+            zone_obj: Zone object from API containing tier, type, color
+            portal_info: Portal info object containing portal type and expiring date
+
+        Returns:
+            Connection info dictionary
+        """
+        return {
+            "to_zone": dest_name,
+            "tier": zone_obj.get("tier", "?"),
+            "type": zone_obj.get("type", "Unknown"),
+            "color": zone_obj.get("color", "#888888"),
+            "portal_type": portal_info.get("portalType", "Unknown"),
+            "expiring_date": portal_info.get("expiringDate", None),
+        }
+
     def _build_connection_graph(self, map_data: List) -> dict:
-        """Build a complete graph of all connections from the map data
+        """Build a complete bidirectional graph of all connections from the map data
 
         Args:
             map_data: Array of map objects from Portaler API
 
         Returns:
-            Dictionary mapping from_zone (lowercase) -> list of (to_zone, connection_info) tuples
+            Dictionary mapping from_zone (lowercase) -> list of connection_info dicts
             Note: Zone names are normalized to lowercase for case-insensitive lookups,
-                  but original case is preserved in connection_info for display
+                  but original case is preserved in connection_info for display.
+                  Connections are bidirectional - each connection A→B also creates B→A.
         """
         graph = {}
         total_connections = 0
         skipped_connections = 0
+        
+        # Track existing connections for efficient O(1) deduplication
+        # Format: from_zone_key -> set of to_zone_keys
+        # Example: "caerleon" -> {"bridgewatch", "lymhurst", ...}
+        existing_connections = {}
 
         for map_obj in map_data:
             portal_connections = map_obj.get("portalConnections", [])
@@ -304,24 +330,34 @@ class AlbionAva(commands.Cog):
 
                 # Normalize zone names to lowercase for case-insensitive lookups
                 from_zone_key = from_zone_name.lower()
+                to_zone_key = to_zone_name.lower()
 
-                # Store connection info we'll need later
-                # Keep original zone name for display purposes
-                conn_info = {
-                    "to_zone": to_zone_name,
-                    "tier": to_zone.get("tier", "?"),
-                    "type": to_zone.get("type", "Unknown"),
-                    "color": to_zone.get("color", "#888888"),
-                    "portal_type": info.get("portalType", "Unknown"),
-                    "expiring_date": info.get("expiringDate", None),
-                }
+                # Create forward and reverse connection info
+                conn_info_forward = self._make_connection_info(to_zone_name, to_zone, info)
+                conn_info_reverse = self._make_connection_info(from_zone_name, from_zone, info)
 
-                # Add to graph (adjacency list) using normalized key
-                if from_zone_key not in graph:
-                    graph[from_zone_key] = []
-                graph[from_zone_key].append(conn_info)
+                # Initialize graph and deduplication tracking
+                graph.setdefault(from_zone_key, [])
+                graph.setdefault(to_zone_key, [])
+                existing_connections.setdefault(from_zone_key, set())
+                existing_connections.setdefault(to_zone_key, set())
 
-        log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
+                # Add forward connection if not duplicate (A→B)
+                # Each direction is checked independently because API data may contain
+                # only one direction, and we want to add the reverse even if forward exists
+                if to_zone_key not in existing_connections[from_zone_key]:
+                    graph[from_zone_key].append(conn_info_forward)
+                    existing_connections[from_zone_key].add(to_zone_key)
+                
+                # Add reverse connection if not duplicate (B→A)
+                if from_zone_key not in existing_connections[to_zone_key]:
+                    graph[to_zone_key].append(conn_info_reverse)
+                    existing_connections[to_zone_key].add(from_zone_key)
+
+        # Count total bidirectional connections in graph
+        total_graph_connections = sum(len(conns) for conns in graph.values())
+        log.debug(f"Built connection graph with {len(graph)} zones")
+        log.debug(f"Processed {total_connections} input connections, created {total_graph_connections} bidirectional connections")
         if skipped_connections > 0:
             log.warning(f"Skipped {skipped_connections} connections with missing zone names")
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
@@ -350,16 +386,20 @@ class AlbionAva(commands.Cog):
 
         # Log connections from home zone
         home_connections = graph[home_zone_key]
+
+        if not home_connections:
+            log.warning(f"Home zone '{home_zone}' has no connections in the current data.")
+            return []
+
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
-        if home_connections:
-            destinations = [conn['to_zone'] for conn in home_connections]
-            log.debug(f"Direct connections from '{home_zone}': {destinations}")
+        destinations = [conn['to_zone'] for conn in home_connections]
+        log.debug(f"Direct connections from '{home_zone}': {destinations}")
 
         chains = []
         queue = deque()
 
         # Initialize with direct connections from home
-        for conn in graph[home_zone_key]:
+        for conn in home_connections:
             queue.append([conn])
 
         while queue:
@@ -424,6 +464,7 @@ class AlbionAva(commands.Cog):
             final_zone = last_conn["to_zone"]
             final_color = last_conn["color"]
             final_type = last_conn["type"]
+            final_tier = last_conn["tier"]
 
             # Calculate time remaining for the first connection in chain (most critical)
             first_conn = chain[0]
@@ -452,9 +493,9 @@ class AlbionAva(commands.Cog):
                 "chain": chain,
                 "final_zone": final_zone,
                 "chain_length": len(chain),
-                "tier": last_conn["tier"],
-                "type": last_conn["type"],
-                "color": last_conn["color"],
+                "tier": final_tier,
+                "type": final_type,
+                "color": final_color,
                 "zone_color_class": zone_color_class,
                 "time_remaining": time_str,
                 "priority": priority,
@@ -506,6 +547,21 @@ class AlbionAva(commands.Cog):
         except Exception as e:
             log.warning(f"Failed to parse expiring date: {e}")
             return "Unknown"
+
+    def _format_no_connections_error(self, home_zone: str) -> str:
+        """Format error message for when a zone has no connections
+
+        Args:
+            home_zone: The zone name that has no connections
+
+        Returns:
+            Formatted error message string
+        """
+        return (
+            f"❌ No connections found for **{home_zone}**.\n"
+            f"This zone may not exist in the current Portaler data.\n"
+            f"Try setting a different home zone with `[p]setava home <zone>`."
+        )
 
     def _build_graph_tree(self, connections: List[dict], home_zone: str) -> dict:
         """Build a tree structure from connection chains for graph visualization
@@ -1030,6 +1086,10 @@ class AlbionAva(commands.Cog):
             # Get connections data (get all, we'll pick the best one)
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
 
+            if not connections:
+                await ctx.send(self._format_no_connections_error(home_zone))
+                return
+
             # Filter to get only connections that match our criteria:
             # 1. Royal city or portal
             # 2. Yellow or blue zone
@@ -1096,6 +1156,10 @@ class AlbionAva(commands.Cog):
 
             # Get ALL connections data (no limit for image rendering)
             connections = self._get_connections_data(map_data, home_zone, max_connections=None)
+
+            if not connections:
+                await ctx.send(self._format_no_connections_error(home_zone))
+                return
 
             # Generate graph image
             try:
