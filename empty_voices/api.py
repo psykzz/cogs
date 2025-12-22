@@ -34,11 +34,11 @@ class EmptyVoices(commands.Cog):
         for channel_id in temp_channels:
             channel = guild.get_channel_or_thread(channel_id)
             if not channel:
-                log.info(f"Unable to find channel {channel_id} in guild: {guild.id}")
+                log.debug(f"Unable to find channel {channel_id} in guild: {guild.id}")
             else:
                 new_channels.append(channel.id)
         if len(new_channels):
-            log.info(f"Updating temp_channels with {len(new_channels)} remaining channels")
+            log.debug(f"Updating temp_channels with {len(new_channels)} remaining channels")
         await guild_group.emptyvoices.temp_channels.set(new_channels)
 
     async def try_delete_channel(self, guild: discord.Guild, channel: discord.VoiceChannel, should_keep=False):
@@ -48,7 +48,7 @@ class EmptyVoices(commands.Cog):
             temp_channels = await guild_group.emptyvoices.temp_channels()
             is_temp = channel.id in temp_channels
 
-            log.info(f"Validating channel {channel.mention}, temp: {is_temp}, should_keep: {should_keep}")
+            log.debug(f"Validating channel {channel.mention}, temp: {is_temp}, should_keep: {should_keep}")
             if should_keep:
                 return
             if not is_temp:
@@ -56,7 +56,7 @@ class EmptyVoices(commands.Cog):
             if len(channel.members) > 0:
                 return
 
-            log.info(f"I should delete {channel.mention}, it's empty...")
+            log.debug(f"I should delete {channel.mention}, it's empty...")
             temp_channels.remove(channel.id)
             await guild_group.emptyvoices.temp_channels.set(temp_channels)
             await channel.delete(reason="Removing empty temp channel")
@@ -82,7 +82,7 @@ class EmptyVoices(commands.Cog):
         then check if there are any empty channels and create a spare channel if needed.
         """
 
-        log.info(f"Validating category: {category.mention}")
+        log.debug(f"Validating category: {category.mention}")
         guild_group = self.config.guild(guild)
         temp_channels = await guild_group.emptyvoices.temp_channels()
         min_temp_channels = await guild_group.emptyvoices.min_temp_channels()
@@ -137,7 +137,7 @@ class EmptyVoices(commands.Cog):
         # Create temp channels if we don't have enough and all channels are full
         empty_public_channels = any(len(channel.members) == 0 for channel in voice_channels)
         if not empty_public_channels and needed_channels > 0:
-            log.warning(f"Need to create {needed_channels} channel(s) in {category.mention}...")
+            log.debug(f"Need to create {needed_channels} channel(s) in {category.mention}...")
 
             # Find existing numbered channels to determine gaps and next positions
             existing_numbers = set()
@@ -194,7 +194,7 @@ class EmptyVoices(commands.Cog):
                     channel_positions[num] = new_voice_channel.position
                     created_count += 1
 
-                    log.info(f"Created temp channel: {channel_name} in {category.mention}")
+                    log.debug(f"Created temp channel: {channel_name} in {category.mention}")
                 except discord.Forbidden:
                     log.error(f"Missing permissions to create voice channel in category {category.name}")
                     break
@@ -203,7 +203,7 @@ class EmptyVoices(commands.Cog):
                     break
 
             if created_count > 0:
-                log.info(f"Successfully created {created_count} temp channel(s) in {category.mention}")
+                log.debug(f"Successfully created {created_count} temp channel(s) in {category.mention}")
 
         # Cleanup old channels that may no longer exist but we have the id for
         await self.cleanup_temp_channels_config(guild)
@@ -223,10 +223,10 @@ class EmptyVoices(commands.Cog):
                 return
 
             if not is_temp:
-                log.info("Not renaming, permanent channel.")
+                log.debug("Not renaming, permanent channel.")
                 return
             if 'Voice ' not in channel.name and name:
-                log.info("Not renaming, already renamed.")
+                log.debug("Not renaming, already renamed.")
                 return
 
             new_name = f"{name}'s chat" if name else "Voice chat"
@@ -242,7 +242,7 @@ class EmptyVoices(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        log.info("on_voice_state_update")
+        log.debug("on_voice_state_update")
         try:
             if await self.bot.cog_disabled_in_guild(self, member.guild):
                 log.warning("on_voice_state_update - disabled for guild")
@@ -258,7 +258,7 @@ class EmptyVoices(commands.Cog):
             channels = []
             categories = []
             if before.channel and before.channel.category and before.channel.category.id in watch_list:
-                log.info(f"Processing watched channel {before.channel.mention}")
+                log.debug(f"Processing watched channel {before.channel.mention}")
                 categories.append(before.channel.category)
 
                 # reset channel name to empty
@@ -266,7 +266,7 @@ class EmptyVoices(commands.Cog):
                     channels.append(before.channel)
 
             if after.channel and after.channel.category and after.channel.category.id in watch_list:
-                log.info(f"Processing watched channel {after.channel.mention}")
+                log.debug(f"Processing watched channel {after.channel.mention}")
                 categories.append(after.channel.category)
 
                 await self.try_rename_channel(guild, after.channel, member)

@@ -42,10 +42,10 @@ class MovieVote(commands.Cog):
                 "https://vidsrc.me/episodes/latest/page-1.json"
             )
         if not response:
-            log.info("Response was empty. %s", response)
+            log.debug("Response was empty. %s", response)
             return None
         all_data = response.get('result', [])
-        log.info("Checking %s episodes against '%s'", len(all_data), imdb_id)
+        log.debug("Checking %s episodes against '%s'", len(all_data), imdb_id)
         return next((x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"), None)
 
     @commands.group(autohelp=False)
@@ -399,8 +399,28 @@ class MovieVote(commands.Cog):
 
         await self.update_leaderboard(message)
 
+    async def _is_movie_channel(self, payload) -> bool:
+        """Check if a reaction payload is from a movie channel."""
+        if not payload.guild_id:
+            return False
+
+        guild = self.bot.get_guild(payload.guild_id)
+        if not guild:
+            return False
+
+        try:
+            enabled_channels = await self.config.guild(guild).channels_enabled()
+            return payload.channel_id in enabled_channels
+        except Exception:
+            log.exception("Error checking if channel is enabled for movie voting")
+            return False
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
+        # Only process reactions in movie channels
+        if not await self._is_movie_channel(payload):
+            return
+
         channel = await self.bot.fetch_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
         user = await self.bot.fetch_user(payload.user_id)
@@ -409,11 +429,15 @@ class MovieVote(commands.Cog):
         if user.id == self.bot.user.id:
             return
 
-        log.info("Reaction added")
+        log.debug(f"Reaction added. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
+        # Only process reactions in movie channels
+        if not await self._is_movie_channel(payload):
+            return
+
         channel = await self.bot.fetch_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
         user = await self.bot.fetch_user(payload.user_id)
@@ -422,7 +446,7 @@ class MovieVote(commands.Cog):
         if user.id == self.bot.user.id:
             return
 
-        log.info("Reaction removed")
+        log.debug(f"Reaction removed. {user.name} on '{message.clean_content}'")
         await self.count_votes(message, emoji)
 
     async def count_votes(self, message, emoji):
@@ -435,16 +459,16 @@ class MovieVote(commands.Cog):
         if not link:
             return
         imdb_id = link.split('/tt')[-1]
-        log.info(f"Handling {link}")
+        log.debug(f"Handling {link}")
 
         if message.channel.id not in await self.config.guild(message.guild).channels_enabled():
-            log.info(f"Wrong channel {message.channel.id}")
+            log.debug(f"Wrong channel {message.channel.id}")
             return
 
         up_emoji = await self.config.guild(message.guild).up_emoji()
         dn_emoji = await self.config.guild(message.guild).dn_emoji()
         if str(emoji) not in (up_emoji, dn_emoji):
-            log.info(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
+            log.debug(f"Wrong emoji {emoji}, vs {(up_emoji, dn_emoji)}")
             return
 
         # We have a valid vote so we can count the votes now
@@ -457,7 +481,7 @@ class MovieVote(commands.Cog):
 
         # Update the movie with the new score
         movies = await self.config.guild(message.guild).movies()
-        log.info(f"Updating {link} with new score: {upvotes - dnvotes}")
+        log.debug(f"Updating {link} with new score: {upvotes - dnvotes}")
         for movie in movies:
             if movie["imdb_id"] == imdb_id:
                 movie["score"] = upvotes - dnvotes
@@ -467,7 +491,7 @@ class MovieVote(commands.Cog):
         await self.update_leaderboard(message)
 
     async def update_leaderboard(self, message):
-        log.info("Updating leaderboard")
+        log.debug("Updating leaderboard")
         leaderboard_id = await self.config.guild(message.guild).leaderboard()
         if leaderboard_id:
             leaderboard_msg = await message.channel.fetch_message(leaderboard_id)
@@ -530,7 +554,7 @@ class MovieVote(commands.Cog):
             movie["title"] = imdb_movie.get("title")
             movie["genres"] = imdb_movie.get("genres")
             movie["year"] = imdb_movie.get("year")
-            log.info("Updated movie: %s", movie["title"])
+            log.debug("Updated movie: %s", movie["title"])
             return movie
         except Exception:
             return original_movie

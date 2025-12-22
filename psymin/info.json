@@ -1,0 +1,12 @@
+{
+    "author": ["psykzz"],
+    "name": "Psymin",
+    "short": "Bot owner administration commands",
+    "description": "Administration commands for bot owners to view permissions and manage the bot across servers.",
+    "permissions": ["Send Messages", "Embed Links"],
+    "tags": [
+        "Bot",
+        "Administration",
+        "Owner"
+    ]
+}
