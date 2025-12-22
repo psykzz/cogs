@@ -323,6 +323,8 @@ class AlbionAva(commands.Cog):
 
                 # Add to graph (adjacency list) using normalized key
                 # Ensure both from_zone and to_zone exist in the graph
+                # Destination-only zones need empty lists so they can be used as home zones
+                # and have incoming connections found via _find_direct_incoming_connections
                 graph.setdefault(from_zone_key, [])
                 graph.setdefault(to_zone_key, [])
 
@@ -402,6 +404,9 @@ class AlbionAva(commands.Cog):
         # Normalize home_zone for case-insensitive lookup
         home_zone_key = home_zone.lower()
 
+        # This check should theoretically never fail since _build_connection_graph
+        # adds all zones to the graph (including destination-only zones).
+        # However, we keep it as a safety check for data consistency issues.
         if home_zone_key not in graph:
             log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())}...")
             return []
@@ -1146,7 +1151,12 @@ class AlbionAva(commands.Cog):
                     chain = conn.get("chain", [])
                     if chain:
                         hop = chain[0]
-                        from_zone = hop.get("from_zone", "Unknown")
+                        from_zone = hop.get("from_zone")
+                        if not from_zone:
+                            # This should never happen since from_zone is always set in _build_connection_graph
+                            log.warning(f"Missing from_zone in incoming connection data: {hop}")
+                            from_zone = "Unknown Source"
+                        
                         zone_class = conn.get('zone_color_class', 'unknown')
                         zone_class_display = f" ({zone_class.capitalize()} Zone)" if zone_class != 'unknown' else ""
                         
