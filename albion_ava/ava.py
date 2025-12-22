@@ -271,6 +271,26 @@ class AlbionAva(commands.Cog):
         }
         return [merged_map]
 
+    def _make_connection_info(self, dest_name: str, zone_obj: dict, portal_info: dict) -> dict:
+        """Create a connection info dictionary
+
+        Args:
+            dest_name: Destination zone name (original case)
+            zone_obj: Zone object from API containing tier, type, color
+            portal_info: Portal info object containing portal type and expiring date
+
+        Returns:
+            Connection info dictionary
+        """
+        return {
+            "to_zone": dest_name,
+            "tier": zone_obj.get("tier", "?"),
+            "type": zone_obj.get("type", "Unknown"),
+            "color": zone_obj.get("color", "#888888"),
+            "portal_type": portal_info.get("portalType", "Unknown"),
+            "expiring_date": portal_info.get("expiringDate", None),
+        }
+
     def _build_connection_graph(self, map_data: List) -> dict:
         """Build a complete bidirectional graph of all connections from the map data
 
@@ -311,20 +331,9 @@ class AlbionAva(commands.Cog):
                 from_zone_key = from_zone_name.lower()
                 to_zone_key = to_zone_name.lower()
 
-                # Helper function to create connection info
-                def make_conn_info(dest_name, zone_obj, portal_info):
-                    return {
-                        "to_zone": dest_name,
-                        "tier": zone_obj.get("tier", "?"),
-                        "type": zone_obj.get("type", "Unknown"),
-                        "color": zone_obj.get("color", "#888888"),
-                        "portal_type": portal_info.get("portalType", "Unknown"),
-                        "expiring_date": portal_info.get("expiringDate", None),
-                    }
-
                 # Create forward and reverse connection info
-                conn_info_forward = make_conn_info(to_zone_name, to_zone, info)
-                conn_info_reverse = make_conn_info(from_zone_name, from_zone, info)
+                conn_info_forward = self._make_connection_info(to_zone_name, to_zone, info)
+                conn_info_reverse = self._make_connection_info(from_zone_name, from_zone, info)
 
                 # Initialize graph and deduplication tracking
                 graph.setdefault(from_zone_key, [])
