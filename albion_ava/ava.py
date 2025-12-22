@@ -310,8 +310,9 @@ class AlbionAva(commands.Cog):
 
                 # Store connection info we'll need later
                 # Keep original zone name for display purposes
+                # Include from_zone for reverse lookups
                 conn_info = {
-                    "from_zone": from_zone_name,  # Add from_zone for reverse lookups
+                    "from_zone": from_zone_name,
                     "to_zone": to_zone_name,
                     "tier": to_zone.get("tier", "?"),
                     "type": to_zone.get("type", "Unknown"),
@@ -322,10 +323,8 @@ class AlbionAva(commands.Cog):
 
                 # Add to graph (adjacency list) using normalized key
                 # Ensure both from_zone and to_zone exist in the graph
-                if from_zone_key not in graph:
-                    graph[from_zone_key] = []
-                if to_zone_key not in graph:
-                    graph[to_zone_key] = []
+                graph.setdefault(from_zone_key, [])
+                graph.setdefault(to_zone_key, [])
 
                 graph[from_zone_key].append(conn_info)
 
@@ -342,10 +341,11 @@ class AlbionAva(commands.Cog):
         Args:
             graph: Connection graph from _build_connection_graph (keys are lowercase)
             target_zone: Target zone to find paths to (will be normalized to lowercase)
-            max_depth: Maximum chain length to explore (currently only direct connections)
+            max_depth: Maximum chain length to explore (not currently used - only direct connections are returned)
 
         Returns:
             List of chains that end at the target zone, where each chain is a list of connection_info dicts.
+            Currently only returns direct (single-hop) connections.
         """
         target_zone_key = target_zone.lower()
 
@@ -365,6 +365,22 @@ class AlbionAva(commands.Cog):
 
         log.info(f"Found {len(incoming_chains)} direct incoming connections to '{target_zone}'")
         return incoming_chains
+
+    def _is_incoming_connection(self, chain: List[dict], home_zone: str) -> bool:
+        """Check if a chain represents an incoming connection to the home zone
+
+        Args:
+            chain: List of connection_info dicts
+            home_zone: The home zone name
+
+        Returns:
+            True if this is an incoming connection (to_zone matches home_zone), False otherwise
+        """
+        if not chain or len(chain) == 0:
+            return False
+
+        first_hop = chain[0]
+        return first_hop.get("to_zone", "").lower() == home_zone.lower()
 
     def _find_connection_chains(self, graph: dict, home_zone: str, max_depth: int = 5) -> List[List[dict]]:
         """Find all connection chains starting from home zone using BFS
@@ -466,9 +482,7 @@ class AlbionAva(commands.Cog):
         # Incoming connections will have from_zone set and to_zone matching home_zone
         is_incoming = False
         if chains and len(chains[0]) > 0:
-            first_hop = chains[0][0]
-            if first_hop.get("to_zone", "").lower() == home_zone.lower():
-                is_incoming = True
+            is_incoming = self._is_incoming_connection(chains[0], home_zone)
 
         # Process chains into display format
         found_connections = []
@@ -1118,9 +1132,7 @@ class AlbionAva(commands.Cog):
             # Incoming connections will have from_zone in the first hop
             is_incoming = False
             if connections and connections[0].get("chain"):
-                first_hop = connections[0]["chain"][0]
-                if "from_zone" in first_hop and first_hop.get("to_zone", "").lower() == home_zone.lower():
-                    is_incoming = True
+                is_incoming = self._is_incoming_connection(connections[0]["chain"], home_zone)
 
             if is_incoming:
                 # Show incoming connections
