@@ -345,7 +345,7 @@ class AlbionAva(commands.Cog):
         home_zone_key = home_zone.lower()
 
         if home_zone_key not in graph:
-            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())[:10]}...")
+            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())}...")
             return []
 
         # Log connections from home zone
