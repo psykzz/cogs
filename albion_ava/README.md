@@ -99,12 +99,23 @@ To see connections as a visual graph image:
 [p]ava image
 ```
 
-Both commands will display:
+To manually add a connection (useful when Portaler data is unavailable):
+
+```
+[p]ava add <from> <to> [duration_hours]
+```
+
+Example:
+```
+[p]ava add Lymhurst Thetford 4
+```
+
+Both display commands will show:
 - Target zones
 - Portal sizes
 - Time remaining
 
-The data is fetched fresh from the Portaler API each time you run these commands.
+The data is fetched fresh from the Portaler API each time you run these commands, and manual connections are merged with API data.
 
 ## Requirements
 
@@ -122,6 +133,7 @@ The data is fetched fresh from the Portaler API each time you run these commands
 | `[p]setava connections <number>` | Admin (Server only) | Set maximum number of connections to display (default: 10) |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |
 | `[p]ava image` | Everyone | Display connections as a visual graph image |
+| `[p]ava add <from> <to> [duration]` | Admin | Manually add a connection with optional duration in hours (default: 4) |
 
 ## About Roads of Avalon
 

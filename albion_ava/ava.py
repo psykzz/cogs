@@ -2,7 +2,7 @@ import asyncio
 import io
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 import discord
@@ -132,7 +132,67 @@ class AlbionAva(commands.Cog):
             home_zone=None,
             max_connections=10,  # Default max connections to display
             guild_ids=[],  # Complete list of guild IDs to query (not merged with server guild)
+            manual_connections=[],  # List of manually added connections
         )
+
+    def _create_manual_connection_object(self, from_zone: str, to_zone: str, duration_hours: int = 4):
+        """Create a connection object in the Portaler API format for manual connections
+
+        Args:
+            from_zone: The starting zone name
+            to_zone: The destination zone name
+            duration_hours: Duration in hours (default 4)
+
+        Returns:
+            Connection object compatible with Portaler API format
+        """
+        # Calculate expiring date
+        expiring_date = (datetime.now(timezone.utc) + 
+                        timedelta(hours=duration_hours)).isoformat().replace('+00:00', 'Z')
+        
+        return {
+            "info": {
+                "fromZone": {
+                    "name": from_zone,
+                    "tier": "?",
+                    "type": "Manual",
+                    "color": "#888888"
+                },
+                "toZone": {
+                    "name": to_zone,
+                    "tier": "?",
+                    "type": "Manual",
+                    "color": "#888888"
+                },
+                "portalType": "Manual",
+                "expiringDate": expiring_date
+            }
+        }
+
+    def _convert_manual_connections_to_map_data(self, manual_connections: list):
+        """Convert manual connections to Portaler API map data format
+
+        Args:
+            manual_connections: List of manual connection entries
+
+        Returns:
+            Map data array compatible with Portaler API format
+        """
+        if not manual_connections:
+            return []
+        
+        portal_connections = []
+        for manual_conn in manual_connections:
+            conn_obj = self._create_manual_connection_object(
+                manual_conn['from_zone'],
+                manual_conn['to_zone'],
+                manual_conn.get('duration_hours', 4)
+            )
+            portal_connections.append(conn_obj)
+        
+        return [{
+            "portalConnections": portal_connections
+        }]
 
     async def _fetch_guild_data(self, guild):
         """Fetch and merge data for a specific guild's configured Portaler guild IDs
@@ -141,39 +201,43 @@ class AlbionAva(commands.Cog):
             guild: Discord guild object
 
         Returns:
-            Merged map data from all configured guild IDs, or None if no data available
+            Merged map data from all configured guild IDs and manual connections, 
+            or None if no data available
         """
         # Get the global token
         token = await self.config.portaler_token()
 
-        if not token:
-            log.debug("No global Portaler token configured")
-            return None
-
         guild_ids = await self.config.guild(guild).guild_ids()
-
-        if not guild_ids:
-            log.debug(f"No Portaler guild IDs configured for {guild.name}")
-            return None
 
         # Fetch data from all configured guild IDs
         all_map_data = []
 
-        for portaler_guild_id in guild_ids:
-            try:
-                map_data = await self._fetch_portaler_data(portaler_guild_id, token)
-                if map_data:
-                    # Count connections from this guild
-                    connection_count = 0
-                    for map_obj in map_data:
-                        connection_count += len(map_obj.get("portalConnections", []))
-                    
-                    all_map_data.append(map_data)
-                    log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name}")
-                else:
-                    log.warning(f"No data returned from guild {portaler_guild_id} for {guild.name}")
-            except Exception as e:
-                log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
+        if token and guild_ids:
+            for portaler_guild_id in guild_ids:
+                try:
+                    map_data = await self._fetch_portaler_data(portaler_guild_id, token)
+                    if map_data:
+                        # Count connections from this guild
+                        connection_count = 0
+                        for map_obj in map_data:
+                            connection_count += len(map_obj.get("portalConnections", []))
+                        
+                        all_map_data.append(map_data)
+                        log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name}")
+                    else:
+                        log.warning(f"No data returned from guild {portaler_guild_id} for {guild.name}")
+                except Exception as e:
+                    log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
+        else:
+            log.debug("No token or guild IDs configured, skipping API data fetch")
+
+        # Get manual connections from config
+        manual_connections = await self.config.guild(guild).manual_connections()
+        if manual_connections:
+            manual_map_data = self._convert_manual_connections_to_map_data(manual_connections)
+            if manual_map_data:
+                all_map_data.append(manual_map_data)
+                log.info(f"Added {len(manual_connections)} manual connections for {guild.name}")
 
         # Merge all data (method handles single dataset case efficiently)
         if all_map_data:
@@ -182,10 +246,10 @@ class AlbionAva(commands.Cog):
             total_connections = 0
             for map_obj in merged_data:
                 total_connections += len(map_obj.get("portalConnections", []))
-            log.info(f"Merged data from {len(all_map_data)} guild(s) for {guild.name}: {total_connections} total connections")
+            log.info(f"Merged data from {len(all_map_data)} source(s) for {guild.name}: {total_connections} total connections")
             return merged_data
         else:
-            log.warning(f"No data available from any guild for {guild.name}")
+            log.warning(f"No data available from any source for {guild.name}")
 
         return None
 
@@ -1079,7 +1143,8 @@ class AlbionAva(commands.Cog):
             if not map_data:
                 await ctx.send(
                     "❌ No map data available. Please ensure your Portaler token is configured with "
-                    "`[p]setava token <token>`, and that guild IDs are set with `[p]setava guilds <id> ...`."
+                    "`[p]setava token <token>`, guild IDs are set with `[p]setava guilds <id> ...`, "
+                    "or add manual connections with `[p]ava add <from> <to>`."
                 )
                 return
 
@@ -1150,7 +1215,8 @@ class AlbionAva(commands.Cog):
             if not map_data:
                 await ctx.send(
                     "❌ No map data available. Please ensure your Portaler token is configured with "
-                    "`[p]setava token <token>`, and that guild IDs are set with `[p]setava guilds <id> ...`."
+                    "`[p]setava token <token>`, guild IDs are set with `[p]setava guilds <id> ...`, "
+                    "or add manual connections with `[p]ava add <from> <to>`."
                 )
                 return
 
@@ -1169,3 +1235,52 @@ class AlbionAva(commands.Cog):
             except Exception as e:
                 log.error(f"Error generating graph image: {e}", exc_info=True)
                 await ctx.send(f"❌ Failed to generate graph image: {e}")
+
+    @ava.command(name="add")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def ava_add(self, ctx, from_zone: str, to_zone: str, duration_hours: int = 4):
+        """Add a manual connection between two zones
+
+        Manually add a connection from one zone to another. This is useful when 
+        Portaler data is unavailable or you want to track a specific connection.
+
+        Args:
+            from_zone: The starting zone name
+            to_zone: The destination zone name
+            duration_hours: Optional duration in hours (default: 4)
+
+        Usage: [p]ava add <from> <to> [duration_hours]
+        Example: [p]ava add Lymhurst "Thetford Portal" 4
+        """
+        # Validate duration
+        if duration_hours < 1:
+            await ctx.send("❌ Duration must be at least 1 hour")
+            return
+        
+        if duration_hours > 24:
+            await ctx.send("❌ Duration cannot exceed 24 hours")
+            return
+
+        # Get current manual connections
+        manual_connections = await self.config.guild(ctx.guild).manual_connections()
+        
+        # Add new connection
+        new_connection = {
+            'from_zone': from_zone,
+            'to_zone': to_zone,
+            'duration_hours': duration_hours,
+            'added_at': datetime.now(timezone.utc).isoformat()
+        }
+        manual_connections.append(new_connection)
+        
+        # Save to config
+        await self.config.guild(ctx.guild).manual_connections.set(manual_connections)
+        
+        log.info(f"Added manual connection from '{from_zone}' to '{to_zone}' "
+                 f"with duration {duration_hours}h for {ctx.guild.name}")
+        
+        await ctx.send(
+            f"✅ Added manual connection:\n"
+            f"**{from_zone}** → **{to_zone}**\n"
+            f"Duration: {duration_hours} hours"
+        )
