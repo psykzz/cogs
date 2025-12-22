@@ -163,16 +163,29 @@ class AlbionAva(commands.Cog):
             try:
                 map_data = await self._fetch_portaler_data(portaler_guild_id, token)
                 if map_data:
+                    # Count connections from this guild
+                    connection_count = 0
+                    for map_obj in map_data:
+                        connection_count += len(map_obj.get("portalConnections", []))
+                    
                     all_map_data.append(map_data)
-                    log.debug(f"Fetched data from guild {portaler_guild_id} for {guild.name}")
+                    log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name}")
+                else:
+                    log.warning(f"No data returned from guild {portaler_guild_id} for {guild.name}")
             except Exception as e:
                 log.error(f"Error fetching data for guild {portaler_guild_id}: {e}", exc_info=True)
 
         # Merge all data (method handles single dataset case efficiently)
         if all_map_data:
             merged_data = self._merge_all_map_data(all_map_data)
-            log.debug(f"Merged data from {len(all_map_data)} guild(s) for {guild.name}")
+            # Count total connections in merged data
+            total_connections = 0
+            for map_obj in merged_data:
+                total_connections += len(map_obj.get("portalConnections", []))
+            log.info(f"Merged data from {len(all_map_data)} guild(s) for {guild.name}: {total_connections} total connections")
             return merged_data
+        else:
+            log.warning(f"No data available from any guild for {guild.name}")
 
         return None
 
@@ -268,11 +281,14 @@ class AlbionAva(commands.Cog):
             Dictionary mapping from_zone -> list of (to_zone, connection_info) tuples
         """
         graph = {}
+        total_connections = 0
+        skipped_connections = 0
 
         for map_obj in map_data:
             portal_connections = map_obj.get("portalConnections", [])
 
             for connection in portal_connections:
+                total_connections += 1
                 info = connection.get("info", {})
                 from_zone = info.get("fromZone", {})
                 to_zone = info.get("toZone", {})
@@ -281,6 +297,7 @@ class AlbionAva(commands.Cog):
                 to_zone_name = to_zone.get("name", "")
 
                 if not from_zone_name or not to_zone_name:
+                    skipped_connections += 1
                     continue
 
                 # Store connection info we'll need later
@@ -298,6 +315,11 @@ class AlbionAva(commands.Cog):
                     graph[from_zone_name] = []
                 graph[from_zone_name].append(conn_info)
 
+        log.info(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
+        if skipped_connections > 0:
+            log.warning(f"Skipped {skipped_connections} connections with missing zone names")
+        log.debug(f"Zones in graph: {sorted(graph.keys())}")
+
         return graph
 
     def _find_connection_chains(self, graph: dict, home_zone: str, max_depth: int = 5) -> List[List[dict]]:
@@ -314,7 +336,15 @@ class AlbionAva(commands.Cog):
         from collections import deque
 
         if home_zone not in graph:
+            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())[:10]}...")
             return []
+
+        # Log connections from home zone
+        home_connections = graph[home_zone]
+        log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
+        if home_connections:
+            destinations = [conn['to_zone'] for conn in home_connections]
+            log.debug(f"Direct connections from '{home_zone}': {destinations}")
 
         chains = []
         queue = deque()
@@ -345,6 +375,7 @@ class AlbionAva(commands.Cog):
                         new_chain = current_chain + [next_conn]
                         queue.append(new_chain)
 
+        log.info(f"Found {len(chains)} total connection chains from '{home_zone}'")
         return chains
 
     def _get_connections_data(self, map_data: List, home_zone: str, max_connections: int = None) -> List[dict]:
@@ -422,8 +453,18 @@ class AlbionAva(commands.Cog):
         # Sort by priority
         found_connections.sort(key=lambda x: (x["priority"], x["final_zone"].lower()))
 
+        # Log summary of found connections by category
+        royal_count = sum(1 for c in found_connections if c["is_royal"])
+        yellow_blue_count = sum(1 for c in found_connections if c["zone_color_class"] in ['yellow', 'blue'])
+        black_count = sum(1 for c in found_connections if c["zone_color_class"] == 'black')
+        other_count = len(found_connections) - royal_count - yellow_blue_count - black_count
+        
+        log.info(f"Processed {len(found_connections)} connections: {royal_count} royal, "
+                 f"{yellow_blue_count} yellow/blue, {black_count} black, {other_count} other")
+
         # Apply max_connections limit if specified
         if max_connections is not None and len(found_connections) > max_connections:
+            log.debug(f"Limiting connections from {len(found_connections)} to {max_connections}")
             found_connections = found_connections[:max_connections]
 
         return found_connections
