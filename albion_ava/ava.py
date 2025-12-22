@@ -325,7 +325,7 @@ class AlbionAva(commands.Cog):
                     graph[from_zone_key] = []
                 if to_zone_key not in graph:
                     graph[to_zone_key] = []
-                    
+
                 graph[from_zone_key].append(conn_info)
 
         log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
@@ -357,12 +357,12 @@ class AlbionAva(commands.Cog):
 
         # Log connections from home zone
         home_connections = graph[home_zone_key]
-        
+
         if not home_connections:
             log.warning(f"Home zone '{home_zone}' exists but has no outgoing connections in the current data. "
                        f"This zone may only appear as a destination. Try a different home zone.")
             return []
-        
+
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
         destinations = [conn['to_zone'] for conn in home_connections]
         log.debug(f"Direct connections from '{home_zone}': {destinations}")
