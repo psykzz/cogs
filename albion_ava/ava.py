@@ -272,17 +272,16 @@ class AlbionAva(commands.Cog):
         return [merged_map]
 
     def _build_connection_graph(self, map_data: List) -> dict:
-        """Build a complete graph of all connections from the map data
+        """Build a complete bidirectional graph of all connections from the map data
 
         Args:
             map_data: Array of map objects from Portaler API
 
         Returns:
-            Dictionary mapping from_zone (lowercase) -> list of (to_zone, connection_info) tuples
+            Dictionary mapping from_zone (lowercase) -> list of connection_info dicts
             Note: Zone names are normalized to lowercase for case-insensitive lookups,
                   but original case is preserved in connection_info for display.
-                  All zones (including destination-only zones) are added to the graph,
-                  even if they have no outgoing connections (empty list).
+                  Connections are bidirectional - each connection A→B also creates B→A.
         """
         graph = {}
         total_connections = 0
@@ -310,9 +309,7 @@ class AlbionAva(commands.Cog):
 
                 # Store connection info we'll need later
                 # Keep original zone name for display purposes
-                # Include from_zone for reverse lookups
-                conn_info = {
-                    "from_zone": from_zone_name,
+                conn_info_forward = {
                     "to_zone": to_zone_name,
                     "tier": to_zone.get("tier", "?"),
                     "type": to_zone.get("type", "Unknown"),
@@ -321,14 +318,23 @@ class AlbionAva(commands.Cog):
                     "expiring_date": info.get("expiringDate", None),
                 }
 
+                # Create reverse connection info (bidirectional)
+                conn_info_reverse = {
+                    "to_zone": from_zone_name,
+                    "tier": from_zone.get("tier", "?"),
+                    "type": from_zone.get("type", "Unknown"),
+                    "color": from_zone.get("color", "#888888"),
+                    "portal_type": info.get("portalType", "Unknown"),
+                    "expiring_date": info.get("expiringDate", None),
+                }
+
                 # Add to graph (adjacency list) using normalized key
-                # Ensure both from_zone and to_zone exist in the graph
-                # Destination-only zones need empty lists so they can be used as home zones
-                # and have incoming connections found via _find_direct_incoming_connections
+                # Connections are bidirectional - add both forward and reverse
                 graph.setdefault(from_zone_key, [])
                 graph.setdefault(to_zone_key, [])
 
-                graph[from_zone_key].append(conn_info)
+                graph[from_zone_key].append(conn_info_forward)
+                graph[to_zone_key].append(conn_info_reverse)
 
         log.debug(f"Built connection graph with {len(graph)} zones and {total_connections} total connections")
         if skipped_connections > 0:
@@ -336,57 +342,6 @@ class AlbionAva(commands.Cog):
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
 
         return graph
-
-    def _find_direct_incoming_connections(self, graph: dict, target_zone: str) -> List[List[dict]]:
-        """Find direct (1-hop) connections that lead TO a target zone
-
-        Args:
-            graph: Connection graph from _build_connection_graph (keys are lowercase)
-            target_zone: Target zone to find paths to (will be normalized to lowercase)
-
-        Returns:
-            List of single-hop chains that end at the target zone.
-            Each chain contains one connection_info dict representing a direct connection to target_zone.
-
-        Note:
-            This method only finds direct incoming connections (1-hop).
-            Multi-hop reverse path finding could be implemented in the future if needed,
-            but would require additional graph traversal and path reconstruction logic.
-        """
-        target_zone_key = target_zone.lower()
-
-        if target_zone_key not in graph:
-            log.warning(f"Target zone '{target_zone}' not found in connection graph.")
-            return []
-
-        # Find all zones that have a direct connection to target_zone
-        incoming_chains = []
-
-        # Search for zones that connect to the target
-        for from_zone_key, connections in graph.items():
-            for conn in connections:
-                if conn["to_zone"].lower() == target_zone_key:
-                    # Found a direct connection to target
-                    incoming_chains.append([conn])
-
-        log.info(f"Found {len(incoming_chains)} direct incoming connections to '{target_zone}'")
-        return incoming_chains
-
-    def _is_incoming_connection(self, chain: List[dict], home_zone: str) -> bool:
-        """Check if a chain represents an incoming connection to the home zone
-
-        Args:
-            chain: List of connection_info dicts
-            home_zone: The home zone name
-
-        Returns:
-            True if this is an incoming connection (to_zone matches home_zone), False otherwise
-        """
-        if not chain:
-            return False
-
-        first_hop = chain[0]
-        return first_hop.get("to_zone", "").lower() == home_zone.lower()
 
     def _find_connection_chains(self, graph: dict, home_zone: str, max_depth: int = 5) -> List[List[dict]]:
         """Find all connection chains starting from home zone using BFS
@@ -404,9 +359,6 @@ class AlbionAva(commands.Cog):
         # Normalize home_zone for case-insensitive lookup
         home_zone_key = home_zone.lower()
 
-        # This check should theoretically never fail since _build_connection_graph
-        # adds all zones to the graph (including destination-only zones).
-        # However, we keep it as a safety check for data consistency issues.
         if home_zone_key not in graph:
             log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())}...")
             return []
@@ -415,13 +367,8 @@ class AlbionAva(commands.Cog):
         home_connections = graph[home_zone_key]
 
         if not home_connections:
-            log.warning(f"Home zone '{home_zone}' has no outgoing connections. "
-                       f"Searching for incoming connections instead...")
-            # Find zones that connect TO this zone
-            incoming_chains = self._find_direct_incoming_connections(graph, home_zone)
-            if incoming_chains:
-                log.info(f"Found {len(incoming_chains)} incoming connection(s) to '{home_zone}'")
-            return incoming_chains
+            log.warning(f"Home zone '{home_zone}' has no connections in the current data.")
+            return []
 
         log.info(f"Found {len(home_connections)} direct connections from home zone '{home_zone}'")
         destinations = [conn['to_zone'] for conn in home_connections]
@@ -487,30 +434,16 @@ class AlbionAva(commands.Cog):
         if not chains:
             return []
 
-        # Check if these are incoming connections (reverse chains)
-        # Incoming connections will have from_zone set and to_zone matching home_zone
-        is_incoming = False
-        if chains and chains[0]:
-            is_incoming = self._is_incoming_connection(chains[0], home_zone)
-
         # Process chains into display format
         found_connections = []
 
         for chain in chains:
-            if is_incoming:
-                # For incoming connections, the "final zone" is the from_zone
-                first_conn = chain[0]
-                final_zone = first_conn.get("from_zone", "Unknown")
-                final_color = first_conn["color"]
-                final_type = first_conn["type"]
-                final_tier = first_conn["tier"]
-            else:
-                # For outgoing connections, the final zone is the last to_zone
-                last_conn = chain[-1]
-                final_zone = last_conn["to_zone"]
-                final_color = last_conn["color"]
-                final_type = last_conn["type"]
-                final_tier = last_conn["tier"]
+            # Get the final destination
+            last_conn = chain[-1]
+            final_zone = last_conn["to_zone"]
+            final_color = last_conn["color"]
+            final_type = last_conn["type"]
+            final_tier = last_conn["tier"]
 
             # Calculate time remaining for the first connection in chain (most critical)
             first_conn = chain[0]
@@ -545,8 +478,7 @@ class AlbionAva(commands.Cog):
                 "zone_color_class": zone_color_class,
                 "time_remaining": time_str,
                 "priority": priority,
-                "is_royal": is_royal,
-                "is_incoming": is_incoming
+                "is_royal": is_royal
             })
 
         # Sort by priority
@@ -596,7 +528,7 @@ class AlbionAva(commands.Cog):
             return "Unknown"
 
     def _format_no_connections_error(self, home_zone: str) -> str:
-        """Format error message for when a zone has no connections in any direction
+        """Format error message for when a zone has no connections
 
         Args:
             home_zone: The zone name that has no connections
@@ -606,8 +538,7 @@ class AlbionAva(commands.Cog):
         """
         return (
             f"❌ No connections found for **{home_zone}**.\n"
-            f"This zone has no outgoing or incoming connections in the current data.\n"
-            f"The zone may not exist, or it may not be accessible right now.\n"
+            f"This zone may not exist in the current Portaler data.\n"
             f"Try setting a different home zone with `[p]setava home <zone>`."
         )
 
@@ -1136,37 +1067,6 @@ class AlbionAva(commands.Cog):
 
             if not connections:
                 await ctx.send(self._format_no_connections_error(home_zone))
-                return
-
-            # Check if these are incoming connections (zone appears as destination only)
-            # Incoming connections will have from_zone in the first hop
-            is_incoming = False
-            if connections and connections[0].get("chain"):
-                is_incoming = self._is_incoming_connection(connections[0]["chain"], home_zone)
-
-            if is_incoming:
-                # Show incoming connections
-                message_lines = [f"**Incoming connections to {home_zone}:**\n"]
-                for i, conn in enumerate(connections[:5]):  # Show up to 5 incoming
-                    chain = conn.get("chain", [])
-                    if chain:
-                        hop = chain[0]
-                        from_zone = hop.get("from_zone")
-                        if not from_zone:
-                            # This should never happen since from_zone is always set in _build_connection_graph
-                            log.warning(f"Missing from_zone in incoming connection data: {hop}")
-                            from_zone = "Unknown Source"
-                        
-                        zone_class = conn.get('zone_color_class', 'unknown')
-                        zone_class_display = f" ({zone_class.capitalize()} Zone)" if zone_class != 'unknown' else ""
-                        
-                        message_lines.append(
-                            f"{from_zone} → **{home_zone}**{zone_class_display}\n"
-                            f"Tier: T{conn['tier']} {conn['type']}\n"
-                            f"Time remaining: {conn['time_remaining']}\n"
-                        )
-                
-                await ctx.send("\n".join(message_lines))
                 return
 
             # Filter to get only connections that match our criteria:
