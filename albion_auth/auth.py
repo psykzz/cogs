@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import discord
 import httpx
+from discord.ext import tasks
 from redbot.core import commands, Config, checks
 
 log = logging.getLogger("red.cogs.albion_auth")
@@ -50,18 +51,12 @@ class AlbionAuth(commands.Cog):
             verified_users={},
             enable_daily_check=True
         )
-        self._check_task = None
+        self._daily_check_loop.start()
 
-    async def cog_load(self):
-        """Start the background task when cog loads"""
-        self._check_task = self.bot.loop.create_task(self._daily_check_loop())
-        log.debug("Started daily name check task")
-
-    async def cog_unload(self):
+    def cog_unload(self):
         """Cancel the background task when cog unloads"""
-        if self._check_task:
-            self._check_task.cancel()
-            log.debug("Cancelled daily name check task")
+        self._daily_check_loop.cancel()
+        log.debug("Cancelled daily name check task")
 
     async def search_player_in_region(self, name, region_url, region_name):
         """Search for a player by name in a specific region"""
@@ -109,22 +104,19 @@ class AlbionAuth(commands.Cog):
         log.warning(f"Player '{name}' not found in any region")
         return None
 
+    @tasks.loop(hours=1.0)
     async def _daily_check_loop(self):
         """Background task to check verified users periodically"""
-        await self.bot.wait_until_ready()
         log.debug("Daily check loop started")
+        try:
+            await self._check_users_batch()
+        except Exception as e:
+            log.error(f"Error in daily check loop: {e}", exc_info=True)
 
-        while True:
-            try:
-                # Run check every hour
-                await asyncio.sleep(3600)
-                await self._check_users_batch()
-            except asyncio.CancelledError:
-                log.debug("Daily check loop cancelled")
-                break
-            except Exception as e:
-                log.error(f"Error in daily check loop: {e}", exc_info=True)
-                await asyncio.sleep(3600)  # Wait an hour before retrying on error
+    @_daily_check_loop.before_loop
+    async def before_daily_check(self):
+        """Wait for bot to be ready before starting the loop."""
+        await self.bot.wait_until_ready()
 
     async def _check_users_batch(self):
         """Check a batch of users (approximately 1/24th of users per hour)"""
