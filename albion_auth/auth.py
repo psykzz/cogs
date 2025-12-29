@@ -104,7 +104,7 @@ class AlbionAuth(commands.Cog):
         log.warning(f"Player '{name}' not found in any region")
         return None
 
-    @tasks.loop(hours=1.0)
+    @tasks.loop(hours=24.0)
     async def _daily_check_loop(self):
         """Background task to check verified users periodically"""
         log.debug("Daily check loop started")
