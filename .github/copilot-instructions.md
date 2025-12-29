@@ -260,6 +260,102 @@ flake8 modified_file.py --select=F821
 3. Check info.json for missing dependencies
 4. Review import statements for typos
 
+### Using Discord Tasks for Background Operations
+**IMPORTANT**: When implementing background tasks in cogs, always use native Discord tasks (`discord.ext.tasks`) instead of manual asyncio loops. This provides better error handling, automatic restart on failure, and cleaner lifecycle management.
+
+#### Discord Tasks Pattern
+Discord tasks are the recommended way to implement periodic background operations. They provide:
+- Automatic error handling and recovery
+- Built-in waiting for bot ready state
+- Clean start/stop lifecycle management
+- Automatic reconnection handling
+
+#### Implementation Pattern
+```python
+from discord.ext import tasks
+
+class MyCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # Start the task when the cog is initialized
+        self.my_background_task.start()
+    
+    def cog_unload(self):
+        """Cancel the background task when cog unloads"""
+        self.my_background_task.cancel()
+    
+    @tasks.loop(hours=1.0)  # or minutes=X, seconds=X
+    async def my_background_task(self):
+        """Background task that runs periodically"""
+        try:
+            # Your task logic here
+            await self.do_something()
+        except Exception as e:
+            log.error(f"Error in background task: {e}", exc_info=True)
+    
+    @my_background_task.before_loop
+    async def before_my_task(self):
+        """Wait for bot to be ready before starting the loop."""
+        await self.bot.wait_until_ready()
+```
+
+#### Key Differences from Manual Loops
+
+**❌ DO NOT use manual asyncio loops:**
+```python
+# OLD PATTERN - DO NOT USE
+async def cog_load(self):
+    self._task = self.bot.loop.create_task(self._my_loop())
+
+async def _my_loop(self):
+    await self.bot.wait_until_ready()
+    while True:
+        try:
+            await asyncio.sleep(3600)
+            await self.do_something()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            log.error(f"Error: {e}")
+            await asyncio.sleep(3600)
+```
+
+**✅ DO use Discord tasks:**
+```python
+# NEW PATTERN - USE THIS
+def __init__(self, bot):
+    self.bot = bot
+    self.my_task.start()
+
+@tasks.loop(hours=1.0)
+async def my_task(self):
+    await self.do_something()
+
+@my_task.before_loop
+async def before_my_task(self):
+    await self.bot.wait_until_ready()
+```
+
+#### Examples in Repository
+See these cogs for reference implementations:
+- **nw_server_status/server_status.py**: Uses `@tasks.loop(minutes=5.0)` for server status updates
+- **game_embed/game_embed.py**: Uses `@tasks.loop(seconds=15.0)` for game server monitoring
+- **albion_auth/auth.py**: Uses `@tasks.loop(hours=1.0)` for daily verification checks
+
+#### Task Loop Configuration
+- Use `hours=X` for hourly intervals (e.g., `@tasks.loop(hours=1.0)`)
+- Use `minutes=X` for minute intervals (e.g., `@tasks.loop(minutes=5.0)`)
+- Use `seconds=X` for second intervals (e.g., `@tasks.loop(seconds=15.0)`)
+- Tasks automatically restart on failure unless cancelled
+- Always implement `@task_name.before_loop` to wait for bot ready
+
+#### Benefits
+1. **Automatic Error Recovery**: Tasks restart automatically after exceptions (no need for manual try/except in loop)
+2. **Cleaner Code**: No need for `while True` loops or manual sleep management
+3. **Better Lifecycle**: Tasks are properly managed by Discord.py framework
+4. **Reconnection Handling**: Tasks automatically handle Discord reconnections
+5. **Consistency**: Follows Discord.py best practices and matches Red-bot ecosystem patterns
+
 ## Maintaining Documentation
 
 ### Documentation Update Requirements
