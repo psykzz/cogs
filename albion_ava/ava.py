@@ -303,7 +303,7 @@ class AlbionAva(commands.Cog):
                 filtered_data.append(map_obj)
             elif not albion_server:
                 # If no albionServer field, include it (for backward compatibility)
-                log.debug(f"Map object missing albionServer field, including by default")
+                log.debug("Map object missing albionServer field, including by default")
                 filtered_data.append(map_obj)
 
         return filtered_data if filtered_data else None
