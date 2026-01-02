@@ -59,7 +59,20 @@ This sets which Portaler guilds to query for this Discord server. You can specif
 [p]setava guilds
 ```
 
-**Step 3: Set your home zone** (must be done in the server):
+**Step 3: Set your Albion server** (optional, defaults to EUROPE):
+
+```
+[p]setava server <server>
+```
+
+Example:
+```
+[p]setava server EUROPE
+```
+
+Valid servers are: AMERICA, ASIA, EUROPE. This filters connection data to only show portals from the specified Albion server.
+
+**Step 4: Set your home zone** (must be done in the server):
 
 ```
 [p]setava home <zone>
@@ -70,7 +83,7 @@ Example:
 [p]setava home Lymhurst
 ```
 
-**Step 4: Set the maximum number of connections to display** (optional):
+**Step 5: Set the maximum number of connections to display** (optional):
 
 ```
 [p]setava connections <number>
@@ -129,6 +142,7 @@ The data is fetched fresh from the Portaler API each time you run these commands
 |---------|------------|-------------|
 | `[p]setava token <token>` | Bot Owner (DM only) | Set global Portaler API bearer token for all servers |
 | `[p]setava guilds <guild_id> ...` | Admin (Server only) | Set which Portaler guild IDs to query (complete list, not additive) |
+| `[p]setava server <server>` | Admin (Server only) | Set Albion server to filter data by (AMERICA, ASIA, or EUROPE, default: EUROPE) |
 | `[p]setava home <zone>` | Admin (Server only) | Set home zone to focus connections from |
 | `[p]setava connections <number>` | Admin (Server only) | Set maximum number of connections to display (default: 10) |
 | `[p]ava` | Everyone | Display connections from home zone (text format) |

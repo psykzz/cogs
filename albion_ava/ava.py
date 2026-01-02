@@ -43,6 +43,9 @@ async def http_get(url, headers=None):
 class AlbionAva(commands.Cog):
     """Track Roads of Avalon connections via Portaler API"""
 
+    # Valid Albion servers
+    VALID_SERVERS = ["AMERICA", "ASIA", "EUROPE"]
+
     # Royal cities for prioritization
     ROYAL_CITIES = frozenset([
         "caerleon", "bridgewatch", "fort sterling",
@@ -137,6 +140,7 @@ class AlbionAva(commands.Cog):
             max_connections=10,  # Default max connections to display
             guild_ids=[],  # Complete list of guild IDs to query (not merged with server guild)
             manual_connections=[],  # List of manually added connections
+            server="EUROPE",  # Albion server to filter data by (AMERICA, ASIA, EUROPE)
         )
 
     def _create_manual_connection_object(self, from_zone: str, to_zone: str, duration_hours: int = 4):
@@ -212,6 +216,7 @@ class AlbionAva(commands.Cog):
         token = await self.config.portaler_token()
 
         guild_ids = await self.config.guild(guild).guild_ids()
+        server = await self.config.guild(guild).server()
 
         # Fetch data from all configured guild IDs
         all_map_data = []
@@ -221,13 +226,18 @@ class AlbionAva(commands.Cog):
                 try:
                     map_data = await self._fetch_portaler_data(portaler_guild_id, token)
                     if map_data:
-                        # Count connections from this guild
-                        connection_count = 0
-                        for map_obj in map_data:
-                            connection_count += len(map_obj.get("portalConnections", []))
-                        
-                        all_map_data.append(map_data)
-                        log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name}")
+                        # Filter by server - only keep data matching the configured server
+                        filtered_data = self._filter_by_server(map_data, server)
+                        if filtered_data:
+                            # Count connections from this guild
+                            connection_count = 0
+                            for map_obj in filtered_data:
+                                connection_count += len(map_obj.get("portalConnections", []))
+                            
+                            all_map_data.append(filtered_data)
+                            log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name} (server: {server})")
+                        else:
+                            log.warning(f"No data for server {server} from guild {portaler_guild_id} for {guild.name}")
                     else:
                         log.warning(f"No data returned from guild {portaler_guild_id} for {guild.name}")
                 except Exception as e:
@@ -271,6 +281,32 @@ class AlbionAva(commands.Cog):
         if len(guild_id) < 17 or len(guild_id) > 20:
             return False, f"Invalid guild ID: `{guild_id}` (must be 17-20 digits)"
         return True, ""
+
+    def _filter_by_server(self, map_data: List, server: str) -> Optional[List]:
+        """Filter map data to only include entries matching the specified server
+
+        Args:
+            map_data: Array of map objects from Portaler API
+            server: Server name to filter by (AMERICA, ASIA, EUROPE)
+
+        Returns:
+            Filtered map data array, or None if no matching data
+        """
+        if not map_data:
+            return None
+
+        filtered_data = []
+        for map_obj in map_data:
+            # Check if this map object has an albionServer field
+            albion_server = map_obj.get("albionServer")
+            if albion_server and albion_server == server:
+                filtered_data.append(map_obj)
+            elif not albion_server:
+                # If no albionServer field, include it (for backward compatibility)
+                log.debug("Map object missing albionServer field, including by default")
+                filtered_data.append(map_obj)
+
+        return filtered_data if filtered_data else None
 
     async def _fetch_portaler_data(self, guild_id: str, token: str) -> Optional[List]:
         """Fetch map data from Portaler API
@@ -1117,6 +1153,31 @@ class AlbionAva(commands.Cog):
             f"Connection data from these {len(valid_ids)} guild(s) will be fetched and merged.\n"
             f"Note: A global token must be configured by the bot owner using `[p]setava token` in DM."
         )
+
+    @setava.command(name="server")
+    @commands.guild_only()
+    async def setava_server(self, ctx, server: str):
+        """Set the Albion server for this guild
+
+        Sets which Albion server's data to filter for. Only connections from the
+        specified server will be displayed.
+
+        Valid servers: AMERICA, ASIA, EUROPE
+
+        Usage: [p]setava server <server>
+        Example: [p]setava server EUROPE
+        """
+        # Validate server
+        server_upper = server.upper()
+        if server_upper not in self.VALID_SERVERS:
+            await ctx.send(
+                f"❌ Invalid server. Valid servers are: {', '.join(self.VALID_SERVERS)}"
+            )
+            return
+
+        await self.config.guild(ctx.guild).server.set(server_upper)
+        log.debug(f"Set Albion server to '{server_upper}' for {ctx.guild.name}")
+        await ctx.send(f"✅ Albion server set to **{server_upper}**")
 
     @commands.guild_only()
     @commands.group(name="ava", invoke_without_command=True)
