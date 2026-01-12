@@ -88,7 +88,7 @@ class SecretSanta(commands.Cog):
         # Fallback: use a longer ID
         return generate_event_id() + generate_event_id()
 
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.guild_only()
     async def santa(self, ctx):
         """Secret Santa event management."""
@@ -1216,7 +1216,7 @@ class SecretSanta(commands.Cog):
         await ctx.send(msg or "No changes made.")
 
     # DM-only commands using event_id for anonymity
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.dm_only()
     async def santadm(self, ctx):
         """Secret Santa DM commands for anonymous messaging.

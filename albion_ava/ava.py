@@ -1036,7 +1036,7 @@ class AlbionAva(commands.Cog):
         return lines
 
     @checks.admin_or_permissions(manage_guild=True)
-    @commands.group(name="setava")
+    @commands.hybrid_group(name="setava")
     async def setava(self, ctx):
         """Configure Avalon road tracker settings"""
         if ctx.invoked_subcommand is None:
@@ -1180,7 +1180,7 @@ class AlbionAva(commands.Cog):
         await ctx.send(f"✅ Albion server set to **{server_upper}**")
 
     @commands.guild_only()
-    @commands.group(name="ava", invoke_without_command=True)
+    @commands.hybrid_group(name="ava", invoke_without_command=True)
     async def ava(self, ctx):
         """Display connections from the home zone (text format)
 

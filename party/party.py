@@ -1094,7 +1094,7 @@ class Party(commands.Cog):
 
         return embed
 
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.guild_only()
     async def party(self, ctx):
         """Party management commands."""

@@ -490,7 +490,7 @@ class AlbionAuth(commands.Cog):
 
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
-    @commands.group(name="authset")
+    @commands.hybrid_group(name="authset")
     async def authset(self, ctx):
         """Configure settings for the Albion authentication system"""
         if ctx.invoked_subcommand is None:

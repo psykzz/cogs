@@ -226,8 +226,9 @@ class GameEmbed(commands.Cog):
             logger.exception(f"Error updating embed: {e}")
 
     @commands.guild_only()
-    @commands.group(name="gameserver", invoke_without_command=True)
+    @commands.hybrid_group(name="gameserver", invoke_without_command=True)
     async def gameserver_group(self, ctx):
+        await ctx.defer()
         """Game server monitoring commands."""
         await ctx.send_help()
 
@@ -280,6 +281,7 @@ class GameEmbed(commands.Cog):
     @gameserver_group.command(name="remove")
     @commands.admin_or_permissions(manage_guild=True)
     async def remove_server(self, ctx, ip: str, port: int):
+        await ctx.defer()
         """Remove a Steam game server from monitoring.
 
         Args:
@@ -308,6 +310,7 @@ class GameEmbed(commands.Cog):
 
     @gameserver_group.command(name="list")
     async def list_servers(self, ctx):
+        await ctx.defer()
         """List all monitored Steam game servers."""
         guild_config = self.config.guild(ctx.guild)
         servers = await guild_config.servers()
@@ -341,6 +344,7 @@ class GameEmbed(commands.Cog):
     @gameserver_group.command(name="post")
     @commands.admin_or_permissions(manage_guild=True)
     async def post_embed(self, ctx, ip: str, port: int):
+        await ctx.defer()
         """Post a status embed for a monitored server.
 
         The embed will be automatically updated with the latest server info.
@@ -404,6 +408,7 @@ class GameEmbed(commands.Cog):
     @gameserver_group.command(name="refresh")
     @commands.admin_or_permissions(manage_guild=True)
     async def refresh_servers(self, ctx):
+        await ctx.defer()
         """Manually refresh all server data and update embeds."""
         await ctx.send("🔄 Refreshing server data...")
         async with ctx.typing():
@@ -412,6 +417,7 @@ class GameEmbed(commands.Cog):
 
     @gameserver_group.command(name="status")
     async def server_status(self, ctx, ip: str, port: int):
+        await ctx.defer()
         """Get the current status of a specific server.
 
         Args:

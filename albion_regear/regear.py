@@ -243,8 +243,9 @@ class AlbionRegear(commands.Cog):
         log.debug(msg)
         return total_cost, priced_items, unpriced_items
 
-    @commands.command()
+    @commands.hybrid_command()
     async def regear(self, ctx, name: str):
+        await ctx.defer()
         """Calculate regear cost for a player's latest death
 
         Usage: .regear <player_name>
