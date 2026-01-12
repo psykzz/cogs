@@ -74,7 +74,7 @@ class Ideas(commands.Cog):
         }
         self.config.register_global(**default_global)
 
-    @commands.command()
+    @commands.hybrid_command()
     async def suggest(self, ctx, title: str, *, description: str):
         """Suggest a new idea by creating a GitHub issue
 
