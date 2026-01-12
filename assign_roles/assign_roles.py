@@ -38,9 +38,19 @@ class AssignRoles(commands.Cog):
 
     # Commands
     @commands.guild_only()
-    @commands.group(name="assign", invoke_without_command=True)
+    @commands.hybrid_group(name="assign", invoke_without_command=True)
     async def _assign(self, ctx, role: discord.Role, user: discord.Member = None):
-        """Assign a role to a user"""
+        """Assign a role to a user
+        
+        Parameters
+        ----------
+        role : discord.Role
+            The role to assign/remove
+        user : discord.Member, optional
+            The user to assign the role to (default: yourself)
+        """
+        await ctx.defer(ephemeral=True)
+        
         author = ctx.author
         if user is None:
             user = author
@@ -61,7 +71,7 @@ class AssignRoles(commands.Cog):
             else:
                 await user.add_roles(role)
                 notice = self.ASSIGN_ADDED.format(role.name)
-        await ctx.send(notice)
+        await ctx.send(notice, ephemeral=True)
 
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
@@ -71,7 +81,16 @@ class AssignRoles(commands.Cog):
 
         Allows all members with the role `authorised_role` to give the role `giveable_role` to everyone.
         In order to authorise, your highest role must be strictly above the `authorised_role` (except for the owner).
+        
+        Parameters
+        ----------
+        authorised_role : discord.Role
+            The role that will be allowed to assign others
+        giveable_role : discord.Role
+            The role that can be assigned
         """
+        await ctx.defer(ephemeral=True)
+        
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
 
@@ -92,7 +111,7 @@ class AssignRoles(commands.Cog):
             server_dict.setdefault(giveable_id, []).append(authorised_id)
             await self.config.guild(gld).roles.set(server_dict)
             notice = self.AUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
-        await ctx.send(notice)
+        await ctx.send(notice, ephemeral=True)
 
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
@@ -101,7 +120,16 @@ class AssignRoles(commands.Cog):
         """Deauthorise one role to give another role
 
         In order to deauthorise, your highest role must be strictly above the `authorised_role` (except for the owner).
+        
+        Parameters
+        ----------
+        authorised_role : discord.Role
+            The role to remove authorization from
+        giveable_role : discord.Role
+            The role that can no longer be assigned
         """
+        await ctx.defer(ephemeral=True)
+        
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
 
@@ -123,13 +151,15 @@ class AssignRoles(commands.Cog):
             server_dict[giveable_id].remove(authorised_id)
             await self.config.guild(gld).roles.set(server_dict)
             notice = self.DEAUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
-        await ctx.send(notice)
+        await ctx.send(notice, ephemeral=True)
 
     @commands.guild_only()
     @checks.mod_or_permissions(manage_guild=True)
     @_assign.command()
     async def list(self, ctx):
         """Send an embed showing which roles can be given by other roles"""
+        await ctx.defer(ephemeral=True)
+        
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
         embed = discord.Embed(colour=0x00D8FF, title="Assign authorisations")
@@ -142,7 +172,7 @@ class AssignRoles(commands.Cog):
                 if len(mentions_str) > 0:  # Prevent empty fields from being sent.
                     embed.add_field(name=role.name, value=mentions_str)
         embed.description = self.LIST_DESC_EMPTY if len(embed.fields) == 0 else self.LIST_DESC_NORMAL
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, ephemeral=True)
 
     # Utilities
 
