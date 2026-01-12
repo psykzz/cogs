@@ -255,7 +255,7 @@ class AlbionBandits(commands.Cog):
             "is_estimated": True,  # Flag to mark this as an estimate
         }
 
-    @commands.group(invoke_without_command=True)
+    @commands.hybrid_group(invoke_without_command=True)
     @commands.guild_only()
     async def bandits(self, ctx):
         """Manage bandit tracking"""

@@ -40,7 +40,7 @@ class WarTimers(commands.Cog):
         )
         self.config.register_guild(**default_guild)
 
-    @commands.group()
+    @commands.hybrid_group()
     @commands.guild_only()
     async def war(self, ctx):
         "Manage war timers"
