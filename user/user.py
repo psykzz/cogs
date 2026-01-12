@@ -61,28 +61,6 @@ class User(commands.Cog):
             # Default to PNG if unknown
             return 'image/png'
 
-    async def _edit_nickname(
-        self,
-        ctx: commands.Context,
-        nickname: str | None
-    ) -> None:
-        """Helper to edit the bot's nickname in a guild with error handling.
-
-        Args:
-            ctx: The command context
-            nickname: The new nickname, or None to reset
-        """
-        try:
-            await ctx.guild.me.edit(nick=nickname)
-            if nickname:
-                await ctx.send(f"✅ Nickname changed to: {nickname}")
-            else:
-                await ctx.send("✅ Nickname reset to default.")
-        except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to change my nickname.")
-        except discord.HTTPException as e:
-            await ctx.send(self._format_profile_http_error(e, "nickname"))
-
     async def _validate_image_attachment(
         self,
         ctx: commands.Context,
@@ -99,7 +77,7 @@ class User(commands.Cog):
             Image bytes if valid, None otherwise (with error message sent)
         """
         if not ctx.message.attachments:
-            await ctx.send("❌ Please attach an image to use as the new avatar.")
+            await ctx.send("❌ Please attach an image to use as the new avatar.", ephemeral=True)
             return None
 
         attachment = ctx.message.attachments[0]
@@ -107,18 +85,19 @@ class User(commands.Cog):
         # Validate file size
         if attachment.size is not None and attachment.size > max_size:
             size_mb = max_size / (1024 * 1024)
-            await ctx.send(f"❌ The provided attachment is too large. Max size is {size_mb:.0f}MB.")
+            await ctx.send(f"❌ The provided attachment is too large. Max size is {size_mb:.0f}MB.", ephemeral=True)
             return None
 
         # Validate content type
         if not attachment.content_type:
-            await ctx.send("❌ Unable to determine attachment type. Please ensure the file is an image.")
+            await ctx.send("❌ Unable to determine attachment type. Please ensure the file is an image.", ephemeral=True)
             return None
 
         if attachment.content_type not in VALID_IMAGE_TYPES:
             await ctx.send(
                 f"❌ Invalid attachment type `{attachment.content_type}`; "
-                "must be PNG, JPEG, or GIF."
+                "must be PNG, JPEG, or GIF.",
+                ephemeral=True
             )
             return None
 
@@ -126,10 +105,10 @@ class User(commands.Cog):
             image_data = await attachment.read()
             return image_data
         except discord.HTTPException as e:
-            await ctx.send(f"❌ Failed to read attachment: {e}")
+            await ctx.send(f"❌ Failed to read attachment: {e}", ephemeral=True)
             return None
         except discord.NotFound:
-            await ctx.send("❌ Attachment not found.")
+            await ctx.send("❌ Attachment not found.", ephemeral=True)
             return None
 
     async def _update_guild_profile(
@@ -183,7 +162,7 @@ class User(commands.Cog):
         await self.bot.http.request(route, json=payload)
 
     @commands.guild_only()
-    @commands.group(name="user", invoke_without_command=True)
+    @commands.hybrid_group(name="user", invoke_without_command=True)
     async def _user(self, ctx):
         """Manage bot user settings"""
         await ctx.send_help(ctx.command)
@@ -194,8 +173,24 @@ class User(commands.Cog):
         """Change the bot's nickname in this guild
 
         Use without a nickname to reset to default.
+        
+        Parameters
+        ----------
+        nickname : str, optional
+            The new nickname, or leave blank to reset
         """
-        await self._edit_nickname(ctx, nickname)
+        await ctx.defer(ephemeral=True)
+        
+        try:
+            await ctx.guild.me.edit(nick=nickname)
+            if nickname:
+                await ctx.send(f"✅ Nickname changed to: {nickname}", ephemeral=True)
+            else:
+                await ctx.send("✅ Nickname reset to default.", ephemeral=True)
+        except discord.Forbidden:
+            await ctx.send("❌ I don't have permission to change my nickname.", ephemeral=True)
+        except discord.HTTPException as e:
+            await ctx.send(self._format_profile_http_error(e, "nickname"), ephemeral=True)
 
     @commands.guild_only()
     @_user.command(name="avatar")
@@ -204,22 +199,29 @@ class User(commands.Cog):
 
         Use 'reset' to remove the per-guild avatar and use the global avatar.
         Note: This changes the bot's avatar only in this server.
+        
+        Parameters
+        ----------
+        action : str, optional
+            Use 'reset' to restore global avatar
         """
+        await ctx.defer(ephemeral=True)
+        
         # Handle reset action
         if action and action.lower() == "reset":
             try:
                 # Send None to reset avatar to global default
                 await self._update_guild_profile(ctx.guild.id, avatar_bytes=b'')
-                await ctx.send("✅ Avatar reset to global default in this server!")
+                await ctx.send("✅ Avatar reset to global default in this server!", ephemeral=True)
                 return
             except discord.Forbidden:
-                await ctx.send("❌ I don't have permission to change my avatar in this server.")
+                await ctx.send("❌ I don't have permission to change my avatar in this server.", ephemeral=True)
                 return
             except discord.HTTPException as e:
-                await ctx.send(self._format_profile_http_error(e, "avatar"))
+                await ctx.send(self._format_profile_http_error(e, "avatar"), ephemeral=True)
                 return
             except Exception as e:
-                await ctx.send(f"❌ An error occurred: {e}")
+                await ctx.send(f"❌ An error occurred: {e}", ephemeral=True)
                 return
 
         # Validate and get image bytes
@@ -230,10 +232,10 @@ class User(commands.Cog):
         try:
             # Update the bot's per-guild profile with new avatar
             await self._update_guild_profile(ctx.guild.id, avatar_bytes=image_data)
-            await ctx.send("✅ Avatar changed successfully in this server!")
+            await ctx.send("✅ Avatar changed successfully in this server!", ephemeral=True)
         except discord.Forbidden:
-            await ctx.send("❌ I don't have permission to change my avatar in this server.")
+            await ctx.send("❌ I don't have permission to change my avatar in this server.", ephemeral=True)
         except discord.HTTPException as e:
-            await ctx.send(self._format_profile_http_error(e, "avatar"))
+            await ctx.send(self._format_profile_http_error(e, "avatar"), ephemeral=True)
         except Exception as e:
-            await ctx.send(f"❌ An error occurred: {e}")
+            await ctx.send(f"❌ An error occurred: {e}", ephemeral=True)

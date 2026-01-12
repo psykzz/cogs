@@ -81,14 +81,24 @@ class Ideas(commands.Cog):
         The idea will be created as an issue in the GitHub repository
         and assigned to 'copilot' for tracking.
 
-        Usage: [p]suggest "Title of idea" Description of the idea goes here
+        Parameters
+        ----------
+        title : str
+            Title of the suggestion
+        description : str
+            Detailed description of the suggestion
+
+        Usage
+        -----
+        /suggest "Title of idea" Description of the idea goes here
         """
         # Check permissions
         allow_anyone = await self.config.allow_anyone()
         if not allow_anyone and not await self.bot.is_owner(ctx.author):
             await ctx.send(
                 "❌ This command is currently restricted to the bot owner. "
-                "Ask the bot owner to enable public suggestions with `[p]ideaset allowanyone True`"
+                "Ask the bot owner to enable public suggestions with `[p]ideaset allowanyone True`",
+                ephemeral=True
             )
             return
 
@@ -99,7 +109,8 @@ class Ideas(commands.Cog):
         if not github_token:
             await ctx.send(
                 "GitHub API token is not set. "
-                "Please set it using: `[p]set api github token <your_token>`"
+                "Please set it using: `[p]set api github token <your_token>`",
+                ephemeral=True
             )
             return
 
@@ -107,7 +118,10 @@ class Ideas(commands.Cog):
         repo_owner = await self.config.repo_owner()
         repo_name = await self.config.repo_name()
 
-        # Send a "working" message
+        # Defer to prevent timeout
+        await ctx.defer(ephemeral=True)
+
+        # Use typing indicator for API call
         async with ctx.typing():
             # Create the issue on GitHub
             issue_data = await create_github_issue(
@@ -121,11 +135,11 @@ class Ideas(commands.Cog):
 
         if issue_data:
             issue_url = issue_data.get("html_url")
-            await ctx.send(f"✅ Idea submitted successfully!\n{issue_url}")
+            await ctx.send(f"✅ Idea submitted successfully!\n{issue_url}", ephemeral=True)
         else:
-            await ctx.send("❌ Failed to create the GitHub issue. Please check the logs for details.")
+            await ctx.send("❌ Failed to create the GitHub issue. Please check the logs for details.", ephemeral=True)
 
-    @commands.group(name="ideaset")
+    @commands.hybrid_group(name="ideaset")
     @commands.is_owner()
     async def ideaset(self, ctx):
         """Configure the ideas cog settings"""
@@ -136,6 +150,8 @@ class Ideas(commands.Cog):
     @ideaset.command(name="showsettings")
     async def ideaset_showsettings(self, ctx):
         """Show current ideas cog settings"""
+        await ctx.defer(ephemeral=True)
+        
         repo_owner = await self.config.repo_owner()
         repo_name = await self.config.repo_name()
         allow_anyone = await self.config.allow_anyone()
@@ -145,25 +161,41 @@ class Ideas(commands.Cog):
             f"Repository: `{repo_owner}/{repo_name}`\n"
             f"Allow anyone to suggest: `{allow_anyone}`"
         )
-        await ctx.send(settings_msg)
+        await ctx.send(settings_msg, ephemeral=True)
 
     @ideaset.command(name="owner")
     async def ideaset_owner(self, ctx, owner: str):
         """Set the GitHub repository owner
 
-        Example: [p]ideaset owner psykzz
+        Parameters
+        ----------
+        owner : str
+            GitHub username (e.g., psykzz)
+        
+        Example
+        -------
+        /ideaset owner psykzz
         """
+        await ctx.defer(ephemeral=True)
         await self.config.repo_owner.set(owner)
-        await ctx.send(f"✅ Repository owner set to: `{owner}`")
+        await ctx.send(f"✅ Repository owner set to: `{owner}`", ephemeral=True)
 
     @ideaset.command(name="repo")
     async def ideaset_repo(self, ctx, repo: str):
         """Set the GitHub repository name
 
-        Example: [p]ideaset repo cogs
+        Parameters
+        ----------
+        repo : str
+            Repository name (e.g., cogs)
+        
+        Example
+        -------
+        /ideaset repo cogs
         """
+        await ctx.defer(ephemeral=True)
         await self.config.repo_name.set(repo)
-        await ctx.send(f"✅ Repository name set to: `{repo}`")
+        await ctx.send(f"✅ Repository name set to: `{repo}`", ephemeral=True)
 
     @ideaset.command(name="allowanyone")
     async def ideaset_allowanyone(self, ctx, enabled: bool):
@@ -171,8 +203,16 @@ class Ideas(commands.Cog):
 
         Set to True to allow anyone, False to restrict to bot owner only.
 
-        Example: [p]ideaset allowanyone True
+        Parameters
+        ----------
+        enabled : bool
+            True to allow anyone, False for bot owner only
+        
+        Example
+        -------
+        /ideaset allowanyone True
         """
+        await ctx.defer(ephemeral=True)
         await self.config.allow_anyone.set(enabled)
         status = "enabled" if enabled else "disabled"
-        await ctx.send(f"✅ Public suggestions {status}. Anyone can suggest: `{enabled}`")
+        await ctx.send(f"✅ Public suggestions {status}. Anyone can suggest: `{enabled}`", ephemeral=True)
