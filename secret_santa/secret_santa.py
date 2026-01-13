@@ -242,17 +242,22 @@ class SecretSanta(commands.Cog):
         event_name: str,
         target_date: str,
         max_price: str,
-        *pairings: str
+        pairings: Optional[str] = None
     ):
         """Import an existing Secret Santa event with forced pairings.
 
-        Parameters:
-        - event_name: A unique name for this event
-        - target_date: The target date (YYYY-MM-DD format)
-        - max_price: Maximum gift price (e.g., "$25" or "25 USD")
-        - pairings: Pairs in format "giver_id:receiver_id" (use Discord user IDs)
+        Parameters
+        ----------
+        event_name : str
+            A unique name for this event
+        target_date : str
+            The target date (YYYY-MM-DD format)
+        max_price : str
+            Maximum gift price (e.g., "$25" or "25 USD")
+        pairings : Optional[str]
+            Space-separated pairs in format "giver_id:receiver_id" (use Discord user IDs)
 
-        Example: [p]santa import xmas2024 2024-12-25 "$50" 123456789:987654321 111222333:444555666
+        Example: [p]santa import xmas2024 2024-12-25 "$50" "123456789:987654321 111222333:444555666"
         """
         # Validate date format
         try:
@@ -261,7 +266,14 @@ class SecretSanta(commands.Cog):
             await ctx.send("Invalid date format. Please use YYYY-MM-DD (e.g., 2024-12-25)")
             return
 
-        if len(pairings) < 1:
+        if not pairings:
+            await ctx.send("You need at least 1 pairing to import.")
+            return
+
+        # Parse space-separated pairings
+        pairings_list = pairings.split()
+
+        if len(pairings_list) < 1:
             await ctx.send("You need at least 1 pairing to import.")
             return
 
@@ -280,7 +292,7 @@ class SecretSanta(commands.Cog):
         all_givers = set()
         all_receivers = set()
 
-        for pairing in pairings:
+        for pairing in pairings_list:
             if ":" not in pairing:
                 await ctx.send(f"Invalid pairing format: `{pairing}`. Use format `giver_id:receiver_id`")
                 return

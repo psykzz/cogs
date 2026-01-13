@@ -1106,7 +1106,7 @@ class Party(commands.Cog):
         self,
         ctx,
         name: Optional[str] = None,
-        *roles: str
+        roles: Optional[str] = None
     ):
         """Create a new party with predefined roles.
 
@@ -1117,13 +1117,20 @@ class Party(commands.Cog):
         At least one role must be specified when using arguments.
         Roles can be separated by spaces or commas.
 
+        Parameters
+        ----------
+        name : Optional[str]
+            The name of the party
+        roles : Optional[str]
+            Space or comma-separated list of roles (e.g., "Tank Healer DPS" or "Tank, Healer, DPS")
+
         Examples:
         - [p]party create  (opens interactive modal)
-        - [p]party create "Raid Night" Tank Healer DPS
+        - [p]party create "Raid Night" "Tank Healer DPS"
         - [p]party create "Raid Night" "Tank, Healer, DPS"
-        - [p]party create "Game Night" Player1 Player2 Player3 Player4
-        - [p]party create "PvP Team" Warrior, Mage, Archer
-        - [p]party create "Siege" Siege Crossbow, Energy Shaper, GA
+        - [p]party create "Game Night" "Player1 Player2 Player3 Player4"
+        - [p]party create "PvP Team" "Warrior, Mage, Archer"
+        - [p]party create "Siege" "Siege Crossbow, Energy Shaper, GA"
         """
         # If no arguments provided, show the modal
         if name is None:
@@ -1165,19 +1172,15 @@ class Party(commands.Cog):
             await ctx.send("❌ Please provide at least one role for the party.")
             return
 
-        # Parse roles: join all arguments first, then split appropriately
-        # This ensures multi-word roles like "Siege Crossbow" stay together
-        # when separated by commas
-        joined_roles = ' '.join(roles)
-
+        # Parse roles: roles is now a single string
         # If commas are present, split by comma (allows multi-word roles)
         # Otherwise, split by whitespace (for backward compatibility)
-        if ',' in joined_roles:
+        if ',' in roles:
             # Split on comma and strip whitespace from each part
-            parsed_roles = [r.strip() for r in joined_roles.split(',') if r.strip()]
+            parsed_roles = [r.strip() for r in roles.split(',') if r.strip()]
         else:
             # Split on whitespace
-            parsed_roles = [r.strip() for r in joined_roles.split() if r.strip()]
+            parsed_roles = [r.strip() for r in roles.split() if r.strip()]
 
         # Remove any empty strings and duplicates while preserving order
         seen = set()
