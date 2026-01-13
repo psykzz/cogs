@@ -41,7 +41,7 @@ class AssignRoles(commands.Cog):
     @commands.hybrid_group(name="assign", invoke_without_command=True)
     async def _assign(self, ctx, role: discord.Role, user: discord.Member = None):
         """Assign a role to a user
-        
+
         Parameters
         ----------
         role : discord.Role
@@ -50,7 +50,7 @@ class AssignRoles(commands.Cog):
             The user to assign the role to (default: yourself)
         """
         await ctx.defer(ephemeral=True)
-        
+
         author = ctx.author
         if user is None:
             user = author
@@ -81,7 +81,7 @@ class AssignRoles(commands.Cog):
 
         Allows all members with the role `authorised_role` to give the role `giveable_role` to everyone.
         In order to authorise, your highest role must be strictly above the `authorised_role` (except for the owner).
-        
+
         Parameters
         ----------
         authorised_role : discord.Role
@@ -90,7 +90,7 @@ class AssignRoles(commands.Cog):
             The role that can be assigned
         """
         await ctx.defer(ephemeral=True)
-        
+
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
 
@@ -120,7 +120,7 @@ class AssignRoles(commands.Cog):
         """Deauthorise one role to give another role
 
         In order to deauthorise, your highest role must be strictly above the `authorised_role` (except for the owner).
-        
+
         Parameters
         ----------
         authorised_role : discord.Role
@@ -129,7 +129,7 @@ class AssignRoles(commands.Cog):
             The role that can no longer be assigned
         """
         await ctx.defer(ephemeral=True)
-        
+
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
 
@@ -159,7 +159,7 @@ class AssignRoles(commands.Cog):
     async def list(self, ctx):
         """Send an embed showing which roles can be given by other roles"""
         await ctx.defer(ephemeral=True)
-        
+
         gld = ctx.guild
         server_dict = await self.config.guild(gld).roles()
         embed = discord.Embed(colour=0x00D8FF, title="Assign authorisations")

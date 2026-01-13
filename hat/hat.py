@@ -548,7 +548,11 @@ class Hat(commands.Cog):
         # Check if hat already exists
         hats = await self.config.hats()
         if hat_name_clean in hats:
-            await ctx.send(f"❌ A hat named `{hat_name_clean}` already exists. Use `/sethat remove` first.", ephemeral=True)
+            await ctx.send(
+                f"❌ A hat named `{hat_name_clean}` already exists. "
+                f"Use `/sethat remove` first.",
+                ephemeral=True
+            )
             return
 
         # Download and save the image
