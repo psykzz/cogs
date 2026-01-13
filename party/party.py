@@ -1106,19 +1106,12 @@ class Party(commands.Cog):
         self,
         ctx,
         name: Optional[str] = None,
-        roles: commands.Greedy[str] = None
+        *roles: str
     ):
         """Create a new party with predefined roles.
 
         Call without arguments to use an interactive modal form.
         Call with arguments to use the traditional command format.
-
-        Parameters
-        ----------
-        name : str, optional
-            Name of the party
-        roles : commands.Greedy[str], optional
-            Roles for the party (space or comma-separated)
 
         Users can only select from the specified roles.
         At least one role must be specified when using arguments.

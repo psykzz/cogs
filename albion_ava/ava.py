@@ -1127,17 +1127,12 @@ class AlbionAva(commands.Cog):
 
     @setava.command(name="guilds")
     @commands.guild_only()
-    async def setava_guilds(self, ctx, guild_ids: commands.Greedy[str]):
+    async def setava_guilds(self, ctx, *guild_ids: str):
         """Set Portaler guild IDs to query for this server
 
         Specify ALL Portaler guild IDs you want to query. This is the complete list,
         not additional guilds. Connection data from all specified guilds will be merged together.
         Use this command without arguments to clear all guild IDs.
-
-        Parameters
-        ----------
-        guild_ids : commands.Greedy[str]
-            Portaler guild IDs to query (space-separated)
 
         Usage: [p]setava guilds <guild_id> [<guild_id> ...]
         Example: [p]setava guilds 123456 789012 345678
