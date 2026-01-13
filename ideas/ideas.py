@@ -151,7 +151,7 @@ class Ideas(commands.Cog):
     async def ideaset_showsettings(self, ctx):
         """Show current ideas cog settings"""
         await ctx.defer(ephemeral=True)
-        
+
         repo_owner = await self.config.repo_owner()
         repo_name = await self.config.repo_name()
         allow_anyone = await self.config.allow_anyone()
@@ -171,7 +171,7 @@ class Ideas(commands.Cog):
         ----------
         owner : str
             GitHub username (e.g., psykzz)
-        
+
         Example
         -------
         /ideaset owner psykzz
@@ -188,7 +188,7 @@ class Ideas(commands.Cog):
         ----------
         repo : str
             Repository name (e.g., cogs)
-        
+
         Example
         -------
         /ideaset repo cogs
@@ -207,7 +207,7 @@ class Ideas(commands.Cog):
         ----------
         enabled : bool
             True to allow anyone, False for bot owner only
-        
+
         Example
         -------
         /ideaset allowanyone True

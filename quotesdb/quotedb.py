@@ -28,7 +28,7 @@ class QuoteDB(commands.Cog):
     @commands.hybrid_command(name="qadd", aliases=["."])
     async def quote_add(self, ctx, trigger: str, *, quote: str):
         """Add a new quote
-        
+
         Parameters
         ----------
         trigger : str
@@ -37,7 +37,7 @@ class QuoteDB(commands.Cog):
             The quote content
         """
         await ctx.defer(ephemeral=True)
-        
+
         guild_group = self.config.guild(ctx.guild)
         incr = await guild_group.quotes.incr() + 1
         await guild_group.quotes.incr.set(incr)
@@ -59,7 +59,7 @@ class QuoteDB(commands.Cog):
     @commands.hybrid_command(name="qshow", aliases=[".."])
     async def quote_show(self, ctx, *, trigger: str):
         """Show a quote
-        
+
         Parameters
         ----------
         trigger : str
@@ -86,14 +86,14 @@ class QuoteDB(commands.Cog):
     @commands.hybrid_command(name="qdel")
     async def quote_del(self, ctx, qid: str):
         """Delete a quote
-        
+
         Parameters
         ----------
         qid : str
             The quote ID to delete
         """
         await ctx.defer(ephemeral=True)
-        
+
         guild_group = self.config.guild(ctx.guild)
         async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
             if qid not in quotes:
@@ -114,14 +114,14 @@ class QuoteDB(commands.Cog):
     @commands.hybrid_command(name="qid")
     async def quote_info(self, ctx, qid: str):
         """Show details about a quote
-        
+
         Parameters
         ----------
         qid : str
             The quote ID to get info for
         """
         await ctx.defer(ephemeral=True)
-        
+
         guild_group = self.config.guild(ctx.guild)
         quotes = await guild_group.quotes.id()
         if qid not in quotes:

@@ -28,7 +28,7 @@ class Psymin(commands.Cog):
         Only available to bot owners.
         """
         await ctx.defer(ephemeral=True)
-        
+
         guilds = self.bot.guilds
 
         if not guilds:

@@ -30,7 +30,7 @@ class RoleReacts(commands.Cog):
         role: discord.Role,
     ):
         """Setup a Reaction role for a specific message
-        
+
         Parameters
         ----------
         channel : discord.TextChannel
@@ -71,7 +71,7 @@ class RoleReacts(commands.Cog):
         self, ctx, channel: discord.TextChannel, message_id: str, react: discord.Emoji
     ):
         """Removes a Reaction role for a specific message
-        
+
         Parameters
         ----------
         channel : discord.TextChannel

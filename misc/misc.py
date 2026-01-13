@@ -14,7 +14,7 @@ class Misc(commands.Cog):
     async def laws(self, ctx):
         """State one of Asimov's Laws of Robotics"""
         await ctx.defer(ephemeral=True)
-        
+
         laws = [
             "You may not injure a human being or, through inaction, allow a human being to come to harm",
             "You must obey orders given to you by human beings, except where such orders would "

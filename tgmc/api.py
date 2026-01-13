@@ -99,7 +99,7 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def all(self, ctx, delta: str = "14"):
         """Get the current winrates
-        
+
         Parameters
         ----------
         delta : str
@@ -111,7 +111,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["distresssignal", "distress-signal", "ds"])
     async def distress(self, ctx, delta: str = "14"):
         """Get the current winrates on distress
-        
+
         Parameters
         ----------
         delta : str
@@ -123,7 +123,7 @@ class TGMC(commands.Cog):
     @winrates.command()
     async def crash(self, ctx, delta: str = "14"):
         """Get the current winrates on crash
-        
+
         Parameters
         ----------
         delta : str
@@ -135,7 +135,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["buy", "bug-hunt", "bh"])
     async def bughunt(self, ctx, delta: str = "14"):
         """Get the current winrates on bug hunt
-        
+
         Parameters
         ----------
         delta : str
@@ -147,7 +147,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["party", "hunt-party", "hp"])
     async def huntparty(self, ctx, delta: str = "14"):
         """Get the current winrates on hunt party
-        
+
         Parameters
         ----------
         delta : str
@@ -159,7 +159,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["nuclear", "war", "nuclear-war", "nw"])
     async def nuclearwar(self, ctx, delta: str = "14"):
         """Get the current winrates on nuclear war
-        
+
         Parameters
         ----------
         delta : str
@@ -171,7 +171,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["camp"])
     async def campaign(self, ctx, delta: str = "14"):
         """Get the current winrates on campaign
-        
+
         Parameters
         ----------
         delta : str
@@ -188,7 +188,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["combat", "patrol", "combat-patrol", "cp"])
     async def combatpatrol(self, ctx, delta: str = "14"):
         """Get the current winrates on combat patrol
-        
+
         Parameters
         ----------
         delta : str
@@ -205,7 +205,7 @@ class TGMC(commands.Cog):
     @winrates.command(aliases=["sensor", "capture", "sensor-capture", "sc"])
     async def sensorcapture(self, ctx, delta: str = "14"):
         """Get the current winrates on sensor capture
-        
+
         Parameters
         ----------
         delta : str

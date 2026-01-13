@@ -346,12 +346,12 @@ class Hat(commands.Cog):
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
         """Select a hat and see a live preview
-        
+
         Parameters
         ----------
         hat_name : str
             Name of the hat to select (e.g., 'santa')
-        
+
         Example
         -------
         /hat select santa
@@ -379,12 +379,12 @@ class Hat(commands.Cog):
     @_hat.command(name="scale")
     async def _hat_scale(self, ctx, scale: float):
         """Adjust the hat size (0.1 to 2.0) and see a live preview
-        
+
         Parameters
         ----------
         scale : float
             Size multiplier between 0.1 and 2.0
-        
+
         Example
         -------
         /hat scale 0.7
@@ -401,12 +401,12 @@ class Hat(commands.Cog):
     @_hat.command(name="rotate")
     async def _hat_rotate(self, ctx, degrees: float):
         """Adjust the hat rotation (-180 to 180 degrees) and see a live preview
-        
+
         Parameters
         ----------
         degrees : float
             Rotation angle between -180 and 180
-        
+
         Example
         -------
         /hat rotate 15
@@ -428,14 +428,14 @@ class Hat(commands.Cog):
         y: 0.0 = top, 0.5 = center, 1.0 = bottom
 
         Negative values or values > 1.0 will position the hat partially off-screen.
-        
+
         Parameters
         ----------
         x : float
             Horizontal position (0.0 = left, 0.5 = center, 1.0 = right)
         y : float
             Vertical position (0.0 = top, 0.5 = center, 1.0 = bottom)
-        
+
         Examples
         --------
         /hat position 0.5 0.1
@@ -452,12 +452,12 @@ class Hat(commands.Cog):
         """Flip the hat on the X or Y axis and see a live preview
 
         axis: 'x' for horizontal flip, 'y' for vertical flip, 'none' to reset
-        
+
         Parameters
         ----------
         axis : str
             Axis to flip ('x', 'y', or 'none')
-        
+
         Examples
         --------
         /hat flip x (flip horizontally)
@@ -517,12 +517,12 @@ class Hat(commands.Cog):
         """Upload a new hat image
 
         Attach a PNG image with transparency to your message.
-        
+
         Parameters
         ----------
         hat_name : str
             Name for the new hat
-        
+
         Example
         -------
         /sethat upload santa (with image attached)
@@ -593,18 +593,18 @@ class Hat(commands.Cog):
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_remove(self, ctx, hat_name: str):
         """Remove a hat
-        
+
         Parameters
         ----------
         hat_name : str
             Name of the hat to remove
-        
+
         Example
         -------
         /sethat remove santa
         """
         await ctx.defer(ephemeral=True)
-        
+
         hats = await self.config.hats()
         hat_name_lower = hat_name.lower()
 
@@ -644,7 +644,7 @@ class Hat(commands.Cog):
     async def _sethat_list(self, ctx):
         """List all hats with admin info"""
         await ctx.defer(ephemeral=True)
-        
+
         hats = await self.config.hats()
         default_hat = await self.config.default_hat()
 
@@ -676,12 +676,12 @@ class Hat(commands.Cog):
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_default(self, ctx, hat_name: str):
         """Set the default hat for users who haven't selected one
-        
+
         Parameters
         ----------
         hat_name : str
             Name of the hat to set as default
-        
+
         Example
         -------
         /sethat default santa

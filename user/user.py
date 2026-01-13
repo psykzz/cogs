@@ -173,14 +173,14 @@ class User(commands.Cog):
         """Change the bot's nickname in this guild
 
         Use without a nickname to reset to default.
-        
+
         Parameters
         ----------
         nickname : str, optional
             The new nickname, or leave blank to reset
         """
         await ctx.defer(ephemeral=True)
-        
+
         try:
             await ctx.guild.me.edit(nick=nickname)
             if nickname:
@@ -199,14 +199,14 @@ class User(commands.Cog):
 
         Use 'reset' to remove the per-guild avatar and use the global avatar.
         Note: This changes the bot's avatar only in this server.
-        
+
         Parameters
         ----------
         action : str, optional
             Use 'reset' to restore global avatar
         """
         await ctx.defer(ephemeral=True)
-        
+
         # Handle reset action
         if action and action.lower() == "reset":
             try:
