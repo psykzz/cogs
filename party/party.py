@@ -1106,12 +1106,19 @@ class Party(commands.Cog):
         self,
         ctx,
         name: Optional[str] = None,
-        *roles: str
+        roles: commands.Greedy[str] = None
     ):
         """Create a new party with predefined roles.
 
         Call without arguments to use an interactive modal form.
         Call with arguments to use the traditional command format.
+
+        Parameters
+        ----------
+        name : str, optional
+            Name of the party
+        roles : commands.Greedy[str], optional
+            Roles for the party (space or comma-separated)
 
         Users can only select from the specified roles.
         At least one role must be specified when using arguments.
@@ -1158,6 +1165,11 @@ class Party(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
 
+            return
+
+        # Handle roles being None (no roles provided)
+        if not roles:
+            await ctx.send("❌ Please provide at least one role for the party.")
             return
 
         # Parse roles: join all arguments first, then split appropriately
