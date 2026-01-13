@@ -103,7 +103,7 @@ class SecretSanta(commands.Cog):
         event_name: str,
         target_date: str,
         max_price: str,
-        *participants: discord.Member
+        participants: commands.Greedy[discord.Member]
     ):
         """Create a new Secret Santa event.
 
