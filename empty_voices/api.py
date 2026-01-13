@@ -280,7 +280,7 @@ class EmptyVoices(commands.Cog):
             log.error(f"Error in on_voice_state_update: {e}", exc_info=True)
 
     @commands.guild_only()
-    @commands.group()
+    @commands.hybrid_group()
     async def emptyvoices(self, _ctx):
         """Empty Voices"""
         pass

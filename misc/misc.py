@@ -10,9 +10,11 @@ class Misc(commands.Cog):
         self.bot = bot
 
     @commands.guild_only()
-    @commands.command()
+    @commands.hybrid_command()
     async def laws(self, ctx):
-        'State a law'
+        """State one of Asimov's Laws of Robotics"""
+        await ctx.defer(ephemeral=True)
+
         laws = [
             "You may not injure a human being or, through inaction, allow a human being to come to harm",
             "You must obey orders given to you by human beings, except where such orders would "
@@ -23,4 +25,4 @@ class Misc(commands.Cog):
 
         law = random.choice(laws)
 
-        await ctx.send(law)
+        await ctx.send(law, ephemeral=True)

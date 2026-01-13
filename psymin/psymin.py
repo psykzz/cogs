@@ -14,7 +14,7 @@ class Psymin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.group(name="psymin", invoke_without_command=True)
+    @commands.hybrid_group(name="psymin", invoke_without_command=True)
     @commands.is_owner()
     async def psymin(self, ctx):
         """Bot owner administration commands"""
@@ -22,15 +22,17 @@ class Psymin(commands.Cog):
 
     @psymin.command(name="permissions")
     async def permissions(self, ctx):
-        """List effective permissions granted by roles for each server.
+        """List effective permissions granted by roles for each server
 
         Shows the bot's permissions in all servers where it is present.
         Only available to bot owners.
         """
+        await ctx.defer(ephemeral=True)
+
         guilds = self.bot.guilds
 
         if not guilds:
-            await ctx.send("The bot is not in any servers.")
+            await ctx.send("The bot is not in any servers.", ephemeral=True)
             return
 
         # Create embed for each guild
@@ -116,7 +118,7 @@ class Psymin(commands.Cog):
             embed.set_footer(text=f"Bot ID: {self.bot.user.id}")
 
             # Send the embed
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, ephemeral=True)
 
             # Add a delay to avoid rate limiting when bot is in many servers
             await asyncio.sleep(self.RATE_LIMIT_DELAY)

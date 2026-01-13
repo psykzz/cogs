@@ -19,7 +19,7 @@ class RoleReacts(commands.Cog):
         )
         self.config.register_guild(**default_guild)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(manage_roles=True)
     async def add_react(
         self,
@@ -29,19 +29,32 @@ class RoleReacts(commands.Cog):
         react: discord.Emoji,
         role: discord.Role,
     ):
-        "Setup a Reaction role for a specific message"
+        """Setup a Reaction role for a specific message
+
+        Parameters
+        ----------
+        channel : discord.TextChannel
+            The channel containing the message
+        message_id : str
+            The ID of the message to watch
+        react : discord.Emoji
+            The emoji reaction to watch for
+        role : discord.Role
+            The role to assign when users react
+        """
+        await ctx.defer(ephemeral=True)
 
         guild_config = self.config.guild(ctx.guild)
         watching = await guild_config.watching()
         react_id = str(react.id)
 
         if message_id in watching and react_id in watching[message_id]:
-            await ctx.send("Already monitoring that message / reaction.")
+            await ctx.send("Already monitoring that message / reaction.", ephemeral=True)
             return
 
         message = await channel.fetch_message(message_id)
         if not message:
-            await ctx.send("That message doesn't exist anymore.")
+            await ctx.send("That message doesn't exist anymore.", ephemeral=True)
             return
 
         watching.setdefault(message_id, {})
@@ -50,14 +63,25 @@ class RoleReacts(commands.Cog):
 
         await message.add_reaction(react)
         await guild_config.watching.set(watching)
-        await ctx.send("Reaction setup.")
+        await ctx.send("Reaction setup.", ephemeral=True)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.has_permissions(manage_roles=True)
     async def remove_react(
         self, ctx, channel: discord.TextChannel, message_id: str, react: discord.Emoji
     ):
-        "Removes a Reaction role for a specific message"
+        """Removes a Reaction role for a specific message
+
+        Parameters
+        ----------
+        channel : discord.TextChannel
+            The channel containing the message
+        message_id : str
+            The ID of the message
+        react : discord.Emoji
+            The emoji reaction to stop watching
+        """
+        await ctx.defer(ephemeral=True)
 
         guild_config = self.config.guild(ctx.guild)
         watching = await guild_config.watching()
@@ -65,10 +89,10 @@ class RoleReacts(commands.Cog):
 
         message = await channel.fetch_message(message_id)
         if not message:
-            await ctx.send("That message doesn't exist anymore.")
+            await ctx.send("That message doesn't exist anymore.", ephemeral=True)
             return
         if message_id not in watching or react_id not in watching[message_id]:
-            await ctx.send("Not monitoring that message, nothing to do.")
+            await ctx.send("Not monitoring that message, nothing to do.", ephemeral=True)
             return
 
         del watching[message_id][str(react.id)]
@@ -77,7 +101,7 @@ class RoleReacts(commands.Cog):
 
         await guild_config.watching.set(watching)
         await message.remove_reaction(react, ctx.me)
-        await ctx.send("Reaction removed.")
+        await ctx.send("Reaction removed.", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

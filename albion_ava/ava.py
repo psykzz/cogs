@@ -1,7 +1,6 @@
 import asyncio
 import io
 import logging
-import math
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
@@ -76,24 +75,24 @@ class AlbionAva(commands.Cog):
 
     def _classify_zone_color(self, color: str, zone_type: str) -> str:
         """Classify a zone based on its color code and type
-        
+
         Args:
             color: Hex color code from the zone data
             zone_type: Zone type string from the zone data
-            
+
         Returns:
             String classification: 'yellow', 'blue', 'black', 'red', 'road', or 'unknown'
         """
         if not color or not color.startswith('#'):
             return 'unknown'
-        
+
         color_lower = color.lower()
-        
+
         # Check against known color lists
         for zone_class, color_list in self.ZONE_COLORS.items():
             if color_lower in color_list:
                 return zone_class
-        
+
         # Check by RGB values for more flexibility
         try:
             # Remove # and parse hex (validate length first)
@@ -101,32 +100,32 @@ class AlbionAva(commands.Cog):
             if len(hex_color) != 6:
                 # Handle short hex codes by padding or rejecting
                 return 'unknown'
-            
+
             r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-            
+
             # Yellow: high red and green, low blue
             if r > self.RGB_YELLOW_MIN_RG and g > self.RGB_YELLOW_MIN_RG and b < self.RGB_YELLOW_MAX_B:
                 return 'yellow'
-            
+
             # Blue: high blue, low red and green
             if b > self.RGB_BLUE_MIN_B and r < self.RGB_BLUE_MAX_R and g < self.RGB_BLUE_MAX_G:
                 return 'blue'
-            
+
             # Red: high red, low green and blue
             if r > self.RGB_RED_MIN_R and g < self.RGB_RED_MAX_GB and b < self.RGB_RED_MAX_GB:
                 return 'red'
-            
+
             # Black: all low values
             if r < self.RGB_BLACK_MAX_ALL and g < self.RGB_BLACK_MAX_ALL and b < self.RGB_BLACK_MAX_ALL:
                 return 'black'
         except (ValueError, IndexError):
             pass
-        
+
         # Check zone type for additional hints
         zone_type_lower = zone_type.lower() if zone_type else ''
         if 'road' in zone_type_lower or 'tunnel' in zone_type_lower:
             return 'road'
-        
+
         return 'unknown'
 
     def __init__(self, bot):
@@ -155,9 +154,11 @@ class AlbionAva(commands.Cog):
             Connection object compatible with Portaler API format
         """
         # Calculate expiring date in ISO 8601 format with 'Z' suffix
-        expiring_date = (datetime.now(timezone.utc).replace(microsecond=0) + 
-                        timedelta(hours=duration_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
-        
+        expiring_date = (
+            datetime.now(timezone.utc).replace(microsecond=0) +
+            timedelta(hours=duration_hours)
+        ).strftime('%Y-%m-%dT%H:%M:%SZ')
+
         return {
             "info": {
                 "fromZone": {
@@ -188,7 +189,7 @@ class AlbionAva(commands.Cog):
         """
         if not manual_connections:
             return []
-        
+
         portal_connections = []
         for manual_conn in manual_connections:
             conn_obj = self._create_manual_connection_object(
@@ -197,7 +198,7 @@ class AlbionAva(commands.Cog):
                 manual_conn.get('duration_hours', 4)
             )
             portal_connections.append(conn_obj)
-        
+
         return [{
             "portalConnections": portal_connections
         }]
@@ -209,7 +210,7 @@ class AlbionAva(commands.Cog):
             guild: Discord guild object
 
         Returns:
-            Merged map data from all configured guild IDs and manual connections, 
+            Merged map data from all configured guild IDs and manual connections,
             or None if no data available
         """
         # Get the global token
@@ -233,9 +234,12 @@ class AlbionAva(commands.Cog):
                             connection_count = 0
                             for map_obj in filtered_data:
                                 connection_count += len(map_obj.get("portalConnections", []))
-                            
+
                             all_map_data.append(filtered_data)
-                            log.info(f"Fetched {connection_count} connections from guild {portaler_guild_id} for {guild.name} (server: {server})")
+                            log.info(
+                                f"Fetched {connection_count} connections from guild "
+                                f"{portaler_guild_id} for {guild.name} (server: {server})"
+                            )
                         else:
                             log.warning(f"No data for server {server} from guild {portaler_guild_id} for {guild.name}")
                     else:
@@ -260,7 +264,10 @@ class AlbionAva(commands.Cog):
             total_connections = 0
             for map_obj in merged_data:
                 total_connections += len(map_obj.get("portalConnections", []))
-            log.info(f"Merged data from {len(all_map_data)} source(s) for {guild.name}: {total_connections} total connections")
+            log.info(
+                f"Merged data from {len(all_map_data)} source(s) for {guild.name}: "
+                f"{total_connections} total connections"
+            )
             return merged_data
         else:
             log.warning(f"No data available from any source for {guild.name}")
@@ -410,7 +417,7 @@ class AlbionAva(commands.Cog):
         graph = {}
         total_connections = 0
         skipped_connections = 0
-        
+
         # Track existing connections for efficient O(1) deduplication
         # Format: from_zone_key -> set of to_zone_keys
         # Example: "caerleon" -> {"bridgewatch", "lymhurst", ...}
@@ -452,7 +459,7 @@ class AlbionAva(commands.Cog):
                 if to_zone_key not in existing_connections[from_zone_key]:
                     graph[from_zone_key].append(conn_info_forward)
                     existing_connections[from_zone_key].add(to_zone_key)
-                
+
                 # Add reverse connection if not duplicate (B→A)
                 if from_zone_key not in existing_connections[to_zone_key]:
                     graph[to_zone_key].append(conn_info_reverse)
@@ -461,7 +468,10 @@ class AlbionAva(commands.Cog):
         # Count total bidirectional connections in graph
         total_graph_connections = sum(len(conns) for conns in graph.values())
         log.debug(f"Built connection graph with {len(graph)} zones")
-        log.debug(f"Processed {total_connections} input connections, created {total_graph_connections} bidirectional connections")
+        log.debug(
+            f"Processed {total_connections} input connections, "
+            f"created {total_graph_connections} bidirectional connections"
+        )
         if skipped_connections > 0:
             log.warning(f"Skipped {skipped_connections} connections with missing zone names")
         log.debug(f"Zones in graph: {sorted(graph.keys())}")
@@ -485,7 +495,10 @@ class AlbionAva(commands.Cog):
         home_zone_key = home_zone.lower()
 
         if home_zone_key not in graph:
-            log.warning(f"Home zone '{home_zone}' not found in connection graph. Available zones: {sorted(graph.keys())}...")
+            log.warning(
+                f"Home zone '{home_zone}' not found in connection graph. "
+                f"Available zones: {sorted(graph.keys())}..."
+            )
             return []
 
         # Log connections from home zone
@@ -582,7 +595,7 @@ class AlbionAva(commands.Cog):
             # 2. Yellow or blue zone (medium priority)
             # 3. Black zone out of roads (lowest priority)
             is_royal = final_zone.lower() in self.ROYAL_CITIES
-            
+
             if is_royal:
                 priority = (1, len(chain))  # Royal city, prefer shorter chains
             elif zone_color_class in ['yellow', 'blue']:
@@ -614,7 +627,7 @@ class AlbionAva(commands.Cog):
         yellow_blue_count = sum(1 for c in found_connections if c["zone_color_class"] in ['yellow', 'blue'])
         black_count = sum(1 for c in found_connections if c["zone_color_class"] == 'black')
         other_count = len(found_connections) - royal_count - yellow_blue_count - black_count
-        
+
         log.debug(f"Processed {len(found_connections)} connections: {royal_count} royal, "
                   f"{yellow_blue_count} yellow/blue, {black_count} black, {other_count} other")
 
@@ -689,24 +702,24 @@ class AlbionAva(commands.Cog):
             'info': None,
             'is_royal': home_zone.lower() in self.ROYAL_CITIES
         }
-        
+
         for conn in connections:
             chain = conn.get('chain', [])
             if not chain:
                 continue
-            
+
             # Traverse/build the tree for this chain
             current = root
             for hop_idx, hop in enumerate(chain):
                 zone_name = hop['to_zone']
-                
+
                 # Check if this child already exists
                 child_node = None
                 for child in current['children']:
                     if child['name'] == zone_name:
                         child_node = child
                         break
-                
+
                 # Create new child if it doesn't exist
                 if child_node is None:
                     child_node = {
@@ -721,9 +734,9 @@ class AlbionAva(commands.Cog):
                         'is_royal': zone_name.lower() in self.ROYAL_CITIES
                     }
                     current['children'].append(child_node)
-                
+
                 current = child_node
-        
+
         return root
 
     def _calculate_tree_positions(self, root: dict, node_width: int, node_height: int,
@@ -745,20 +758,20 @@ class AlbionAva(commands.Cog):
         positions = {}
         edges = []
         node_counter = 0
-        
+
         def assign_positions(node, depth, y_offset):
             """Recursively assign positions using depth-first traversal"""
             nonlocal node_counter
-            
+
             # Calculate x position based on depth
             x = start_x + depth * (node_width + horizontal_spacing)
             y = y_offset
-            
+
             # Store position with unique node ID
             node_id = f"node_{node_counter}"
             node_counter += 1
             positions[node_id] = (x, y, node)
-            
+
             # Process children
             current_y = y_offset
             for child in node['children']:
@@ -766,7 +779,7 @@ class AlbionAva(commands.Cog):
                 # Record edge from this node to child, including connection info
                 edges.append((node_id, child_id, child['info']))
                 current_y += child_height
-            
+
             # Calculate total height consumed by this subtree
             if node['children']:
                 # Height is from first child to last child plus one node height
@@ -774,16 +787,16 @@ class AlbionAva(commands.Cog):
             else:
                 # Leaf node height
                 subtree_height = node_height + vertical_spacing
-            
+
             return node_id, subtree_height
-        
+
         # Start positioning from root
         assign_positions(root, 0, start_y)
-        
+
         # Calculate bounds
         max_x = max((pos[0] for pos in positions.values()), default=start_x) + node_width
         max_y = max((pos[1] for pos in positions.values()), default=start_y) + node_height
-        
+
         return positions, edges, max_x, max_y
 
     def _generate_graph_image(self, home_zone: str, connections: List[dict]) -> io.BytesIO:
@@ -820,7 +833,7 @@ class AlbionAva(commands.Cog):
             height = 600
             img = Image.new('RGB', (width, height), color='#2C2F33')
             draw = ImageDraw.Draw(img)
-            
+
             title = f"Roads of Avalon - Connections from {home_zone}"
             draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
             draw.text((width // 2, height // 2), "No connections found",
@@ -828,42 +841,44 @@ class AlbionAva(commands.Cog):
         else:
             # Build tree structure from connections
             tree = self._build_graph_tree(connections, home_zone)
-            
+
             # Calculate node positions
             positions, edges, max_x, max_y = self._calculate_tree_positions(
                 tree, node_width, node_height, horizontal_spacing, vertical_spacing,
                 margin, title_height
             )
-            
+
             # Calculate image size
             width = max(1200, max_x + margin)
             height = max(600, max_y + margin)
-            
+
             # Create image with dark background
             img = Image.new('RGB', (width, height), color='#2C2F33')
             draw = ImageDraw.Draw(img)
-            
+
             # Draw title
             title = f"Roads of Avalon - Connections from {home_zone}"
             draw.text((width // 2, 40), title, fill='#FFFFFF', font=title_font, anchor="mm")
-            
+
             # Draw edges first (so they appear behind nodes)
             for parent_id, child_id, edge_info in edges:
                 if parent_id not in positions or child_id not in positions:
                     continue
-                
+
                 parent_x, parent_y, parent_node = positions[parent_id]
                 child_x, child_y, child_node = positions[child_id]
-                
+
                 # Draw edge from parent to child
                 line_start_x = parent_x + node_width
                 line_start_y = parent_y + node_height // 2
                 line_end_x = child_x
                 line_end_y = child_y + node_height // 2
-                
-                draw.line([line_start_x, line_start_y, line_end_x, line_end_y],
-                         fill='#99AAB5', width=2)
-                
+
+                draw.line(
+                    [line_start_x, line_start_y, line_end_x, line_end_y],
+                    fill='#99AAB5', width=2
+                )
+
                 # Draw arrowhead
                 arrow_size = 6
                 draw.polygon([
@@ -871,7 +886,7 @@ class AlbionAva(commands.Cog):
                     (line_end_x - arrow_size, line_end_y - arrow_size),
                     (line_end_x - arrow_size, line_end_y + arrow_size)
                 ], fill='#99AAB5')
-                
+
                 # Draw time remaining on the edge
                 if edge_info:
                     time_str = edge_info.get('time', 'Unknown')
@@ -879,14 +894,14 @@ class AlbionAva(commands.Cog):
                     time_x = (line_start_x + line_end_x) // 2
                     time_y = (line_start_y + line_end_y) // 2 - 10
                     draw.text((time_x, time_y), time_text, fill='#FFFF00',
-                             font=info_font, anchor="mm")
-            
+                              font=info_font, anchor="mm")
+
             # Draw nodes on top of edges
             for node_id, (x, y, node_data) in positions.items():
                 zone_name = node_data['name']
                 is_royal = node_data['is_royal']
                 info = node_data['info']
-                
+
                 # Determine node color
                 if info is None:
                     # Home zone - special color
@@ -899,13 +914,13 @@ class AlbionAva(commands.Cog):
                         node_color = '#888888'
                     zone_tier = info.get('tier', '?')
                     zone_type = info.get('type', '')
-                
+
                 # Draw node rectangle
                 node_x1 = x
                 node_y1 = y
                 node_x2 = x + node_width
                 node_y2 = y + node_height
-                
+
                 # Add royal city indicator with gold outline
                 if is_royal:
                     draw.rectangle([node_x1, node_y1, node_x2, node_y2],
@@ -913,12 +928,12 @@ class AlbionAva(commands.Cog):
                 else:
                     draw.rectangle([node_x1, node_y1, node_x2, node_y2],
                                    fill=node_color, outline='#FFFFFF', width=2)
-                
+
                 # Draw zone name (truncate if too long)
                 display_name = zone_name
                 if len(display_name) > 12:
                     display_name = display_name[:9] + "..."
-                
+
                 text_y = y + node_height // 2
                 if zone_tier:
                     # Draw name above center, tier/type below
@@ -959,12 +974,12 @@ class AlbionAva(commands.Cog):
             chain = conn.get("chain", [])
             if not chain:
                 continue
-            
+
             # Build the chain parts for this connection
             chain_parts = [home_zone]
             for hop in chain:
                 chain_parts.append(hop["to_zone"])
-            
+
             processed_connections.append({
                 'chain_parts': chain_parts,
                 'prefix': chain_parts[:-1],  # Everything except the final destination
@@ -981,7 +996,7 @@ class AlbionAva(commands.Cog):
             current = processed_connections[i]
             prefix = current['prefix']
             grouped = [current]
-            
+
             # Look ahead to find connections with the same prefix
             j = i + 1
             while j < len(processed_connections):
@@ -991,14 +1006,14 @@ class AlbionAva(commands.Cog):
                     j += 1
                 else:
                     break
-            
+
             # Output the grouped connections
             if len(grouped) == 1:
                 # Single connection, show full path
                 conn = grouped[0]
                 chain_str = " → ".join(conn['chain_parts'])
                 royal_marker = " 👑" if conn['is_royal'] else ""
-                
+
                 lines.append(
                     f"{chain_str}{royal_marker} "
                     f"(T{conn['tier']} {conn['type']}) - "
@@ -1007,10 +1022,10 @@ class AlbionAva(commands.Cog):
             else:
                 # Multiple connections with same prefix, show prefix once
                 prefix_str = " → ".join(prefix)
-                
+
                 for idx, conn in enumerate(grouped):
                     royal_marker = " 👑" if conn['is_royal'] else ""
-                    
+
                     if idx == 0:
                         # First line shows full prefix
                         lines.append(
@@ -1026,17 +1041,17 @@ class AlbionAva(commands.Cog):
                             f"(T{conn['tier']} {conn['type']}) - "
                             f"Time: {conn['time_remaining']}"
                         )
-            
+
             # Add blank line between groups for readability
             lines.append("")
-            
+
             # Move to next group
             i = j if j > i + 1 else i + 1
 
         return lines
 
     @checks.admin_or_permissions(manage_guild=True)
-    @commands.group(name="setava")
+    @commands.hybrid_group(name="setava")
     async def setava(self, ctx):
         """Configure Avalon road tracker settings"""
         if ctx.invoked_subcommand is None:
@@ -1180,7 +1195,7 @@ class AlbionAva(commands.Cog):
         await ctx.send(f"✅ Albion server set to **{server_upper}**")
 
     @commands.guild_only()
-    @commands.group(name="ava", invoke_without_command=True)
+    @commands.hybrid_group(name="ava", invoke_without_command=True)
     async def ava(self, ctx):
         """Display connections from the home zone (text format)
 
@@ -1228,11 +1243,11 @@ class AlbionAva(commands.Cog):
             for conn in connections:
                 zone_class = conn.get('zone_color_class', 'unknown')
                 is_royal = conn.get('is_royal', False)
-                
+
                 # Accept if royal, yellow, blue, or black zone
                 if is_royal or zone_class in ['yellow', 'blue', 'black']:
                     suitable_connections.append(conn)
-            
+
             # Pick the single best route (already sorted by priority)
             if suitable_connections:
                 best_route = suitable_connections[0]
@@ -1241,12 +1256,12 @@ class AlbionAva(commands.Cog):
                 chain_parts = [home_zone]
                 for hop in chain:
                     chain_parts.append(hop["to_zone"])
-                
+
                 chain_str = " → ".join(chain_parts)
                 royal_marker = " 👑" if best_route.get('is_royal', False) else ""
                 zone_class = best_route.get('zone_color_class', 'unknown')
                 zone_class_display = f" ({zone_class.capitalize()} Zone)" if zone_class != 'unknown' else ""
-                
+
                 message = (
                     f"**Route from {home_zone}:**\n\n"
                     f"{chain_str}{royal_marker}{zone_class_display}\n"
@@ -1266,7 +1281,7 @@ class AlbionAva(commands.Cog):
         async with ctx.typing():
             # Get configuration
             home_zone = await self.config.guild(ctx.guild).home_zone()
-            max_connections = await self.config.guild(ctx.guild).max_connections()
+            # max_connections config is not used for graph rendering (always shows all)
 
             if not home_zone:
                 await ctx.send(
@@ -1306,7 +1321,7 @@ class AlbionAva(commands.Cog):
     async def ava_add(self, ctx, from_zone: str, to_zone: str, duration_hours: int = 4):
         """Add a manual connection between two zones
 
-        Manually add a connection from one zone to another. This is useful when 
+        Manually add a connection from one zone to another. This is useful when
         Portaler data is unavailable or you want to track a specific connection.
 
         Args:
@@ -1321,14 +1336,14 @@ class AlbionAva(commands.Cog):
         if duration_hours < self.MIN_DURATION_HOURS:
             await ctx.send(f"❌ Duration must be at least {self.MIN_DURATION_HOURS} hour")
             return
-        
+
         if duration_hours > self.MAX_DURATION_HOURS:
             await ctx.send(f"❌ Duration cannot exceed {self.MAX_DURATION_HOURS} hours")
             return
 
         # Get current manual connections
         manual_connections = await self.config.guild(ctx.guild).manual_connections()
-        
+
         # Add new connection
         new_connection = {
             'from_zone': from_zone,
@@ -1337,13 +1352,13 @@ class AlbionAva(commands.Cog):
             'added_at': datetime.now(timezone.utc).isoformat()
         }
         manual_connections.append(new_connection)
-        
+
         # Save to config
         await self.config.guild(ctx.guild).manual_connections.set(manual_connections)
-        
+
         log.info(f"Added manual connection from '{from_zone}' to '{to_zone}' "
                  f"with duration {duration_hours}h for {ctx.guild.name}")
-        
+
         await ctx.send(
             f"✅ Added manual connection:\n"
             f"**{from_zone}** → **{to_zone}**\n"

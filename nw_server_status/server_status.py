@@ -157,8 +157,9 @@ class ServerStatus(commands.Cog):
             return
         return server_data.get("worldId")
 
-    @commands.command()
+    @commands.hybrid_command()
     async def queue(self, ctx, server: str = None):
+        await ctx.defer()
         "Get current queue information"
 
         if ctx.guild and server is None:
@@ -174,10 +175,11 @@ class ServerStatus(commands.Cog):
         msg = await self.get_server_status(server, data)
         await ctx.send(msg)
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.guild_only()
     @commands.admin_or_permissions(manage_channels=True)
     async def monitor(self, ctx, voice_channel: discord.VoiceChannel = None):
+        await ctx.defer()
         "Start updating a channel wth the current realm status"
 
         # Check if the bot has permission to the channel
@@ -196,11 +198,12 @@ class ServerStatus(commands.Cog):
         else:
             await ctx.send("Disabled monitor channel.")
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.guild_only()
     @commands.bot_has_permissions(manage_channels=True)
     @commands.admin_or_permissions(manage_channels=True)
     async def forcemonitor(self, ctx):
+        await ctx.defer()
         "Force an update of the monitor voice channel wth the current realm status"
 
         voice_channel = await self.get_guild_monitor_channel(ctx.guild)
@@ -215,10 +218,11 @@ class ServerStatus(commands.Cog):
         await self.update_guild_channel(ctx.guild)
         await ctx.send("Forced monitor channel update.")
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.guild_only()
     @commands.admin_or_permissions(manage_channels=True)
     async def queueset(self, ctx, server: str = None):
+        await ctx.defer()
         "Set the default server for this discord server"
         guild_config = self.config.guild(ctx.guild)
 

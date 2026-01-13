@@ -65,6 +65,142 @@ async def setup(bot):
 
 **IMPORTANT**: When creating new cogs or updating existing ones, always use the async setup pattern shown above. This is the modern Red-bot convention and ensures compatibility with the bot framework.
 
+### Command Patterns
+
+#### Hybrid Commands (Slash Commands)
+**All commands should be hybrid commands** that work as both text commands and slash commands:
+
+```python
+from redbot.core import commands
+
+@commands.hybrid_command(name="commandname")
+async def my_command(self, ctx, arg: str):
+    """Command description shown in slash command UI
+    
+    Parameters
+    ----------
+    arg : str
+        Description of the argument
+    """
+    # Defer immediately for ephemeral response (preferred for most commands)
+    await ctx.defer(ephemeral=True)
+    
+    # Use typing indicator for long operations
+    async with ctx.typing():
+        # Long operation here
+        result = await self.do_something(arg)
+    
+    # Send response (ephemeral by default after defer)
+    await ctx.send(f"Result: {result}", ephemeral=True)
+```
+
+**For command groups**, use `@commands.hybrid_group()`:
+```python
+@commands.hybrid_group(name="groupname")
+async def my_group(self, ctx):
+    """Group description"""
+    if ctx.invoked_subcommand is None:
+        await ctx.send_help(ctx.command)
+
+@my_group.command(name="subcommand")
+async def my_subcommand(self, ctx):
+    """Subcommand description"""
+    await ctx.defer(ephemeral=True)
+    # Implementation
+    await ctx.send("Done", ephemeral=True)
+```
+
+#### Response Patterns
+
+**Ephemeral Responses (Preferred)**
+Most commands should use ephemeral responses to reduce channel clutter:
+```python
+# Defer first to prevent timeout
+await ctx.defer(ephemeral=True)
+# Then send response
+await ctx.send("Result", ephemeral=True)
+```
+
+**Public Responses**
+Only use public responses for commands that benefit from visibility (leaderboards, announcements, etc.):
+```python
+await ctx.defer()  # No ephemeral flag
+await ctx.send("Public announcement")
+```
+
+**Typing Indicators**
+Use typing indicators for operations that take more than 1-2 seconds:
+```python
+async with ctx.typing():
+    # Long database query
+    # API call
+    # Image processing
+```
+
+#### Modals for Complex Input
+For commands with 3+ arguments or complex forms, use Discord modals:
+
+```python
+class MyModal(discord.ui.Modal):
+    """Modal for complex input"""
+    
+    def __init__(self, cog):
+        super().__init__(title="Form Title")
+        self.cog = cog
+        
+        self.field1 = discord.ui.TextInput(
+            label="Field 1",
+            placeholder="Enter value",
+            required=True,
+            max_length=100,
+        )
+        self.add_item(self.field1)
+        
+        # Add more fields (max 5)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        # Defer immediately to prevent timeout
+        await interaction.response.defer(ephemeral=True)
+        
+        # Process input
+        value = self.field1.value.strip()
+        await self.cog.process_data(value)
+        
+        # Send response
+        await interaction.followup.send("✅ Done!", ephemeral=True)
+
+# In command, show modal:
+@commands.hybrid_command()
+async def mycommand(self, ctx):
+    """Open form to input data"""
+    modal = MyModal(self)
+    await ctx.interaction.response.send_modal(modal)
+```
+
+**Modal Best Practices:**
+- Use for 3+ arguments or multi-line input
+- Always defer immediately in `on_submit()`
+- Use ephemeral responses
+- Validate input and show clear error messages
+- Max 5 fields per modal (Discord limit)
+
+#### Error Handling
+Always handle errors gracefully with informative messages:
+```python
+@commands.hybrid_command()
+async def mycommand(self, ctx):
+    await ctx.defer(ephemeral=True)
+    
+    try:
+        result = await self.risky_operation()
+        await ctx.send(f"✅ Success: {result}", ephemeral=True)
+    except ValueError as e:
+        await ctx.send(f"❌ Invalid input: {e}", ephemeral=True)
+    except Exception as e:
+        log.exception("Unexpected error in mycommand")
+        await ctx.send("❌ An error occurred. Please try again.", ephemeral=True)
+```
+
 ### Key Cogs
 - **activity_stats/**: Discord activity and game statistics tracking (no external deps)
 - **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)

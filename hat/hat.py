@@ -298,18 +298,18 @@ class Hat(commands.Cog):
         msg = await ctx.send(embed=embed, file=file)
         await self._track_preview_message(ctx, msg)
 
-    @commands.group(name="hat", invoke_without_command=True)
+    @commands.hybrid_group(name="hat", invoke_without_command=True)
     async def _hat(self, ctx):
         """Add a festive Christmas hat to your avatar!
 
         Commands automatically show a live preview and save your settings.
-        Use `.hat show` to refresh the preview with your current avatar.
+        Use `/hat show` to refresh the preview with your current avatar.
         """
         await ctx.send_help(ctx.command)
 
     @_hat.command(name="list")
     async def _hat_list(self, ctx):
-        """List all available hats with preview images."""
+        """List all available hats with preview images"""
         await self._delete_command_after_delay(ctx)
 
         hats = await self.config.hats()
@@ -345,9 +345,16 @@ class Hat(commands.Cog):
 
     @_hat.command(name="select")
     async def _hat_select(self, ctx, hat_name: str):
-        """Select a hat and see a live preview.
+        """Select a hat and see a live preview
 
-        Example: `.hat select santa`
+        Parameters
+        ----------
+        hat_name : str
+            Name of the hat to select (e.g., 'santa')
+
+        Example
+        -------
+        /hat select santa
         """
         hats = await self.config.hats()
         hat_name_lower = hat_name.lower()
@@ -371,9 +378,16 @@ class Hat(commands.Cog):
 
     @_hat.command(name="scale")
     async def _hat_scale(self, ctx, scale: float):
-        """Adjust the hat size (0.1 to 2.0) and see a live preview.
+        """Adjust the hat size (0.1 to 2.0) and see a live preview
 
-        Example: `.hat scale 0.7`
+        Parameters
+        ----------
+        scale : float
+            Size multiplier between 0.1 and 2.0
+
+        Example
+        -------
+        /hat scale 0.7
         """
         if scale < MIN_SCALE or scale > MAX_SCALE:
             await self._send_live_preview(ctx, f"❌ Scale must be between {MIN_SCALE} and {MAX_SCALE}.")
@@ -386,9 +400,16 @@ class Hat(commands.Cog):
 
     @_hat.command(name="rotate")
     async def _hat_rotate(self, ctx, degrees: float):
-        """Adjust the hat rotation (-180 to 180 degrees) and see a live preview.
+        """Adjust the hat rotation (-180 to 180 degrees) and see a live preview
 
-        Example: `.hat rotate 15`
+        Parameters
+        ----------
+        degrees : float
+            Rotation angle between -180 and 180
+
+        Example
+        -------
+        /hat rotate 15
         """
         if degrees < MIN_ROTATION or degrees > MAX_ROTATION:
             await self._send_live_preview(ctx, f"❌ Rotation must be between {MIN_ROTATION} and {MAX_ROTATION} degrees.")
@@ -401,15 +422,24 @@ class Hat(commands.Cog):
 
     @_hat.command(name="position")
     async def _hat_position(self, ctx, x: float, y: float):
-        """Adjust the hat position and see a live preview.
+        """Adjust the hat position and see a live preview
 
         x: 0.0 = left, 0.5 = center, 1.0 = right
         y: 0.0 = top, 0.5 = center, 1.0 = bottom
 
         Negative values or values > 1.0 will position the hat partially off-screen.
 
-        Example: `.hat position 0.5 0.1`
-        Example: `.hat position -0.2 0.0` (hat partially off left side)
+        Parameters
+        ----------
+        x : float
+            Horizontal position (0.0 = left, 0.5 = center, 1.0 = right)
+        y : float
+            Vertical position (0.0 = top, 0.5 = center, 1.0 = bottom)
+
+        Examples
+        --------
+        /hat position 0.5 0.1
+        /hat position -0.2 0.0 (hat partially off left side)
         """
         await self.config.user(ctx.author).x_offset.set(x)
         await self.config.user(ctx.author).y_offset.set(y)
@@ -419,13 +449,20 @@ class Hat(commands.Cog):
 
     @_hat.command(name="flip")
     async def _hat_flip(self, ctx, axis: str):
-        """Flip the hat on the X or Y axis and see a live preview.
+        """Flip the hat on the X or Y axis and see a live preview
 
         axis: 'x' for horizontal flip, 'y' for vertical flip, 'none' to reset
 
-        Example: `.hat flip x` (flip horizontally)
-        Example: `.hat flip y` (flip vertically)
-        Example: `.hat flip none` (reset flips)
+        Parameters
+        ----------
+        axis : str
+            Axis to flip ('x', 'y', or 'none')
+
+        Examples
+        --------
+        /hat flip x (flip horizontally)
+        /hat flip y (flip vertically)
+        /hat flip none (reset flips)
         """
         axis_lower = axis.lower()
         if axis_lower not in ("x", "y", "none"):
@@ -447,7 +484,7 @@ class Hat(commands.Cog):
 
     @_hat.command(name="reset")
     async def _hat_reset(self, ctx):
-        """Reset hat settings to defaults and see a live preview."""
+        """Reset hat settings to defaults and see a live preview"""
         await self.config.user(ctx.author).scale.set(DEFAULT_SCALE)
         await self.config.user(ctx.author).rotation.set(DEFAULT_ROTATION)
         await self.config.user(ctx.author).x_offset.set(DEFAULT_X_OFFSET)
@@ -460,7 +497,7 @@ class Hat(commands.Cog):
 
     @_hat.command(name="show")
     async def _hat_show(self, ctx):
-        """Show a fresh preview with your current avatar.
+        """Show a fresh preview with your current avatar
 
         Use this to refresh the preview after changing your Discord avatar,
         or if some time has passed and you want to see the hat again.
@@ -468,42 +505,54 @@ class Hat(commands.Cog):
         await self._send_live_preview(ctx)
 
     # Admin commands
-    @commands.group(name="sethat", invoke_without_command=True)
+    @commands.hybrid_group(name="sethat", invoke_without_command=True)
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat(self, ctx):
-        """Admin commands for managing hats."""
+        """Admin commands for managing hats"""
         await ctx.send_help(ctx.command)
 
     @_sethat.command(name="upload")
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_upload(self, ctx, hat_name: str):
-        """Upload a new hat image.
+        """Upload a new hat image
 
         Attach a PNG image with transparency to your message.
 
-        Example: `.sethat upload santa` (with image attached)
+        Parameters
+        ----------
+        hat_name : str
+            Name for the new hat
+
+        Example
+        -------
+        /sethat upload santa (with image attached)
         """
+        await ctx.defer(ephemeral=True)
         if not ctx.message.attachments:
-            await ctx.send("❌ Please attach a PNG image to use as the hat.")
+            await ctx.send("❌ Please attach a PNG image to use as the hat.", ephemeral=True)
             return
 
         attachment = ctx.message.attachments[0]
 
         # Validate file type
         if not attachment.filename.lower().endswith(".png"):
-            await ctx.send("❌ Hat images must be PNG files with transparency.")
+            await ctx.send("❌ Hat images must be PNG files with transparency.", ephemeral=True)
             return
 
         # Validate name (allow alphanumeric, hyphens, and underscores)
         hat_name_clean = hat_name.lower().strip()
         if not hat_name_clean.replace("-", "").replace("_", "").isalnum():
-            await ctx.send("❌ Hat name must contain only letters, numbers, hyphens, and underscores.")
+            await ctx.send("❌ Hat name must contain only letters, numbers, hyphens, and underscores.", ephemeral=True)
             return
 
         # Check if hat already exists
         hats = await self.config.hats()
         if hat_name_clean in hats:
-            await ctx.send(f"❌ A hat named `{hat_name_clean}` already exists. Use `.sethat remove` first.")
+            await ctx.send(
+                f"❌ A hat named `{hat_name_clean}` already exists. "
+                f"Use `/sethat remove` first.",
+                ephemeral=True
+            )
             return
 
         # Download and save the image
@@ -513,7 +562,7 @@ class Hat(commands.Cog):
             # Validate it's a valid image
             img = Image.open(io.BytesIO(image_data))
             if img.format != "PNG":
-                await ctx.send("❌ Hat images must be PNG files.")
+                await ctx.send("❌ Hat images must be PNG files.", ephemeral=True)
                 return
 
             # Save to cog data path
@@ -538,19 +587,28 @@ class Hat(commands.Cog):
             if not default_hat:
                 await self.config.default_hat.set(hat_name_clean)
 
-            await ctx.send(f"✅ Hat `{hat_name_clean}` uploaded successfully!")
+            await ctx.send(f"✅ Hat `{hat_name_clean}` uploaded successfully!", ephemeral=True)
 
         except Exception as e:
             log.exception("Error uploading hat")
-            await ctx.send(f"❌ Error uploading hat: {e}")
+            await ctx.send(f"❌ Error uploading hat: {e}", ephemeral=True)
 
     @_sethat.command(name="remove")
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_remove(self, ctx, hat_name: str):
-        """Remove a hat.
+        """Remove a hat
 
-        Example: `.sethat remove santa`
+        Parameters
+        ----------
+        hat_name : str
+            Name of the hat to remove
+
+        Example
+        -------
+        /sethat remove santa
         """
+        await ctx.defer(ephemeral=True)
+
         hats = await self.config.hats()
         hat_name_lower = hat_name.lower()
 
@@ -562,7 +620,7 @@ class Hat(commands.Cog):
                 break
 
         if not found_hat:
-            await ctx.send(f"❌ Hat `{hat_name}` not found.")
+            await ctx.send(f"❌ Hat `{hat_name}` not found.", ephemeral=True)
             return
 
         # Remove file if it exists in cog data path
@@ -583,17 +641,19 @@ class Hat(commands.Cog):
         if default_hat == found_hat:
             await self.config.default_hat.set(None)
 
-        await ctx.send(f"🗑️ Hat `{found_hat}` removed.")
+        await ctx.send(f"🗑️ Hat `{found_hat}` removed.", ephemeral=True)
 
     @_sethat.command(name="list")
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_list(self, ctx):
-        """List all hats with admin info."""
+        """List all hats with admin info"""
+        await ctx.defer(ephemeral=True)
+
         hats = await self.config.hats()
         default_hat = await self.config.default_hat()
 
         if not hats:
-            await ctx.send("❌ No hats configured. Use `.sethat upload <name>` to add one!")
+            await ctx.send("❌ No hats configured. Use `/sethat upload <name>` to add one!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -614,15 +674,23 @@ class Hat(commands.Cog):
                 inline=True,
             )
 
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, ephemeral=True)
 
     @_sethat.command(name="default")
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat_default(self, ctx, hat_name: str):
-        """Set the default hat for users who haven't selected one.
+        """Set the default hat for users who haven't selected one
 
-        Example: `.sethat default santa`
+        Parameters
+        ----------
+        hat_name : str
+            Name of the hat to set as default
+
+        Example
+        -------
+        /sethat default santa
         """
+        await ctx.defer(ephemeral=True)
         hats = await self.config.hats()
         hat_name_lower = hat_name.lower()
 
@@ -635,8 +703,8 @@ class Hat(commands.Cog):
 
         if not found_hat:
             available = ", ".join(hats.keys()) if hats else "None available"
-            await ctx.send(f"❌ Hat `{hat_name}` not found. Available hats: {available}")
+            await ctx.send(f"❌ Hat `{hat_name}` not found. Available hats: {available}", ephemeral=True)
             return
 
         await self.config.default_hat.set(found_hat)
-        await ctx.send(f"⭐ Default hat set to **{found_hat}**!")
+        await ctx.send(f"⭐ Default hat set to **{found_hat}**!", ephemeral=True)

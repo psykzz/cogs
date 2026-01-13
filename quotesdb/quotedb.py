@@ -25,9 +25,19 @@ class QuoteDB(commands.Cog):
         self.config.register_guild(**default_guild)
 
     @commands.guild_only()
-    @commands.command(name=".")
+    @commands.hybrid_command(name="qadd", aliases=["."])
     async def quote_add(self, ctx, trigger: str, *, quote: str):
-        'Add a new quote'
+        """Add a new quote
+
+        Parameters
+        ----------
+        trigger : str
+            The trigger word for the quote
+        quote : str
+            The quote content
+        """
+        await ctx.defer(ephemeral=True)
+
         guild_group = self.config.guild(ctx.guild)
         incr = await guild_group.quotes.incr() + 1
         await guild_group.quotes.incr.set(incr)
@@ -36,19 +46,26 @@ class QuoteDB(commands.Cog):
                 "content": quote,
                 "user": ctx.author.id,
                 "trigger": trigger,
-                "jump_url": ctx.message.jump_url,
+                "jump_url": ctx.message.jump_url if ctx.message else None,
                 "datetime": datetime.datetime.now().timestamp()
             }
 
             triggers.setdefault(trigger, [])
             triggers[trigger] += [str(incr)]
 
-        await ctx.send(f"{ctx.author.mention}, added quote `#{incr}`.")
+        await ctx.send(f"{ctx.author.mention}, added quote `#{incr}`.", ephemeral=True)
 
     @commands.guild_only()
-    @commands.command(name="..")
+    @commands.hybrid_command(name="qshow", aliases=[".."])
     async def quote_show(self, ctx, *, trigger: str):
-        'Show a quote'
+        """Show a quote
+
+        Parameters
+        ----------
+        trigger : str
+            The trigger word to show a quote for
+        """
+        await ctx.defer()
 
         guild_group = self.config.guild(ctx.guild)
 
@@ -57,7 +74,7 @@ class QuoteDB(commands.Cog):
         try:
             triggers = trigger_data[trigger]
         except KeyError:
-            await ctx.send("Quote not found, add one `.. <trigger> <quote>`")
+            await ctx.send("Quote not found, add one with `/qadd <trigger> <quote>`")
             return
         quote_id = random.choice(triggers)
 
@@ -66,33 +83,49 @@ class QuoteDB(commands.Cog):
         await ctx.send(f"`#{quote_id}` :mega: {quote}")
 
     @commands.guild_only()
-    @commands.command(name="qdel")
-    async def quote_del(self, ctx, *, qid: str):
-        'Delete a quote'
+    @commands.hybrid_command(name="qdel")
+    async def quote_del(self, ctx, qid: str):
+        """Delete a quote
+
+        Parameters
+        ----------
+        qid : str
+            The quote ID to delete
+        """
+        await ctx.defer(ephemeral=True)
+
         guild_group = self.config.guild(ctx.guild)
         async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
             if qid not in quotes:
-                await ctx.send(f"{ctx.author.mention}, invalid quote id.")
+                await ctx.send(f"{ctx.author.mention}, invalid quote id.", ephemeral=True)
                 return
             data = quotes[qid]
             member = discord.utils.find(lambda m: m.id == data['user'], ctx.channel.guild.members)
             if ctx.author != member and not await self.bot.is_admin(ctx.author):
-                await ctx.send(f"{ctx.author.mention}, only the creator (or admins) can delete that.")
+                await ctx.send(f"{ctx.author.mention}, only the creator (or admins) can delete that.", ephemeral=True)
                 return
             trigger = data['trigger']
             del quotes[qid]
             triggers[trigger].remove(qid)
 
-        await ctx.send(f"{ctx.author.mention}, deleted quote #{qid}.")
+        await ctx.send(f"{ctx.author.mention}, deleted quote #{qid}.", ephemeral=True)
 
     @commands.guild_only()
-    @commands.command(name="qid")
-    async def quote_info(self, ctx, *, qid: str):
-        'Show details about a quote'
+    @commands.hybrid_command(name="qid")
+    async def quote_info(self, ctx, qid: str):
+        """Show details about a quote
+
+        Parameters
+        ----------
+        qid : str
+            The quote ID to get info for
+        """
+        await ctx.defer(ephemeral=True)
+
         guild_group = self.config.guild(ctx.guild)
         quotes = await guild_group.quotes.id()
         if qid not in quotes:
-            await ctx.send(f"{ctx.author.mention}, invalid quote id.")
+            await ctx.send(f"{ctx.author.mention}, invalid quote id.", ephemeral=True)
             return
         data = quotes[qid]
 
@@ -101,7 +134,7 @@ class QuoteDB(commands.Cog):
         log = discord.Embed()
         log.type = "rich"
 
-        log.set_author(name=member, url=data['jump_url'])
+        log.set_author(name=member, url=data.get('jump_url') or discord.Embed.Empty)
         log.title = f"Quote Info - #{qid}"
 
         created_at = datetime.datetime.fromtimestamp(data['datetime'])
@@ -119,4 +152,4 @@ class QuoteDB(commands.Cog):
             value=f"{created_at}",
         )
 
-        await ctx.send(embed=log)
+        await ctx.send(embed=log, ephemeral=True)

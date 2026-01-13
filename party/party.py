@@ -1094,7 +1094,7 @@ class Party(commands.Cog):
 
         return embed
 
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.guild_only()
     async def party(self, ctx):
         """Party management commands."""
@@ -1158,6 +1158,11 @@ class Party(commands.Cog):
             except (discord.NotFound, discord.Forbidden):
                 pass
 
+            return
+
+        # Handle roles being None (no roles provided)
+        if not roles:
+            await ctx.send("❌ Please provide at least one role for the party.")
             return
 
         # Parse roles: join all arguments first, then split appropriately

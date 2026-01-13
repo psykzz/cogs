@@ -88,7 +88,7 @@ class SecretSanta(commands.Cog):
         # Fallback: use a longer ID
         return generate_event_id() + generate_event_id()
 
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.guild_only()
     async def santa(self, ctx):
         """Secret Santa event management."""
@@ -103,7 +103,7 @@ class SecretSanta(commands.Cog):
         event_name: str,
         target_date: str,
         max_price: str,
-        *participants: discord.Member
+        participants: commands.Greedy[discord.Member]
     ):
         """Create a new Secret Santa event.
 
@@ -1074,8 +1074,15 @@ class SecretSanta(commands.Cog):
 
     @santa.command(name="add")
     @checks.admin_or_permissions(manage_guild=True)
-    async def santa_add(self, ctx, event_name: str, *members: discord.Member):
+    async def santa_add(self, ctx, event_name: str, members: commands.Greedy[discord.Member]):
         """Add participants to an existing event (before matching).
+
+        Parameters
+        ----------
+        event_name : str
+            Name of the event
+        members : commands.Greedy[discord.Member]
+            Members to add to the event
 
         Example: [p]santa add xmas2024 @user1 @user2
         """
@@ -1173,8 +1180,15 @@ class SecretSanta(commands.Cog):
 
     @santa.command(name="remove")
     @checks.admin_or_permissions(manage_guild=True)
-    async def santa_remove(self, ctx, event_name: str, *members: discord.Member):
+    async def santa_remove(self, ctx, event_name: str, members: commands.Greedy[discord.Member]):
         """Remove participants from an existing event (before matching).
+
+        Parameters
+        ----------
+        event_name : str
+            Name of the event
+        members : commands.Greedy[discord.Member]
+            Members to remove from the event
 
         Example: [p]santa remove xmas2024 @user1 @user2
         """
@@ -1216,7 +1230,7 @@ class SecretSanta(commands.Cog):
         await ctx.send(msg or "No changes made.")
 
     # DM-only commands using event_id for anonymity
-    @commands.group(autohelp=False)
+    @commands.hybrid_group(autohelp=False)
     @commands.dm_only()
     async def santadm(self, ctx):
         """Secret Santa DM commands for anonymous messaging.

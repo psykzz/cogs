@@ -104,18 +104,22 @@ class ActivityStats(commands.Cog):
                         del last_activity_update[user_id_str]
 
     @commands.guild_only()
-    @commands.group(name="activity", invoke_without_command=True)
+    @commands.hybrid_group(name="activity", invoke_without_command=True)
     async def activity_group(self, ctx):
-        """Activity tracking commands."""
+        """Activity tracking commands"""
         await ctx.send_help()
 
     @activity_group.command(name="topgames")
     async def top_games(self, ctx, limit: int = 10):
-        """Show the most played games on this server.
+        """Show the most played games on this server
 
-        Args:
-            limit: Number of games to display (default: 10)
+        Parameters
+        ----------
+        limit : int
+            Number of games to display (default: 10)
         """
+        await ctx.defer()
+
         guild_config = self.config.guild(ctx.guild)
         game_stats = await guild_config.game_stats()
 
@@ -145,11 +149,15 @@ class ActivityStats(commands.Cog):
 
     @activity_group.command(name="mygames")
     async def my_games(self, ctx, user: Optional[discord.Member] = None):
-        """Show game statistics for yourself or another user.
+        """Show game statistics for yourself or another user
 
-        Args:
-            user: The user to check (default: yourself)
+        Parameters
+        ----------
+        user : discord.Member, optional
+            The user to check (default: yourself)
         """
+        await ctx.defer()
+
         target_user = user or ctx.author
         guild_config = self.config.guild(ctx.guild)
         user_game_stats = await guild_config.user_game_stats()
@@ -180,11 +188,15 @@ class ActivityStats(commands.Cog):
 
     @activity_group.command(name="gameinfo")
     async def game_info(self, ctx, *, game_name: str):
-        """Show detailed statistics for a specific game.
+        """Show detailed statistics for a specific game
 
-        Args:
-            game_name: The name of the game to check
+        Parameters
+        ----------
+        game_name : str
+            The name of the game to check
         """
+        await ctx.defer()
+
         guild_config = self.config.guild(ctx.guild)
         game_stats = await guild_config.game_stats()
         user_game_stats = await guild_config.user_game_stats()
@@ -242,17 +254,21 @@ class ActivityStats(commands.Cog):
     @activity_group.command(name="clear")
     @commands.has_permissions(manage_guild=True)
     async def clear_stats(self, ctx):
-        """Clear all activity statistics for this server."""
+        """Clear all activity statistics for this server"""
+        await ctx.defer(ephemeral=True)
+
         guild_config = self.config.guild(ctx.guild)
         await guild_config.game_stats.set({})
         await guild_config.user_game_stats.set({})
         await guild_config.last_activity.set({})
-        await ctx.send("✅ All activity statistics have been cleared!")
+        await ctx.send("✅ All activity statistics have been cleared!", ephemeral=True)
 
     @activity_group.command(name="info")
     @commands.has_permissions(manage_guild=True)
     async def stats_info(self, ctx):
-        """Show statistics about the tracking system."""
+        """Show statistics about the tracking system"""
+        await ctx.defer(ephemeral=True)
+
         guild_config = self.config.guild(ctx.guild)
         enabled = await guild_config.enabled()
         game_stats = await guild_config.game_stats()
@@ -272,26 +288,30 @@ class ActivityStats(commands.Cog):
         embed.add_field(name="Users with Stats", value=str(total_users), inline=True)
         embed.add_field(name="Currently Playing", value=str(active_users), inline=True)
 
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, ephemeral=True)
 
     @activity_group.group(name="set", invoke_without_command=True)
     @commands.has_permissions(manage_guild=True)
     async def set_config(self, ctx):
-        """Configure activity tracking settings."""
+        """Configure activity tracking settings"""
         await ctx.send_help()
 
     @set_config.command(name="enabled")
     @commands.has_permissions(manage_guild=True)
     async def set_enabled(self, ctx):
-        """Enable activity tracking for this server."""
+        """Enable activity tracking for this server"""
+        await ctx.defer(ephemeral=True)
+
         guild_config = self.config.guild(ctx.guild)
         await guild_config.enabled.set(True)
-        await ctx.send("✅ Activity tracking has been **enabled** for this server!")
+        await ctx.send("✅ Activity tracking has been **enabled** for this server!", ephemeral=True)
 
     @set_config.command(name="disabled")
     @commands.has_permissions(manage_guild=True)
     async def set_disabled(self, ctx):
-        """Disable activity tracking for this server."""
+        """Disable activity tracking for this server"""
+        await ctx.defer(ephemeral=True)
+
         guild_config = self.config.guild(ctx.guild)
         await guild_config.enabled.set(False)
-        await ctx.send("✅ Activity tracking has been **disabled** for this server!")
+        await ctx.send("✅ Activity tracking has been **disabled** for this server!", ephemeral=True)

@@ -91,44 +91,93 @@ class TGMC(commands.Cog):
 
         await ctx.send(embed=winrates)
 
-    @commands.group()
+    @commands.hybrid_group()
     async def winrates(self, _ctx):
-        "Check winrates from the API"
+        """Check winrates from the API"""
         pass
 
     @winrates.command()
-    async def all(self, ctx, delta="14"):
-        "Get the current winrates"
+    async def all(self, ctx, delta: str = "14"):
+        """Get the current winrates
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, None)  # None should get all winrates together
 
     @winrates.command(aliases=["distresssignal", "distress-signal", "ds"])
-    async def distress(self, ctx, delta="14"):
-        "Get the current winrates on distress"
+    async def distress(self, ctx, delta: str = "14"):
+        """Get the current winrates on distress
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Distress Signal")
 
     @winrates.command()
-    async def crash(self, ctx, delta="14"):
-        "Get the current winrates on crash"
+    async def crash(self, ctx, delta: str = "14"):
+        """Get the current winrates on crash
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Crash")
 
     @winrates.command(aliases=["buy", "bug-hunt", "bh"])
-    async def bughunt(self, ctx, delta="14"):
-        "Get the current winrates on bug hunt"
+    async def bughunt(self, ctx, delta: str = "14"):
+        """Get the current winrates on bug hunt
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Bug Hunt")
 
     @winrates.command(aliases=["party", "hunt-party", "hp"])
-    async def huntparty(self, ctx, delta="14"):
-        "Get the current winrates on hunt party"
+    async def huntparty(self, ctx, delta: str = "14"):
+        """Get the current winrates on hunt party
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Hunt party")
 
     @winrates.command(aliases=["nuclear", "war", "nuclear-war", "nw"])
-    async def nuclearwar(self, ctx, delta="14"):
-        "Get the current winrates on nuclear war"
+    async def nuclearwar(self, ctx, delta: str = "14"):
+        """Get the current winrates on nuclear war
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Nuclear War")
 
     @winrates.command(aliases=["camp"])
-    async def campaign(self, ctx, delta="14"):
-        "Get the current winrates on campaign"
+    async def campaign(self, ctx, delta: str = "14"):
+        """Get the current winrates on campaign
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Campaign", [
             MARINE_MAJOR_VICTORY,
             SOM_MAJOR_VICTORY,
@@ -137,8 +186,15 @@ class TGMC(commands.Cog):
         ])
 
     @winrates.command(aliases=["combat", "patrol", "combat-patrol", "cp"])
-    async def combatpatrol(self, ctx, delta="14"):
-        "Get the current winrates on combat patrol"
+    async def combatpatrol(self, ctx, delta: str = "14"):
+        """Get the current winrates on combat patrol
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Combat Patrol", [
             MARINE_MAJOR_VICTORY,
             SOM_MAJOR_VICTORY,
@@ -147,8 +203,15 @@ class TGMC(commands.Cog):
         ])
 
     @winrates.command(aliases=["sensor", "capture", "sensor-capture", "sc"])
-    async def sensorcapture(self, ctx, delta="14"):
-        "Get the current winrates on sensor capture"
+    async def sensorcapture(self, ctx, delta: str = "14"):
+        """Get the current winrates on sensor capture
+
+        Parameters
+        ----------
+        delta : str
+            Number of days to look back (default: 14)
+        """
+        await ctx.defer()
         return await self.get_winrate(ctx, delta, "Sensor Capture", [
             MARINE_MAJOR_VICTORY,
             SOM_MAJOR_VICTORY,
