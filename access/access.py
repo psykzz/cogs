@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from typing import Union
 
@@ -132,7 +133,7 @@ class Access(commands.Cog):
 
         try:
             await ctx.bot.wait_for("reaction_add", check=pred, timeout=60.0)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             await msg.edit(content="⏱️ Request timed out.", embed=None)
             return
 
@@ -269,7 +270,7 @@ class Access(commands.Cog):
 
         try:
             await ctx.bot.wait_for("reaction_add", check=pred, timeout=60.0)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             await msg.edit(content="⏱️ Request timed out.", embed=None)
             return
 
