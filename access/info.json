@@ -1,0 +1,12 @@
+{
+  "author": [
+    "psykzz"
+  ],
+  "description": "Simplify access and permissions to channels for roles or members by managing channel-specific permission overrides.",
+  "install_msg": "Thanks for installing the Access cog! Use [p]access give or [p]access remove to manage channel permissions.",
+  "short": "Manage channel access permissions for roles and members",
+  "name": "Access",
+  "disabled": false,
+  "requirements": [],
+  "tags": ["permissions", "access", "channels", "roles"]
+}
