@@ -202,6 +202,7 @@ async def mycommand(self, ctx):
 ```
 
 ### Key Cogs
+- **access/**: Simplify channel access and permissions for roles or members by managing channel-specific permission overrides with confirmation dialogs (no external deps)
 - **activity_stats/**: Discord activity and game statistics tracking (no external deps)
 - **albion_auth/**: Albion Online authentication and daily verification system (requires: httpx>=0.14.1)
 - **albion_ava/**: Roads of Avalon connection tracker via Portaler API with on-demand data fetching and connection graphs (requires: httpx>=0.14.1, Pillow>=10.2.0)
