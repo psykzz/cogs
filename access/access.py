@@ -54,10 +54,7 @@ class Access(commands.Cog):
 
         # Build the plan of changes
         changes = []
-        new_perms = discord.PermissionOverwrite.from_pair(
-            discord.Permissions.none(),
-            discord.Permissions.none()
-        )
+        new_perms = discord.PermissionOverwrite()
 
         # Copy existing permissions
         for perm, value in current_perms:
@@ -191,10 +188,7 @@ class Access(commands.Cog):
 
         # Build the plan of changes
         changes = []
-        new_perms = discord.PermissionOverwrite.from_pair(
-            discord.Permissions.none(),
-            discord.Permissions.none()
-        )
+        new_perms = discord.PermissionOverwrite()
 
         # Copy existing permissions
         for perm, value in current_perms:
