@@ -1,16 +1,33 @@
+import asyncio
 import datetime
+import json
 import logging
 import math
 import re
 
 import discord
 from dateutil.relativedelta import relativedelta
+from discord.ext import tasks
 from redbot.core import Config, commands, checks
 from redbot.core.utils.menus import menu
+
+try:
+    from nats.aio.client import Client as NATS
+    NATS_AVAILABLE = True
+except ImportError:
+    NATS_AVAILABLE = False
 
 log = logging.getLogger("red.cogs.albion_bandits")
 
 IDENTIFIER = 8472651938472651938  # Random identifier for this cog
+
+# NATS server configuration
+NATS_SERVERS = {
+    "americas": "nats://public:thenewalbiondata@nats.albion-online-data.com:4222",
+    "asia": "nats://public:thenewalbiondata@nats.albion-online-data.com:24222",
+    "europe": "nats://public:thenewalbiondata@nats.albion-online-data.com:34222",
+}
+NATS_SUBJECT = "bandit.spawn"
 
 # Bandit timing constants (in hours)
 MIN_BANDIT_COOLDOWN_HOURS = 4
@@ -29,6 +46,9 @@ ESTIMATED_CALL_MESSAGE = "Auto-generated estimate for missed event"
 default_guild = {
     "monitored_role_id": None,  # Role ID to monitor for pings
     "bandit_calls": [],  # List of bandit call records
+    "nats_enabled": False,  # Enable NATS integration
+    "nats_region": "americas",  # Default NATS region
+    "nats_channel_id": None,  # Channel to post NATS notifications
 }
 
 
@@ -41,6 +61,19 @@ class AlbionBandits(commands.Cog):
             self, identifier=IDENTIFIER, force_registration=True
         )
         self.config.register_guild(**default_guild)
+        self.nats_clients = {}  # {guild_id: NATS client}
+        self.nats_subscriptions = {}  # {guild_id: subscription}
+        self._nats_connection_task.start()
+
+    def cog_unload(self):
+        """Cancel the background task when cog unloads"""
+        self._nats_connection_task.cancel()
+        # Close all NATS connections
+        for guild_id, nc in self.nats_clients.items():
+            try:
+                asyncio.create_task(nc.close())
+            except Exception as e:
+                log.error(f"Error closing NATS connection for guild {guild_id}: {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -255,6 +288,257 @@ class AlbionBandits(commands.Cog):
             "is_estimated": True,  # Flag to mark this as an estimate
         }
 
+    @tasks.loop(minutes=5.0)
+    async def _nats_connection_task(self):
+        """Background task to manage NATS connections for guilds"""
+        if not NATS_AVAILABLE:
+            log.warning("NATS library not available. NATS integration disabled.")
+            return
+
+        try:
+            # Check all guilds and ensure NATS connections
+            all_guilds = await self.config.all_guilds()
+            
+            for guild_id, guild_data in all_guilds.items():
+                if guild_data.get("nats_enabled", False):
+                    guild = self.bot.get_guild(guild_id)
+                    if guild:
+                        await self._ensure_nats_connection(guild)
+                else:
+                    # Disconnect if NATS is disabled
+                    if guild_id in self.nats_clients:
+                        await self._disconnect_nats(guild_id)
+        except Exception as e:
+            log.exception(f"Error in NATS connection task: {e}")
+
+    @_nats_connection_task.before_loop
+    async def _before_nats_task(self):
+        """Wait for bot to be ready before starting the loop."""
+        await self.bot.wait_until_ready()
+
+    async def _ensure_nats_connection(self, guild: discord.Guild):
+        """Ensure NATS connection is established for a guild"""
+        guild_id = guild.id
+        
+        # Check if already connected
+        if guild_id in self.nats_clients:
+            nc = self.nats_clients[guild_id]
+            if nc.is_connected:
+                return
+            else:
+                # Connection lost, clean up
+                await self._disconnect_nats(guild_id)
+        
+        try:
+            # Get guild configuration
+            guild_config = self.config.guild(guild)
+            region = await guild_config.nats_region()
+            nats_url = NATS_SERVERS.get(region, NATS_SERVERS["americas"])
+            
+            log.info(f"Connecting to NATS for guild {guild.name} ({guild_id}) on {region} region")
+            
+            # Create NATS client
+            nc = NATS()
+            await nc.connect(nats_url)
+            
+            # Subscribe to bandit spawn events
+            sub = await nc.subscribe(NATS_SUBJECT, cb=lambda msg: asyncio.create_task(
+                self._handle_nats_message(guild, msg)
+            ))
+            
+            self.nats_clients[guild_id] = nc
+            self.nats_subscriptions[guild_id] = sub
+            
+            log.info(f"Successfully connected to NATS for guild {guild.name} ({guild_id})")
+        except Exception as e:
+            log.error(f"Failed to connect to NATS for guild {guild.name} ({guild_id}): {e}")
+
+    async def _disconnect_nats(self, guild_id: int):
+        """Disconnect NATS client for a guild"""
+        if guild_id in self.nats_clients:
+            try:
+                nc = self.nats_clients[guild_id]
+                if nc.is_connected:
+                    await nc.close()
+                log.info(f"Disconnected NATS for guild {guild_id}")
+            except Exception as e:
+                log.error(f"Error disconnecting NATS for guild {guild_id}: {e}")
+            finally:
+                del self.nats_clients[guild_id]
+                if guild_id in self.nats_subscriptions:
+                    del self.nats_subscriptions[guild_id]
+
+    async def _handle_nats_message(self, guild: discord.Guild, msg):
+        """Handle incoming NATS messages about bandit events"""
+        try:
+            data = json.loads(msg.data.decode())
+            log.debug(f"Received NATS message for guild {guild.name}: {data}")
+            
+            # Parse the message
+            event_time_ticks = data.get("EventTime")
+            advance_notice = data.get("AdvanceNotice", False)
+            
+            if event_time_ticks is None:
+                log.warning(f"NATS message missing EventTime: {data}")
+                return
+            
+            # Convert .NET ticks to datetime
+            # .NET ticks are 100-nanosecond intervals since 0001-01-01 00:00:00
+            # Unix epoch in .NET ticks is 621355968000000000
+            TICKS_UNIX_EPOCH = 621355968000000000
+            TICKS_PER_SECOND = 10000000
+            
+            unix_timestamp = (event_time_ticks - TICKS_UNIX_EPOCH) / TICKS_PER_SECOND
+            event_time = datetime.datetime.fromtimestamp(unix_timestamp)
+            
+            log.info(
+                f"NATS bandit event - Guild: {guild.name}, "
+                f"AdvanceNotice: {advance_notice}, EventTime: {event_time}"
+            )
+            
+            # Process the event
+            if advance_notice:
+                # 15 minutes before event starts
+                await self._handle_advance_notice(guild, event_time)
+            else:
+                # Event is active, EventTime is when it ends
+                await self._handle_active_event(guild, event_time)
+                
+        except Exception as e:
+            log.exception(f"Error handling NATS message for guild {guild.name}: {e}")
+
+    async def _handle_advance_notice(self, guild: discord.Guild, start_time: datetime.datetime):
+        """Handle 15-minute advance notice for bandit event"""
+        guild_config = self.config.guild(guild)
+        channel_id = await guild_config.nats_channel_id()
+        role_id = await guild_config.monitored_role_id()
+        
+        if not channel_id:
+            log.debug(f"No notification channel configured for guild {guild.name}")
+            return
+        
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            log.warning(f"Notification channel {channel_id} not found in guild {guild.name}")
+            return
+        
+        # Calculate minutes until start
+        now = datetime.datetime.now()
+        minutes_until = int((start_time - now).total_seconds() / 60)
+        
+        # Create embed notification
+        embed = discord.Embed(
+            title="🏴‍☠️ Bandit Event Incoming!",
+            description=f"Bandits will spawn in approximately **{minutes_until} minutes**",
+            color=discord.Color.orange(),
+            timestamp=start_time
+        )
+        embed.add_field(
+            name="Start Time",
+            value=start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            inline=False
+        )
+        embed.set_footer(text="Source: Albion Data Project (NATS)")
+        
+        # Mention the role if configured
+        content = None
+        if role_id:
+            role = guild.get_role(role_id)
+            if role:
+                content = role.mention
+        
+        try:
+            await channel.send(content=content, embed=embed)
+            log.info(f"Sent advance notice to {channel.name} in {guild.name}")
+        except discord.HTTPException as e:
+            log.error(f"Failed to send advance notice to {channel.name}: {e}")
+        
+        # Record the bandit call
+        await self._record_nats_bandit_call(guild, start_time, minutes_until)
+
+    async def _handle_active_event(self, guild: discord.Guild, end_time: datetime.datetime):
+        """Handle active bandit event (EventTime is when it ends)"""
+        guild_config = self.config.guild(guild)
+        channel_id = await guild_config.nats_channel_id()
+        
+        if not channel_id:
+            log.debug(f"No notification channel configured for guild {guild.name}")
+            return
+        
+        channel = guild.get_channel(channel_id)
+        if not channel:
+            log.warning(f"Notification channel {channel_id} not found in guild {guild.name}")
+            return
+        
+        # Calculate when the event started (assume it just started)
+        start_time = datetime.datetime.now()
+        
+        # Create embed notification
+        embed = discord.Embed(
+            title="🏴‍☠️ Bandit Event Active!",
+            description="Bandits are spawning now!",
+            color=discord.Color.red(),
+            timestamp=end_time
+        )
+        embed.add_field(
+            name="Event End Time",
+            value=end_time.strftime('%Y-%m-%d %H:%M:%S'),
+            inline=False
+        )
+        embed.set_footer(text="Source: Albion Data Project (NATS)")
+        
+        try:
+            await channel.send(embed=embed)
+            log.info(f"Sent active event notice to {channel.name} in {guild.name}")
+        except discord.HTTPException as e:
+            log.error(f"Failed to send active event notice to {channel.name}: {e}")
+        
+        # Record the bandit call
+        await self._record_nats_bandit_call(guild, start_time, 0)
+
+    async def _record_nats_bandit_call(self, guild: discord.Guild, bandit_time: datetime.datetime, minutes_until: int):
+        """Record a bandit call from NATS"""
+        # Check for duplicate
+        if await self._is_duplicate(guild, bandit_time):
+            log.debug(f"Duplicate NATS bandit call for guild {guild.name}, ignoring")
+            return
+        
+        guild_config = self.config.guild(guild)
+        
+        # Create call record
+        call_record = {
+            "user_id": 0,  # System generated
+            "user_name": "NATS (Albion Data Project)",
+            "channel_id": 0,
+            "message_id": 0,
+            "minutes_until": minutes_until,
+            "call_time": datetime.datetime.now().isoformat(),
+            "bandit_time": bandit_time.isoformat(),
+            "message_content": "Automated event from Albion Data Project",
+            "is_estimated": False,
+        }
+        
+        async with guild_config.bandit_calls() as calls_list:
+            if calls_list:
+                last_call = calls_list[-1]
+                last_bandit_time = datetime.datetime.fromisoformat(last_call["bandit_time"])
+                
+                # Create estimated calls if there's a significant gap
+                estimated_calls = await self._create_estimated_calls(
+                    guild,
+                    last_bandit_time,
+                    bandit_time
+                )
+                
+                if estimated_calls:
+                    calls_list.extend(estimated_calls)
+                    log.debug(f"Added {len(estimated_calls)} estimated call(s) from NATS")
+            
+            # Add the new call
+            calls_list.append(call_record)
+        
+        log.info(f"Recorded NATS bandit call for guild {guild.name}")
+
     @commands.hybrid_group(invoke_without_command=True)
     @commands.guild_only()
     async def bandits(self, ctx):
@@ -410,6 +694,9 @@ class AlbionBandits(commands.Cog):
         guild_config = self.config.guild(ctx.guild)
         role_id = await guild_config.monitored_role_id()
         calls = await guild_config.bandit_calls()
+        nats_enabled = await guild_config.nats_enabled()
+        nats_region = await guild_config.nats_region()
+        nats_channel_id = await guild_config.nats_channel_id()
 
         embed = discord.Embed(
             title="⚙️ Bandit Tracking Status",
@@ -443,7 +730,146 @@ class AlbionBandits(commands.Cog):
                 inline=False
             )
 
+        # Add NATS status
+        nats_status = "✅ Enabled" if nats_enabled else "❌ Disabled"
+        if nats_enabled and not NATS_AVAILABLE:
+            nats_status = "⚠️ Enabled but library not installed"
+        embed.add_field(
+            name="NATS Integration",
+            value=nats_status,
+            inline=True
+        )
+
+        if nats_enabled:
+            embed.add_field(
+                name="NATS Region",
+                value=nats_region.capitalize(),
+                inline=True
+            )
+            
+            if nats_channel_id:
+                channel = ctx.guild.get_channel(nats_channel_id)
+                channel_name = channel.mention if channel else f"<Unknown: {nats_channel_id}>"
+            else:
+                channel_name = "Not configured"
+            
+            embed.add_field(
+                name="NATS Notification Channel",
+                value=channel_name,
+                inline=True
+            )
+            
+            # Show connection status
+            is_connected = ctx.guild.id in self.nats_clients and self.nats_clients[ctx.guild.id].is_connected
+            connection_status = "🟢 Connected" if is_connected else "🔴 Disconnected"
+            embed.add_field(
+                name="NATS Connection",
+                value=connection_status,
+                inline=True
+            )
+
         await ctx.send(embed=embed)
+
+    @bandits.command(name="nats_enable")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def bandits_nats_enable(self, ctx, channel: discord.TextChannel = None):
+        """Enable NATS integration for real-time bandit events
+        
+        Parameters
+        ----------
+        channel : discord.TextChannel, optional
+            Channel to post NATS notifications. If not provided, uses current channel.
+        """
+        if not NATS_AVAILABLE:
+            await ctx.send(
+                "❌ NATS integration is not available. Please install the `nats-py` package.",
+                ephemeral=True
+            )
+            return
+        
+        notification_channel = channel or ctx.channel
+        
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.nats_enabled.set(True)
+        await guild_config.nats_channel_id.set(notification_channel.id)
+        
+        # Trigger immediate connection attempt
+        await self._ensure_nats_connection(ctx.guild)
+        
+        embed = discord.Embed(
+            title="✅ NATS Integration Enabled",
+            description="Real-time bandit event tracking is now active.",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="Notification Channel",
+            value=notification_channel.mention,
+            inline=False
+        )
+        embed.add_field(
+            name="Region",
+            value=(await guild_config.nats_region()).capitalize(),
+            inline=False
+        )
+        embed.set_footer(text="Use [p]bandits nats_region to change the game server region")
+        
+        await ctx.send(embed=embed)
+
+    @bandits.command(name="nats_disable")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def bandits_nats_disable(self, ctx):
+        """Disable NATS integration"""
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.nats_enabled.set(False)
+        
+        # Disconnect NATS
+        await self._disconnect_nats(ctx.guild.id)
+        
+        await ctx.send("✅ NATS integration has been disabled.")
+
+    @bandits.command(name="nats_region")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def bandits_nats_region(self, ctx, region: str):
+        """Set the NATS region (americas, asia, or europe)
+        
+        Parameters
+        ----------
+        region : str
+            Game server region: americas, asia, or europe
+        """
+        region_lower = region.lower()
+        if region_lower not in NATS_SERVERS:
+            await ctx.send(
+                f"❌ Invalid region. Choose from: {', '.join(NATS_SERVERS.keys())}",
+                ephemeral=True
+            )
+            return
+        
+        guild_config = self.config.guild(ctx.guild)
+        old_region = await guild_config.nats_region()
+        await guild_config.nats_region.set(region_lower)
+        
+        # If NATS is enabled and region changed, reconnect
+        nats_enabled = await guild_config.nats_enabled()
+        if nats_enabled and old_region != region_lower:
+            await self._disconnect_nats(ctx.guild.id)
+            await self._ensure_nats_connection(ctx.guild)
+        
+        await ctx.send(f"✅ NATS region set to **{region_lower.capitalize()}**")
+
+    @bandits.command(name="nats_channel")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def bandits_nats_channel(self, ctx, channel: discord.TextChannel):
+        """Set the channel for NATS notifications
+        
+        Parameters
+        ----------
+        channel : discord.TextChannel
+            Channel to post NATS notifications
+        """
+        guild_config = self.config.guild(ctx.guild)
+        await guild_config.nats_channel_id.set(channel.id)
+        await ctx.send(f"✅ NATS notifications will be posted in {channel.mention}")
 
     def _humanize_delta(self, delta: relativedelta, precision: str = "seconds", max_units: int = 3) -> str:
         """Convert a relativedelta to a human-readable string"""
