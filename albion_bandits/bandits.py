@@ -68,10 +68,14 @@ class AlbionBandits(commands.Cog):
     def cog_unload(self):
         """Cancel the background task when cog unloads"""
         self._nats_connection_task.cancel()
-        # Close all NATS connections
-        for guild_id, nc in self.nats_clients.items():
+        # Close all NATS connections synchronously
+        for guild_id, nc in list(self.nats_clients.items()):
             try:
-                asyncio.create_task(nc.close())
+                if nc.is_connected:
+                    # Create a new event loop context to close the connection
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(nc.close())
+                    loop.close()
             except Exception as e:
                 log.error(f"Error closing NATS connection for guild {guild_id}: {e}")
 
@@ -342,9 +346,14 @@ class AlbionBandits(commands.Cog):
             await nc.connect(nats_url)
             
             # Subscribe to bandit spawn events
-            sub = await nc.subscribe(NATS_SUBJECT, cb=lambda msg: asyncio.create_task(
-                self._handle_nats_message(guild, msg)
-            ))
+            async def message_handler(msg):
+                """Handle NATS message without creating untracked tasks"""
+                try:
+                    await self._handle_nats_message(guild, msg)
+                except Exception as e:
+                    log.exception(f"Error in NATS message handler: {e}")
+            
+            sub = await nc.subscribe(NATS_SUBJECT, cb=message_handler)
             
             self.nats_clients[guild_id] = nc
             self.nats_subscriptions[guild_id] = sub
@@ -389,7 +398,7 @@ class AlbionBandits(commands.Cog):
             TICKS_PER_SECOND = 10000000
             
             unix_timestamp = (event_time_ticks - TICKS_UNIX_EPOCH) / TICKS_PER_SECOND
-            event_time = datetime.datetime.fromtimestamp(unix_timestamp)
+            event_time = datetime.datetime.utcfromtimestamp(unix_timestamp)
             
             log.info(
                 f"NATS bandit event - Guild: {guild.name}, "
@@ -423,7 +432,7 @@ class AlbionBandits(commands.Cog):
             return
         
         # Calculate minutes until start
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         minutes_until = int((start_time - now).total_seconds() / 60)
         
         # Create embed notification
@@ -471,7 +480,7 @@ class AlbionBandits(commands.Cog):
             return
         
         # Calculate when the event started (assume it just started)
-        start_time = datetime.datetime.now()
+        start_time = datetime.datetime.utcnow()
         
         # Create embed notification
         embed = discord.Embed(
@@ -512,7 +521,7 @@ class AlbionBandits(commands.Cog):
             "channel_id": 0,
             "message_id": 0,
             "minutes_until": minutes_until,
-            "call_time": datetime.datetime.now().isoformat(),
+            "call_time": datetime.datetime.utcnow().isoformat(),
             "bandit_time": bandit_time.isoformat(),
             "message_content": "Automated event from Albion Data Project",
             "is_estimated": False,
