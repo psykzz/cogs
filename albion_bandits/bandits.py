@@ -27,7 +27,7 @@ NATS_SERVERS = {
     "asia": "nats://public:thenewalbiondata@nats.albion-online-data.com:24222",
     "europe": "nats://public:thenewalbiondata@nats.albion-online-data.com:34222",
 }
-NATS_SUBJECT = "bandit.spawn"
+NATS_SUBJECT = "banditevent.ingest"
 
 # Bandit timing constants (in hours)
 MIN_BANDIT_COOLDOWN_HOURS = 4
