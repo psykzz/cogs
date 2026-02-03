@@ -63,6 +63,9 @@ class AlbionBandits(commands.Cog):
         self.config.register_guild(**default_guild)
         self.nats_clients = {}  # {guild_id: NATS client}
         self.nats_subscriptions = {}  # {guild_id: subscription}
+        # Track recently processed NATS events to prevent duplicates
+        # Format: {guild_id: {(event_time_iso, advance_notice): processing_timestamp}}
+        self._processed_events = {}
         self._nats_connection_task.start()
 
     def cog_unload(self):
@@ -377,6 +380,34 @@ class AlbionBandits(commands.Cog):
                 if guild_id in self.nats_subscriptions:
                     del self.nats_subscriptions[guild_id]
 
+    def _is_nats_event_duplicate(self, guild_id: int, event_time: datetime.datetime, advance_notice: bool) -> bool:
+        """Check if a NATS event has already been processed recently.
+        
+        Returns True if this is a duplicate event that should be skipped.
+        """
+        # Clean up old entries (older than 1 hour)
+        now = datetime.datetime.utcnow()
+        if guild_id in self._processed_events:
+            self._processed_events[guild_id] = {
+                key: timestamp for key, timestamp in self._processed_events[guild_id].items()
+                if (now - timestamp).total_seconds() < 3600
+            }
+        
+        # Create cache entry for this guild if it doesn't exist
+        if guild_id not in self._processed_events:
+            self._processed_events[guild_id] = {}
+        
+        # Create a unique key for this event
+        event_key = (event_time.isoformat(), advance_notice)
+        
+        # Check if we've seen this exact event recently (within last hour)
+        if event_key in self._processed_events[guild_id]:
+            return True
+        
+        # Mark this event as processed
+        self._processed_events[guild_id][event_key] = now
+        return False
+
     async def _handle_nats_message(self, guild: discord.Guild, msg):
         """Handle incoming NATS messages about bandit events"""
         try:
@@ -399,6 +430,14 @@ class AlbionBandits(commands.Cog):
             
             unix_timestamp = (event_time_ticks - TICKS_UNIX_EPOCH) / TICKS_PER_SECOND
             event_time = datetime.datetime.utcfromtimestamp(unix_timestamp)
+            
+            # Check for duplicate events before processing
+            if self._is_nats_event_duplicate(guild.id, event_time, advance_notice):
+                log.info(
+                    f"Skipping duplicate NATS bandit event - Guild: {guild.name}, "
+                    f"AdvanceNotice: {advance_notice}, EventTime: {event_time}"
+                )
+                return
             
             log.info(
                 f"NATS bandit event - Guild: {guild.name}, "
