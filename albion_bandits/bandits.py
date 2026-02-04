@@ -70,17 +70,15 @@ class AlbionBandits(commands.Cog):
         self._last_cleanup_time = datetime.datetime.utcnow()
         self._nats_connection_task.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         """Cancel the background task when cog unloads"""
         self._nats_connection_task.cancel()
-        # Close all NATS connections synchronously
+        # Close all NATS connections asynchronously
         for guild_id, nc in list(self.nats_clients.items()):
             try:
                 if nc.is_connected:
-                    # Create a new event loop context to close the connection
-                    loop = asyncio.new_event_loop()
-                    loop.run_until_complete(nc.close())
-                    loop.close()
+                    await nc.close()
+                    log.info(f"Closed NATS connection for guild {guild_id}")
             except Exception as e:
                 log.error(f"Error closing NATS connection for guild {guild_id}: {e}")
 
@@ -474,6 +472,11 @@ class AlbionBandits(commands.Cog):
 
     async def _handle_advance_notice(self, guild: discord.Guild, start_time: datetime.datetime):
         """Handle 15-minute advance notice for bandit event"""
+        # Check for duplicate BEFORE sending notification
+        if await self._is_duplicate(guild, start_time):
+            log.debug(f"Duplicate advance notice for guild {guild.name}, skipping notification")
+            return
+        
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.nats_channel_id()
         role_id = await guild_config.monitored_role_id()
@@ -523,6 +526,14 @@ class AlbionBandits(commands.Cog):
 
     async def _handle_active_event(self, guild: discord.Guild, end_time: datetime.datetime):
         """Handle active bandit event (EventTime is when it ends)"""
+        # Calculate when the event started (assume it just started)
+        start_time = datetime.datetime.utcnow()
+        
+        # Check for duplicate BEFORE sending notification
+        if await self._is_duplicate(guild, start_time):
+            log.debug(f"Duplicate active event for guild {guild.name}, skipping notification")
+            return
+        
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.nats_channel_id()
         
@@ -534,9 +545,6 @@ class AlbionBandits(commands.Cog):
         if not channel:
             log.warning(f"Notification channel {channel_id} not found in guild {guild.name}")
             return
-        
-        # Calculate when the event started (assume it just started)
-        start_time = datetime.datetime.utcnow()
         
         # Create embed notification
         embed = discord.Embed(
