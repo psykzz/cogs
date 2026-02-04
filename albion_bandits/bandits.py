@@ -472,11 +472,6 @@ class AlbionBandits(commands.Cog):
 
     async def _handle_advance_notice(self, guild: discord.Guild, start_time: datetime.datetime):
         """Handle 15-minute advance notice for bandit event"""
-        # Check for duplicate BEFORE sending notification
-        if await self._is_duplicate(guild, start_time):
-            log.debug(f"Duplicate advance notice for guild {guild.name}, skipping notification")
-            return
-
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.nats_channel_id()
         role_id = await guild_config.monitored_role_id()
@@ -529,11 +524,6 @@ class AlbionBandits(commands.Cog):
         # Calculate when the event started (assume it just started)
         start_time = datetime.datetime.utcnow()
 
-        # Check for duplicate BEFORE sending notification
-        if await self._is_duplicate(guild, start_time):
-            log.debug(f"Duplicate active event for guild {guild.name}, skipping notification")
-            return
-
         guild_config = self.config.guild(guild)
         channel_id = await guild_config.nats_channel_id()
 
@@ -571,11 +561,6 @@ class AlbionBandits(commands.Cog):
 
     async def _record_nats_bandit_call(self, guild: discord.Guild, bandit_time: datetime.datetime, minutes_until: int):
         """Record a bandit call from NATS"""
-        # Check for duplicate
-        if await self._is_duplicate(guild, bandit_time):
-            log.debug(f"Duplicate NATS bandit call for guild {guild.name}, ignoring")
-            return
-
         guild_config = self.config.guild(guild)
 
         # Create call record
