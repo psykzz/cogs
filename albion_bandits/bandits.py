@@ -387,7 +387,9 @@ class AlbionBandits(commands.Cog):
         """
         guild = self.bot.get_guild(guild_id)
         if not guild:
-            return False
+            # If guild doesn't exist, treat as duplicate to skip processing
+            log.warning(f"Guild {guild_id} not found, skipping event")
+            return True
 
         # Create lock for this guild if it doesn't exist
         if guild_id not in self._processed_events_locks:
@@ -400,12 +402,9 @@ class AlbionBandits(commands.Cog):
             # Create a unique key for this event (as string for efficient comparison)
             event_key = f"{event_time.isoformat()}|{advance_notice}"
 
-            # debug validation of event key
-            log.info(f"event key - {event_key} == {event_time.isoformat()},  {advance_notice}, is_dup: {event_key in processed_events}")
-            
-            
             # Check if we've seen this exact event recently
             if event_key in processed_events:
+                log.debug(f"Duplicate event detected: {event_key}")
                 return True
 
             # Mark this event as processed and keep only last 1000 entries
