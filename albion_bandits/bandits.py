@@ -415,6 +415,10 @@ class AlbionBandits(commands.Cog):
             # Create a unique key for this event
             event_key = (event_time.isoformat(), advance_notice)
 
+            # debug validation of event key
+            log.info(f"event key - {event_key} == {event_time.isoformat()},  {advance_notice}, is_dup: {event_key in self._processed_events[guild_id]}")
+            
+            
             # Check if we've seen this exact event recently (within last hour)
             if event_key in self._processed_events[guild_id]:
                 return True
