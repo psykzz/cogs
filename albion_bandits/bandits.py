@@ -49,6 +49,7 @@ default_guild = {
     "nats_enabled": False,  # Enable NATS integration
     "nats_region": "americas",  # Default NATS region
     "nats_channel_id": None,  # Channel to post NATS notifications
+    "processed_events": [],  # List of processed NATS events (last 1000)
 }
 
 
@@ -63,11 +64,6 @@ class AlbionBandits(commands.Cog):
         self.config.register_guild(**default_guild)
         self.nats_clients = {}  # {guild_id: NATS client}
         self.nats_subscriptions = {}  # {guild_id: subscription}
-        # Track recently processed NATS events to prevent duplicates
-        # Format: {guild_id: {(event_time_iso, advance_notice): event_time}}
-        self._processed_events = {}
-        self._processed_events_lock = asyncio.Lock()
-        self._last_cleanup_time = datetime.datetime.utcnow()
         self._nats_connection_task.start()
 
     async def cog_unload(self):
@@ -380,52 +376,41 @@ class AlbionBandits(commands.Cog):
                 if guild_id in self.nats_subscriptions:
                     del self.nats_subscriptions[guild_id]
 
-    def _cleanup_processed_events_internal(self):
-        """Clean up old entries from the processed events cache (older than 1 hour from event time).
-
-        Note: This method must be called while holding _processed_events_lock.
-        """
-        now = datetime.datetime.utcnow()
-        for guild_id in list(self._processed_events.keys()):
-            self._processed_events[guild_id] = {
-                key: event_time for key, event_time in self._processed_events[guild_id].items()
-                if (now - event_time).total_seconds() < 3600
-            }
-            # Remove empty guild entries
-            if not self._processed_events[guild_id]:
-                del self._processed_events[guild_id]
-        self._last_cleanup_time = now
-
     async def _is_nats_event_duplicate(self, guild_id: int, event_time: datetime.datetime, advance_notice: bool) -> bool:
         """Check if a NATS event has already been processed recently.
 
         Returns True if this is a duplicate event that should be skipped.
-        Thread-safe via asyncio lock.
+        Uses Config storage and keeps last 1000 events.
         """
-        async with self._processed_events_lock:
-            # Periodically clean up old entries (every 10 minutes)
-            now = datetime.datetime.utcnow()
-            if (now - self._last_cleanup_time).total_seconds() > 600:
-                self._cleanup_processed_events_internal()
-
-            # Create cache entry for this guild if it doesn't exist
-            if guild_id not in self._processed_events:
-                self._processed_events[guild_id] = {}
-
-            # Create a unique key for this event
-            event_key = (event_time.isoformat(), advance_notice)
-
-            # debug validation of event key
-            log.info(f"event key - {event_key} == {event_time.isoformat()},  {advance_notice}, is_dup: {event_key in self._processed_events[guild_id]}")
-            
-            
-            # Check if we've seen this exact event recently (within last hour)
-            if event_key in self._processed_events[guild_id]:
-                return True
-
-            # Mark this event as processed (store event_time, not processing time)
-            self._processed_events[guild_id][event_key] = event_time
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
             return False
+
+        # Get current processed events from Config
+        processed_events = await self.config.guild(guild).processed_events()
+
+        # Create a unique key for this event
+        event_key = {
+            "event_time_iso": event_time.isoformat(),
+            "advance_notice": advance_notice
+        }
+
+        # debug validation of event key
+        log.info(f"event key - {event_key} == {event_time.isoformat()},  {advance_notice}, is_dup: {event_key in processed_events}")
+        
+        
+        # Check if we've seen this exact event recently
+        if event_key in processed_events:
+            return True
+
+        # Mark this event as processed and keep only last 1000 entries
+        processed_events.append(event_key)
+        if len(processed_events) > 1000:
+            # Keep only the last 1000 entries
+            processed_events = processed_events[-1000:]
+        
+        await self.config.guild(guild).processed_events.set(processed_events)
+        return False
 
     async def _handle_nats_message(self, guild: discord.Guild, msg):
         """Handle incoming NATS messages about bandit events"""
