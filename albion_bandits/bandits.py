@@ -64,7 +64,7 @@ class AlbionBandits(commands.Cog):
         self.nats_clients = {}  # {guild_id: NATS client}
         self.nats_subscriptions = {}  # {guild_id: subscription}
         # Track recently processed NATS events to prevent duplicates
-        # Format: {guild_id: {(event_time_iso, advance_notice): processing_timestamp}}
+        # Format: {guild_id: {(event_time_iso, advance_notice): event_time}}
         self._processed_events = {}
         self._processed_events_lock = asyncio.Lock()
         self._last_cleanup_time = datetime.datetime.utcnow()
@@ -383,15 +383,15 @@ class AlbionBandits(commands.Cog):
                     del self.nats_subscriptions[guild_id]
 
     def _cleanup_processed_events_internal(self):
-        """Clean up old entries from the processed events cache (older than 1 hour).
+        """Clean up old entries from the processed events cache (older than 1 hour from event time).
         
         Note: This method must be called while holding _processed_events_lock.
         """
         now = datetime.datetime.utcnow()
         for guild_id in list(self._processed_events.keys()):
             self._processed_events[guild_id] = {
-                key: timestamp for key, timestamp in self._processed_events[guild_id].items()
-                if (now - timestamp).total_seconds() < 3600
+                key: event_time for key, event_time in self._processed_events[guild_id].items()
+                if (now - event_time).total_seconds() < 3600
             }
             # Remove empty guild entries
             if not self._processed_events[guild_id]:
@@ -421,8 +421,8 @@ class AlbionBandits(commands.Cog):
             if event_key in self._processed_events[guild_id]:
                 return True
             
-            # Mark this event as processed
-            self._processed_events[guild_id][event_key] = now
+            # Mark this event as processed (store event_time, not processing time)
+            self._processed_events[guild_id][event_key] = event_time
             return False
 
     async def _handle_nats_message(self, guild: discord.Guild, msg):
