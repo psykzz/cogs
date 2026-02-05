@@ -66,6 +66,7 @@ class AlbionBandits(commands.Cog):
         self.nats_subscriptions = {}  # {guild_id: subscription}
         # Lock to prevent race conditions when updating processed_events in Config
         self._processed_events_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
         self._nats_connection_task.start()
 
     async def cog_unload(self):
@@ -383,7 +384,7 @@ class AlbionBandits(commands.Cog):
 
         Returns True if this is a duplicate event that should be skipped.
         Uses Config storage and keeps last 1000 events.
-        Thread-safe via per-guild asyncio lock.
+        Concurrency-safe via per-guild asyncio lock.
         """
         guild = self.bot.get_guild(guild_id)
         if not guild:
@@ -391,16 +392,20 @@ class AlbionBandits(commands.Cog):
             log.warning(f"Guild {guild_id} not found, skipping event")
             return True
 
-        # Create lock for this guild if it doesn't exist
-        if guild_id not in self._processed_events_locks:
-            self._processed_events_locks[guild_id] = asyncio.Lock()
+        # Create lock for this guild if it doesn't exist (async-safe)
+        async with self._locks_creation_lock:
+            if guild_id not in self._processed_events_locks:
+                self._processed_events_locks[guild_id] = asyncio.Lock()
 
         async with self._processed_events_locks[guild_id]:
             # Get current processed events from Config
             processed_events = await self.config.guild(guild).processed_events()
+            log.debug(f"Retrieved {len(processed_events)} processed events from Config for guild {guild_id}")
 
             # Create a unique key for this event (as string for efficient comparison)
             event_key = f"{event_time.isoformat()}|{advance_notice}"
+            log.debug(f"Checking event_key: {event_key}")
+            log.debug(f"Last 5 processed events: {processed_events[-5:] if processed_events else 'None'}")
 
             # Check if we've seen this exact event recently
             if event_key in processed_events:
@@ -408,12 +413,15 @@ class AlbionBandits(commands.Cog):
                 return True
 
             # Mark this event as processed and keep only last 1000 entries
+            log.debug(f"Adding new event_key to processed events: {event_key}")
             processed_events.append(event_key)
             if len(processed_events) > 1000:
                 # Keep only the last 1000 entries
                 processed_events = processed_events[-1000:]
             
+            log.debug(f"Saving {len(processed_events)} processed events to Config")
             await self.config.guild(guild).processed_events.set(processed_events)
+            log.debug(f"Config save completed for event_key: {event_key}")
             return False
 
     async def _handle_nats_message(self, guild: discord.Guild, msg):
