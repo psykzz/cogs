@@ -400,28 +400,28 @@ class AlbionBandits(commands.Cog):
         async with self._processed_events_locks[guild_id]:
             # Get current processed events from Config
             processed_events = await self.config.guild(guild).processed_events()
-            log.info(f"[DEBUG] Retrieved {len(processed_events)} processed events from Config for guild {guild_id}")
+            log.debug(f"Retrieved {len(processed_events)} processed events from Config for guild {guild_id}")
 
             # Create a unique key for this event (as string for efficient comparison)
             event_key = f"{event_time.isoformat()}|{advance_notice}"
-            log.info(f"[DEBUG] Checking event_key: {event_key}")
-            log.info(f"[DEBUG] Last 5 processed events: {processed_events[-5:] if processed_events else 'None'}")
+            log.debug(f"Checking event_key: {event_key}")
+            log.debug(f"Last 5 processed events: {processed_events[-5:] if processed_events else 'None'}")
 
             # Check if we've seen this exact event recently
             if event_key in processed_events:
-                log.info(f"[DEBUG] Duplicate event detected: {event_key}")
+                log.debug(f"Duplicate event detected: {event_key}")
                 return True
 
             # Mark this event as processed and keep only last 1000 entries
-            log.info(f"[DEBUG] Adding new event_key to processed events: {event_key}")
+            log.debug(f"Adding new event_key to processed events: {event_key}")
             processed_events.append(event_key)
             if len(processed_events) > 1000:
                 # Keep only the last 1000 entries
                 processed_events = processed_events[-1000:]
             
-            log.info(f"[DEBUG] Saving {len(processed_events)} processed events to Config")
+            log.debug(f"Saving {len(processed_events)} processed events to Config")
             await self.config.guild(guild).processed_events.set(processed_events)
-            log.info(f"[DEBUG] Config save completed for event_key: {event_key}")
+            log.debug(f"Config save completed for event_key: {event_key}")
             return False
 
     async def _handle_nats_message(self, guild: discord.Guild, msg):
