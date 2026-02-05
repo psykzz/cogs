@@ -66,6 +66,7 @@ class AlbionBandits(commands.Cog):
         self.nats_subscriptions = {}  # {guild_id: subscription}
         # Lock to prevent race conditions when updating processed_events in Config
         self._processed_events_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
         self._nats_connection_task.start()
 
     async def cog_unload(self):
@@ -391,9 +392,10 @@ class AlbionBandits(commands.Cog):
             log.warning(f"Guild {guild_id} not found, skipping event")
             return True
 
-        # Create lock for this guild if it doesn't exist
-        if guild_id not in self._processed_events_locks:
-            self._processed_events_locks[guild_id] = asyncio.Lock()
+        # Create lock for this guild if it doesn't exist (thread-safe)
+        async with self._locks_creation_lock:
+            if guild_id not in self._processed_events_locks:
+                self._processed_events_locks[guild_id] = asyncio.Lock()
 
         async with self._processed_events_locks[guild_id]:
             # Get current processed events from Config
