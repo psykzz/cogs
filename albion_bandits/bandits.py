@@ -384,7 +384,7 @@ class AlbionBandits(commands.Cog):
 
         Returns True if this is a duplicate event that should be skipped.
         Uses Config storage and keeps last 1000 events.
-        Thread-safe via per-guild asyncio lock.
+        Concurrency-safe via per-guild asyncio lock.
         """
         guild = self.bot.get_guild(guild_id)
         if not guild:
@@ -392,7 +392,7 @@ class AlbionBandits(commands.Cog):
             log.warning(f"Guild {guild_id} not found, skipping event")
             return True
 
-        # Create lock for this guild if it doesn't exist (thread-safe)
+        # Create lock for this guild if it doesn't exist (async-safe)
         async with self._locks_creation_lock:
             if guild_id not in self._processed_events_locks:
                 self._processed_events_locks[guild_id] = asyncio.Lock()
