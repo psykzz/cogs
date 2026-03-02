@@ -670,9 +670,15 @@ class Party(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=IDENTIFIER)
 
+        default_global = {
+            "templates": {},  # template_key -> template data (global templates, bot owner only)
+        }
+        self.config.register_global(**default_global)
+
         default_guild = {
             "parties": {},  # party_id -> party data
             "allow_multiple_per_role": True,  # Guild-wide default
+            "templates": {},  # template_key -> template data (guild-specific templates)
         }
         self.config.register_guild(**default_guild)
 
@@ -717,6 +723,34 @@ class Party(commands.Cog):
         seen = set()
         unique_roles = []
         for role in roles_list:
+            if role and role not in seen:
+                seen.add(role)
+                unique_roles.append(role)
+
+        return unique_roles
+
+    @staticmethod
+    def _parse_roles_from_args(roles: str) -> list[str]:
+        """Parse roles from a command argument string (comma or space separated).
+
+        Comma-separated input preserves multi-word role names.
+        Space-separated input splits each word as a separate role.
+        Duplicates are removed while preserving order.
+
+        Args:
+            roles: Comma or space-separated role string
+
+        Returns:
+            List of unique role names
+        """
+        if ',' in roles:
+            parsed = [r.strip() for r in roles.split(',') if r.strip()]
+        else:
+            parsed = [r.strip() for r in roles.split() if r.strip()]
+
+        seen = set()
+        unique_roles = []
+        for role in parsed:
             if role and role not in seen:
                 seen.add(role)
                 unique_roles.append(role)
@@ -1523,3 +1557,242 @@ class Party(commands.Cog):
         )
 
         await ctx.send(f"✅ Renamed role `{old_option}` to `{new_option}` in party `{party_id}`.")
+
+    @party.group(name="template", invoke_without_command=True)
+    @commands.guild_only()
+    async def party_template(self, ctx):
+        """Manage party templates.
+
+        Guild admins can create guild-specific templates.
+        Bot owner can create global templates available across all guilds.
+        """
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @party_template.command(name="create")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def party_template_create(self, ctx, name: str, *, roles: str):
+        """Create a guild-specific party template with predefined roles.
+
+        Roles can be separated by commas (for multi-word roles) or spaces.
+
+        Examples:
+        - [p]party template create "Raid Comp" "Tank, Healer, DPS, DPS"
+        - [p]party template create RaidComp Tank Healer DPS
+        """
+        roles_list = self._parse_roles_from_args(roles)
+
+        error = self.validate_roles(roles_list)
+        if error:
+            await ctx.send(error)
+            return
+
+        template_key = name.lower()
+        template = {
+            "name": name,
+            "roles": roles_list,
+            "created_by": ctx.author.id,
+        }
+
+        async with self.config.guild(ctx.guild).templates() as templates:
+            templates[template_key] = template
+
+        await ctx.send(
+            f"✅ Guild template `{name}` created with {len(roles_list)} role(s): {', '.join(roles_list)}"
+        )
+
+    @party_template.command(name="global-create")
+    @checks.is_owner()
+    async def party_template_global_create(self, ctx, name: str, *, roles: str):
+        """Create a global party template accessible across all guilds (bot owner only).
+
+        Roles can be separated by commas (for multi-word roles) or spaces.
+
+        Examples:
+        - [p]party template global-create "Raid Comp" "Tank, Healer, DPS"
+        - [p]party template global-create RaidComp Tank Healer DPS
+        """
+        roles_list = self._parse_roles_from_args(roles)
+
+        error = self.validate_roles(roles_list)
+        if error:
+            await ctx.send(error)
+            return
+
+        template_key = name.lower()
+        template = {
+            "name": name,
+            "roles": roles_list,
+            "created_by": ctx.author.id,
+        }
+
+        async with self.config.templates() as templates:
+            templates[template_key] = template
+
+        await ctx.send(
+            f"✅ Global template `{name}` created with {len(roles_list)} role(s): {', '.join(roles_list)}"
+        )
+
+    @party_template.command(name="delete")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def party_template_delete(self, ctx, *, name: str):
+        """Delete a guild-specific party template.
+
+        Only guild admins can delete guild templates.
+
+        Example: [p]party template delete "Raid Comp"
+        """
+        template_key = name.lower()
+        async with self.config.guild(ctx.guild).templates() as templates:
+            if template_key not in templates:
+                await ctx.send(f"❌ Guild template `{name}` not found.")
+                return
+            del templates[template_key]
+
+        await ctx.send(f"✅ Guild template `{name}` deleted.")
+
+    @party_template.command(name="global-delete")
+    @checks.is_owner()
+    async def party_template_global_delete(self, ctx, *, name: str):
+        """Delete a global party template (bot owner only).
+
+        Example: [p]party template global-delete "Raid Comp"
+        """
+        template_key = name.lower()
+        async with self.config.templates() as templates:
+            if template_key not in templates:
+                await ctx.send(f"❌ Global template `{name}` not found.")
+                return
+            del templates[template_key]
+
+        await ctx.send(f"✅ Global template `{name}` deleted.")
+
+    @party_template.command(name="list")
+    async def party_template_list(self, ctx):
+        """List all available party templates (global and guild-specific).
+
+        Example: [p]party template list
+        """
+        guild_templates = await self.config.guild(ctx.guild).templates()
+        global_templates = await self.config.templates()
+
+        if not guild_templates and not global_templates:
+            await ctx.send("No party templates available.")
+            return
+
+        embed = discord.Embed(
+            title="📋 Party Templates",
+            color=discord.Color.blue()
+        )
+
+        # Global templates first (🌐), then guild-specific (🏠)
+        entries = [
+            (f"🌐 {t['name']} (Global)", t) for t in global_templates.values()
+        ] + [
+            (f"🏠 {t['name']}", t) for t in guild_templates.values()
+        ]
+
+        for label, template in entries:
+            roles_text = ', '.join(template['roles'])
+            if len(roles_text) > EMBED_FIELD_MAX_LENGTH:
+                roles_text = roles_text[:EMBED_FIELD_MAX_LENGTH - 3] + "..."
+            embed.add_field(name=label, value=roles_text, inline=EMBED_FIELD_INLINE)
+
+        await ctx.send(embed=embed)
+
+    @party_template.command(name="use")
+    async def party_template_use(self, ctx, template_name: str, *, title: str):
+        """Create a party from a template with a custom title.
+
+        The template's roles are pre-filled; you only need to provide a title.
+        Guild templates take priority over global templates when names conflict.
+
+        Parameters
+        ----------
+        template_name : str
+            The name of the template to use
+        title : str
+            The title for the new party
+
+        Examples:
+        - [p]party template use "Raid Comp" "Friday Night Raid"
+        - [p]party template use RaidComp "Saturday Dungeon Run"
+        """
+        template_key = template_name.lower()
+
+        # Check guild templates first, then global (guild takes priority)
+        guild_templates = await self.config.guild(ctx.guild).templates()
+        global_templates = await self.config.templates()
+
+        template = guild_templates.get(template_key) or global_templates.get(template_key)
+
+        if not template:
+            await ctx.send(
+                f"❌ Template `{template_name}` not found. "
+                f"Use `{ctx.clean_prefix}party template list` to see available templates."
+            )
+            return
+
+        roles_list = template['roles']
+
+        # Get guild settings
+        allow_multiple = await self.config.guild(ctx.guild).allow_multiple_per_role()
+
+        # Generate a unique party ID
+        party_id = secrets.token_hex(4)
+
+        # Create party data
+        party = {
+            "id": party_id,
+            "name": title,
+            "description": None,
+            "author_id": ctx.author.id,
+            "roles": roles_list,
+            "signups": {},
+            "allow_multiple_per_role": allow_multiple,
+            "allow_freeform": False,
+            "channel_id": None,
+            "message_id": None,
+        }
+
+        # Initialize signups for each predefined role
+        for role in roles_list:
+            party["signups"][role] = []
+
+        # Save the party
+        async with self.config.guild(ctx.guild).parties() as parties:
+            parties[party_id] = party
+
+        # Create the party embed
+        embed = await self.create_party_embed(party, ctx.guild)
+
+        # Create the view with buttons
+        view = PartyView(party_id, self)
+
+        # Send the message
+        message = await ctx.send(embed=embed, view=view)
+
+        # Save the message ID and channel ID
+        async with self.config.guild(ctx.guild).parties() as parties:
+            parties[party_id]["message_id"] = message.id
+            parties[party_id]["channel_id"] = ctx.channel.id
+
+        # Create modlog entry
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_create",
+            ctx.author,
+            f"Party '{title}' (ID: {party_id}) created from template "
+            f"'{template['name']}' with {len(roles_list)} role(s)."
+        )
+
+        await ctx.send(
+            f"✅ Party created from template `{template['name']}`! ID: `{party_id}`",
+            delete_after=10
+        )
+
+        # Delete the original command message
+        try:
+            await ctx.message.delete()
+        except (discord.NotFound, discord.Forbidden):
+            pass
