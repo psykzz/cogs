@@ -1128,12 +1128,10 @@ class Party(commands.Cog):
 
         return embed
 
-    @commands.hybrid_group(autohelp=False)
+    @commands.hybrid_group()
     @commands.guild_only()
     async def party(self, ctx):
         """Party management commands."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
 
     @party.command(name="create")
     async def party_create(
@@ -1558,7 +1556,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Renamed role `{old_option}` to `{new_option}` in party `{party_id}`.")
 
-    @party.group(name="template", invoke_without_command=True)
+    @party.group(name="template")
     @commands.guild_only()
     async def party_template(self, ctx):
         """Manage party templates.
@@ -1566,8 +1564,6 @@ class Party(commands.Cog):
         Guild admins can create guild-specific templates.
         Bot owner can create global templates available across all guilds.
         """
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
 
     @party_template.command(name="create")
     @checks.admin_or_permissions(manage_guild=True)

@@ -143,9 +143,6 @@ class Ideas(commands.Cog):
     @commands.is_owner()
     async def ideaset(self, ctx):
         """Configure the ideas cog settings"""
-        if ctx.invoked_subcommand is None:
-            # Show current settings when no subcommand is provided
-            await ctx.invoke(self.ideaset_showsettings)
 
     @ideaset.command(name="showsettings")
     async def ideaset_showsettings(self, ctx):

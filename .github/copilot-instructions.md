@@ -99,8 +99,6 @@ async def my_command(self, ctx, arg: str):
 @commands.hybrid_group(name="groupname")
 async def my_group(self, ctx):
     """Group description"""
-    if ctx.invoked_subcommand is None:
-        await ctx.send_help(ctx.command)
 
 @my_group.command(name="subcommand")
 async def my_subcommand(self, ctx):
@@ -109,6 +107,20 @@ async def my_subcommand(self, ctx):
     # Implementation
     await ctx.send("Done", ephemeral=True)
 ```
+
+**IMPORTANT**: Never manually check `ctx.invoked_subcommand is None` inside a group command to call `send_help` or to invoke another subcommand. The Red-bot/Discord.py framework automatically shows help when a group command is invoked without a subcommand. Do **not** use this pattern:
+```python
+# ❌ DO NOT DO THIS
+async def my_group(self, ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.send_help(ctx.command)
+
+# ❌ DO NOT DO THIS EITHER
+async def my_group(self, ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.invoke(self.some_subcommand)
+```
+Also avoid `autohelp=False` or `invoke_without_command=True` on group commands when the only purpose is to manually handle the no-subcommand case.
 
 #### Response Patterns
 

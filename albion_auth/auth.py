@@ -493,8 +493,6 @@ class AlbionAuth(commands.Cog):
     @commands.hybrid_group(name="authset")
     async def authset(self, ctx):
         """Configure settings for the Albion authentication system"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
 
     @authset.command(name="authrole")
     async def authset_authrole(self, ctx, role: discord.Role = None):
