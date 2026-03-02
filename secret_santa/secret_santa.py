@@ -88,12 +88,10 @@ class SecretSanta(commands.Cog):
         # Fallback: use a longer ID
         return generate_event_id() + generate_event_id()
 
-    @commands.hybrid_group(autohelp=False)
+    @commands.hybrid_group()
     @commands.guild_only()
     async def santa(self, ctx):
         """Secret Santa event management."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
 
     @santa.command(name="create")
     @checks.admin_or_permissions(manage_guild=True)
@@ -1242,7 +1240,7 @@ class SecretSanta(commands.Cog):
         await ctx.send(msg or "No changes made.")
 
     # DM-only commands using event_id for anonymity
-    @commands.hybrid_group(autohelp=False)
+    @commands.hybrid_group()
     @commands.dm_only()
     async def santadm(self, ctx):
         """Secret Santa DM commands for anonymous messaging.
@@ -1250,8 +1248,6 @@ class SecretSanta(commands.Cog):
         These commands can only be used in DMs with the bot to preserve anonymity.
         Use the Event ID provided when you joined the event.
         """
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
 
     @santadm.command(name="message")
     async def santadm_message(self, ctx, event_id: str, *, message: str):

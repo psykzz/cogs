@@ -379,7 +379,9 @@ class AlbionBandits(commands.Cog):
                 if guild_id in self.nats_subscriptions:
                     del self.nats_subscriptions[guild_id]
 
-    async def _is_nats_event_duplicate(self, guild_id: int, event_time: datetime.datetime, advance_notice: bool) -> bool:
+    async def _is_nats_event_duplicate(
+        self, guild_id: int, event_time: datetime.datetime, advance_notice: bool
+    ) -> bool:
         """Check if a NATS event has already been processed recently.
 
         Returns True if this is a duplicate event that should be skipped.
@@ -418,7 +420,7 @@ class AlbionBandits(commands.Cog):
             if len(processed_events) > 1000:
                 # Keep only the last 1000 entries
                 processed_events = processed_events[-1000:]
-            
+
             log.debug(f"Saving {len(processed_events)} processed events to Config")
             await self.config.guild(guild).processed_events.set(processed_events)
             log.debug(f"Config save completed for event_key: {event_key}")

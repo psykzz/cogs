@@ -1054,8 +1054,6 @@ class AlbionAva(commands.Cog):
     @commands.hybrid_group(name="setava")
     async def setava(self, ctx):
         """Configure Avalon road tracker settings"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
 
     @setava.command(name="token")
     @commands.dm_only()
@@ -1203,15 +1201,19 @@ class AlbionAva(commands.Cog):
         await ctx.send(f"✅ Albion server set to **{server_upper}**")
 
     @commands.guild_only()
-    @commands.hybrid_group(name="ava", invoke_without_command=True)
+    @commands.hybrid_group(name="ava")
     async def ava(self, ctx):
+        """Manage Roads of Avalon connections."""
+
+    @ava.command(name="text")
+    @commands.guild_only()
+    async def ava_text(self, ctx):
         """Display connections from the home zone (text format)
 
         Shows current Roads of Avalon connections from your configured home zone.
         Use `[p]ava image` for a visual graph representation.
         """
-        if ctx.invoked_subcommand is None:
-            await self._display_ava_text(ctx)
+        await self._display_ava_text(ctx)
 
     async def _display_ava_text(self, ctx):
         """Display connections in text format"""
