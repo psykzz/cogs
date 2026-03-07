@@ -207,6 +207,15 @@ class CreatePartyModal(discord.ui.Modal):
         )
         self.add_item(self.allow_multiple_input)
 
+        # Scheduled date & time
+        self.scheduled_time_input = discord.ui.TextInput(
+            label="Date & Time (Optional, UTC)",
+            placeholder="YYYY-MM-DD HH:MM (e.g., 2024-01-15 20:00)",
+            required=False,
+            max_length=20,
+        )
+        self.add_item(self.scheduled_time_input)
+
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
         # Defer immediately to prevent interaction timeout
@@ -216,6 +225,7 @@ class CreatePartyModal(discord.ui.Modal):
         description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
         allow_multiple_text = self.allow_multiple_input.value
+        scheduled_time_text = self.scheduled_time_input.value.strip()
 
         # Parse and validate allow_multiple setting
         allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
@@ -228,6 +238,12 @@ class CreatePartyModal(discord.ui.Modal):
 
         # Validate roles
         error = Party.validate_roles(unique_roles)
+        if error:
+            await interaction.followup.send(error, ephemeral=True)
+            return
+
+        # Parse scheduled time
+        scheduled_time, error = Party.parse_scheduled_time(scheduled_time_text)
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -247,6 +263,7 @@ class CreatePartyModal(discord.ui.Modal):
             "allow_freeform": False,
             "channel_id": None,
             "message_id": None,
+            "scheduled_time": scheduled_time,
         }
 
         # Initialize signups for each predefined role
@@ -339,6 +356,24 @@ class EditPartyFullModal(discord.ui.Modal):
         )
         self.add_item(self.allow_multiple_input)
 
+        # Scheduled date & time
+        scheduled_ts = party.get("scheduled_time")
+        scheduled_default = ""
+        if scheduled_ts:
+            try:
+                dt = datetime.fromtimestamp(float(scheduled_ts), tz=timezone.utc)
+                scheduled_default = dt.strftime("%Y-%m-%d %H:%M")
+            except (ValueError, OSError):
+                scheduled_default = ""
+        self.scheduled_time_input = discord.ui.TextInput(
+            label="Date & Time (Optional, UTC)",
+            placeholder="YYYY-MM-DD HH:MM or leave blank to clear",
+            default=scheduled_default,
+            required=False,
+            max_length=20,
+        )
+        self.add_item(self.scheduled_time_input)
+
     async def on_submit(self, interaction: discord.Interaction):
         """Handle the modal submission."""
         # Defer immediately to prevent interaction timeout
@@ -348,6 +383,7 @@ class EditPartyFullModal(discord.ui.Modal):
         new_description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
         allow_multiple_text = self.allow_multiple_input.value
+        scheduled_time_text = self.scheduled_time_input.value.strip()
 
         # Parse and validate allow_multiple setting
         allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
@@ -364,6 +400,12 @@ class EditPartyFullModal(discord.ui.Modal):
             await interaction.followup.send(error, ephemeral=True)
             return
 
+        # Parse scheduled time
+        scheduled_time, error = Party.parse_scheduled_time(scheduled_time_text)
+        if error:
+            await interaction.followup.send(error, ephemeral=True)
+            return
+
         # Update the party data
         async with self.cog.config.guild(interaction.guild).parties() as parties:
             if self.party_id not in parties:
@@ -374,11 +416,13 @@ class EditPartyFullModal(discord.ui.Modal):
             old_description = parties[self.party_id].get('description')
             old_roles = parties[self.party_id].get('roles', [])
             old_allow_multiple = parties[self.party_id].get('allow_multiple_per_role', True)
+            old_scheduled_time = parties[self.party_id].get('scheduled_time')
 
             parties[self.party_id]['name'] = new_title
             parties[self.party_id]['description'] = new_description
             parties[self.party_id]['roles'] = unique_roles
             parties[self.party_id]['allow_multiple_per_role'] = allow_multiple
+            parties[self.party_id]['scheduled_time'] = scheduled_time
 
             # Handle role changes: preserve signups for roles that still exist
             old_signups = parties[self.party_id].get('signups', {})
@@ -432,6 +476,17 @@ class EditPartyFullModal(discord.ui.Modal):
                 changes.append(f"Removed roles affected {total_notified} user(s), DMs will be sent")
         if old_allow_multiple != allow_multiple:
             changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
+        if old_scheduled_time != scheduled_time:
+            def _fmt_ts(ts):
+                if ts is None:
+                    return "None"
+                try:
+                    return datetime.fromtimestamp(float(ts), tz=timezone.utc).strftime(
+                        "%Y-%m-%d %H:%M UTC"
+                    )
+                except (ValueError, OSError):
+                    return str(ts)
+            changes.append(f"Scheduled Time: {_fmt_ts(old_scheduled_time)} → {_fmt_ts(scheduled_time)}")
 
         reason = f"Party '{old_title}' (ID: {self.party_id}) edited.\n" + "\n".join(changes)
 
@@ -775,6 +830,43 @@ class Party(commands.Cog):
 
         return None
 
+    @staticmethod
+    def parse_scheduled_time(time_str: str) -> tuple[Optional[float], Optional[str]]:
+        """Parse a scheduled time string into a Unix timestamp (UTC).
+
+        No validation is performed on whether the date is in the past or future —
+        both historical and future dates are accepted.
+
+        Args:
+            time_str: Date/time string in one of these formats (all treated as UTC):
+                      - "YYYY-MM-DD HH:MM" (e.g. "2024-01-15 20:00")
+                      - "YYYY-MM-DD HH:MM:SS"
+                      - "YYYY-MM-DD" (time defaults to 00:00:00)
+                      Use "clear" or "none" (or empty string) to remove the scheduled time.
+
+        Returns:
+            Tuple of (timestamp_float_or_None, error_message). error_message is None if valid.
+            Returns (None, None) when time_str is empty, "clear", or "none".
+        """
+        time_str = time_str.strip()
+
+        # Empty or clear signals removal of the scheduled time
+        if time_str.lower() in ("clear", "none", ""):
+            return None, None
+
+        formats = ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(time_str, fmt)
+                dt = dt.replace(tzinfo=timezone.utc)
+                return dt.timestamp(), None
+            except ValueError:
+                continue
+
+        return None, (
+            "❌ Invalid date format. Use `YYYY-MM-DD HH:MM` (UTC), e.g. `2024-01-15 20:00`."
+        )
+
     async def _register_casetypes(self):
         """Register custom modlog case types for party events."""
         await self.bot.wait_until_ready()
@@ -1088,6 +1180,19 @@ class Party(commands.Cog):
             color=discord.Color.blue()
         )
 
+        # Show scheduled time if set
+        scheduled_time = party.get("scheduled_time")
+        if scheduled_time:
+            try:
+                ts = int(float(scheduled_time))
+                embed.add_field(
+                    name="📅 Scheduled Time",
+                    value=f"<t:{ts}:F>\n(<t:{ts}:R>)",
+                    inline=EMBED_FIELD_INLINE
+                )
+            except (ValueError, OSError):
+                pass
+
         # Show roles and signups
         signups = party.get("signups", {})
         roles = party.get("roles", [])
@@ -1246,6 +1351,7 @@ class Party(commands.Cog):
             "allow_freeform": False,  # Only allow predefined roles
             "channel_id": None,
             "message_id": None,
+            "scheduled_time": None,
         }
 
         # Initialize signups for each predefined role
@@ -1398,11 +1504,22 @@ class Party(commands.Cog):
                 )
                 link_text = f"\n**[Jump to Party]({jump_url})**"
 
+            # Build scheduled time text if available
+            time_text = ""
+            scheduled_time = party.get("scheduled_time")
+            if scheduled_time:
+                try:
+                    ts = int(float(scheduled_time))
+                    time_text = f"\n**Time**: <t:{ts}:F> (<t:{ts}:R>)"
+                except (ValueError, OSError):
+                    pass
+
             value = (
                 f"**ID**: `{party_id}`\n"
                 f"**Roles**: {role_count}\n"
                 f"**Signups**: {total_signups}\n"
                 f"**Author**: <@{party['author_id']}>"
+                f"{time_text}"
                 f"{link_text}"
             )
             embed.add_field(name=party["name"], value=value, inline=EMBED_FIELD_INLINE)
@@ -1478,6 +1595,84 @@ class Party(commands.Cog):
         )
 
         await ctx.send(f"✅ Description updated for party `{party_id}`.")
+
+    @party.command(name="settime")
+    async def party_settime(self, ctx, party_id: str, *, scheduled_time: str):
+        """Set or clear the scheduled date and time for a party (UTC).
+
+        Only the party creator or server admins can set the time.
+        Use "clear" or "none" as the time to remove an existing scheduled time.
+
+        Parameters
+        ----------
+        party_id : str
+            The ID of the party to update
+        scheduled_time : str
+            Date and time in UTC, e.g. "2024-01-15 20:00". Use "clear" to remove.
+
+        Examples:
+        - [p]party settime abc123 2024-01-15 20:00
+        - [p]party settime abc123 clear
+        """
+        parties = await self.config.guild(ctx.guild).parties()
+
+        if party_id not in parties:
+            await ctx.send("❌ Party not found.")
+            return
+
+        party = parties[party_id]
+
+        # Check permissions
+        is_author = party["author_id"] == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await ctx.send("❌ You don't have permission to modify this party.")
+            return
+
+        # Parse the scheduled time
+        timestamp, error = self.parse_scheduled_time(scheduled_time)
+        if error:
+            await ctx.send(error)
+            return
+
+        old_time = party.get("scheduled_time")
+
+        # Format timestamps as human-readable strings for the modlog
+        def _fmt_ts(ts):
+            if ts is None:
+                return "None"
+            try:
+                return datetime.fromtimestamp(float(ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            except (ValueError, OSError):
+                return str(ts)
+
+        # Update the party
+        async with self.config.guild(ctx.guild).parties() as parties:
+            parties[party_id]["scheduled_time"] = timestamp
+
+        # Update the message embed
+        await self.update_party_message(ctx.guild.id, party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) scheduled time updated.\n"
+            f"Old: {_fmt_ts(old_time)}\nNew: {_fmt_ts(timestamp)}"
+        )
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_edit",
+            ctx.author,
+            reason
+        )
+
+        if timestamp is None:
+            await ctx.send(f"✅ Scheduled time cleared for party `{party_id}`.")
+        else:
+            ts = int(float(timestamp))
+            await ctx.send(
+                f"✅ Scheduled time set for party `{party_id}`: <t:{ts}:F> (<t:{ts}:R>)"
+            )
 
     @party.command(name="rename-option")
     async def party_rename_option(self, ctx, party_id: str, old_option: str, *, new_option: str):
@@ -1749,6 +1944,7 @@ class Party(commands.Cog):
             "allow_freeform": False,
             "channel_id": None,
             "message_id": None,
+            "scheduled_time": None,
         }
 
         # Initialize signups for each predefined role
