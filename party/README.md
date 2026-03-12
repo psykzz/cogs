@@ -7,6 +7,7 @@ A Discord bot cog for creating and managing party signups with role-based compos
 - **Create Parties**: Set up parties with predefined or freeform roles
 - **Interactive Signups**: Users sign up via Discord buttons and modals
 - **Role Management**: Support for both predefined and custom roles
+- **Scheduled Times**: Set dates/times for parties (displayed with Discord's native timestamps)
 - **Update Signups**: Users can change their role selection at any time
 - **Leave Party**: Users can leave parties with a single button click
 - **Configuration**: Guild-wide settings for multiple signups per role
@@ -71,6 +72,24 @@ Set the description for a party (requires author or admin permissions).
 [p]party description abc123 Join us for a fun raid tonight!
 ```
 
+#### `[p]party settime <party_id> <datetime>`
+Set or clear the scheduled date and time for a party in UTC (requires author or admin permissions).
+
+Use "clear" or "none" to remove an existing scheduled time.
+
+**Supported formats:**
+- `YYYY-MM-DD HH:MM` (e.g., 2024-01-15 20:00)
+- `YYYY-MM-DD HH:MM:SS` (e.g., 2024-01-15 20:00:00)
+- `YYYY-MM-DD` (time defaults to 00:00:00)
+
+**Examples:**
+```
+[p]party settime abc123 2024-01-15 20:00
+[p]party settime abc123 clear
+```
+
+The scheduled time will be displayed in party embeds and the party list using Discord's native timestamp formatting (showing both full time and relative time).
+
 #### `[p]party rename-option <party_id> <old_option> <new_option>`
 Rename an option/role in a party (requires author or admin permissions).
 
@@ -99,7 +118,9 @@ Configure party settings for the server (requires admin or manage_guild permissi
 
 1. **Create a Party**: Use `[p]party create` to create a new party
    - Without arguments: Opens an interactive form (recommended)
+     - Includes optional scheduled date/time field (UTC)
    - With arguments: Traditional command-based creation
+     - Use `[p]party settime` to add a scheduled time afterward
 2. **Users Sign Up**: Click the "Sign Up" button on the party message
 3. **Select Role**: Choose from a dropdown menu of predefined roles
 4. **Update Role**: Click "Sign Up" again to change your role
@@ -109,6 +130,7 @@ Configure party settings for the server (requires admin or manage_guild permissi
    - Description
    - Available roles
    - Multiple signup settings
+   - Scheduled date/time
 
 ## Discord UI Components
 
@@ -135,6 +157,7 @@ The cog uses modern Discord UI components:
 - **allow_freeform**: Always `True` - users can enter custom roles
 - **roles**: List of predefined roles for the party
 - **signups**: Dictionary mapping roles to list of user IDs
+- **scheduled_time**: Optional Unix timestamp (float) for party start time in UTC
 
 ## Data Storage
 
