@@ -1274,8 +1274,12 @@ class Party(commands.Cog):
             # Create and send the modal
             modal = CreatePartyModal(self)
 
-            # We need to create an interaction to send the modal
-            # Since we're in a text command context, we need to send a message first
+            # For slash commands, show the modal directly
+            if ctx.interaction:
+                await ctx.interaction.response.send_modal(modal)
+                return
+
+            # For text commands, we need to send a button first
             # that the user can interact with to trigger the modal
             view = discord.ui.View(timeout=300)  # 5 minute timeout
 
