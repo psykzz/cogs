@@ -13,9 +13,6 @@ IDENTIFIER = 2847102938475019
 # Discord embed field character limit
 EMBED_FIELD_MAX_LENGTH = 1024
 
-# Whether embed fields should be displayed inline
-EMBED_FIELD_INLINE = False
-
 
 class RoleSelectionModal(discord.ui.Modal):
     """Modal for selecting a role when signing up for a party (for freeform entry)."""
@@ -264,6 +261,7 @@ class CreatePartyModal(discord.ui.Modal):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": scheduled_time,
+            "compact": False,  # Default to not compact (inline=False)
         }
 
         # Initialize signups for each predefined role
@@ -1180,6 +1178,9 @@ class Party(commands.Cog):
             color=discord.Color.blue()
         )
 
+        # Get the compact setting (inline fields) - default to False (not compact)
+        compact = party.get("compact", False)
+
         # Show scheduled time if set
         scheduled_time = party.get("scheduled_time")
         if scheduled_time:
@@ -1188,7 +1189,7 @@ class Party(commands.Cog):
                 embed.add_field(
                     name="📅 Scheduled Time",
                     value=f"<t:{ts}:F>\n(<t:{ts}:R>)",
-                    inline=EMBED_FIELD_INLINE
+                    inline=compact
                 )
             except (ValueError, OSError):
                 pass
@@ -1209,7 +1210,7 @@ class Party(commands.Cog):
             else:
                 value = "-"
 
-            embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
+            embed.add_field(name=role, value=value, inline=compact)
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
@@ -1219,11 +1220,11 @@ class Party(commands.Cog):
                     value = ', '.join(user_mentions)
                     if len(value) > EMBED_FIELD_MAX_LENGTH:
                         value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
-                    embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
+                    embed.add_field(name=role, value=value, inline=compact)
 
         # If no roles defined and no signups, show a message
         if not roles and not any(users for users in signups.values()):
-            embed.add_field(name="Signups", value="-", inline=EMBED_FIELD_INLINE)
+            embed.add_field(name="Signups", value="-", inline=compact)
 
         # Get owner name for footer
         owner_name = await self._get_user_display_name(party['author_id'], guild)
@@ -1243,7 +1244,8 @@ class Party(commands.Cog):
         self,
         ctx,
         name: Optional[str] = None,
-        roles: Optional[str] = None
+        roles: Optional[str] = None,
+        compact: Optional[bool] = False
     ):
         """Create a new party with predefined roles.
 
@@ -1260,6 +1262,8 @@ class Party(commands.Cog):
             The name of the party
         roles : Optional[str]
             Space or comma-separated list of roles (e.g., "Tank Healer DPS" or "Tank, Healer, DPS")
+        compact : Optional[bool]
+            Display party in compact mode (inline fields). Default is False (not compact).
 
         Examples:
         - [p]party create  (opens interactive modal)
@@ -1268,6 +1272,7 @@ class Party(commands.Cog):
         - [p]party create "Game Night" "Player1 Player2 Player3 Player4"
         - [p]party create "PvP Team" "Warrior, Mage, Archer"
         - [p]party create "Siege" "Siege Crossbow, Energy Shaper, GA"
+        - [p]party create "Compact Party" "Tank Healer DPS" True
         """
         # If no arguments provided, show the modal
         if name is None:
@@ -1352,6 +1357,7 @@ class Party(commands.Cog):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": None,
+            "compact": compact,  # Use the compact parameter from command
         }
 
         # Initialize signups for each predefined role
@@ -1522,7 +1528,9 @@ class Party(commands.Cog):
                 f"{time_text}"
                 f"{link_text}"
             )
-            embed.add_field(name=party["name"], value=value, inline=EMBED_FIELD_INLINE)
+            # Use party's compact setting, default to False
+            compact = party.get("compact", False)
+            embed.add_field(name=party["name"], value=value, inline=compact)
 
         await ctx.send(embed=embed)
 
@@ -1887,7 +1895,8 @@ class Party(commands.Cog):
             roles_text = ', '.join(template['roles'])
             if len(roles_text) > EMBED_FIELD_MAX_LENGTH:
                 roles_text = roles_text[:EMBED_FIELD_MAX_LENGTH - 3] + "..."
-            embed.add_field(name=label, value=roles_text, inline=EMBED_FIELD_INLINE)
+            # Templates list display is not compact by default
+            embed.add_field(name=label, value=roles_text, inline=False)
 
         await ctx.send(embed=embed)
 
@@ -1945,6 +1954,7 @@ class Party(commands.Cog):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": None,
+            "compact": False,  # Default to not compact
         }
 
         # Initialize signups for each predefined role
