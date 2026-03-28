@@ -6,8 +6,8 @@ without requiring an actual Discord bot or Red-DiscordBot installation.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
-from typing import Optional, Dict, Any
+from unittest.mock import MagicMock
+from typing import Optional, Any
 import asyncio
 
 

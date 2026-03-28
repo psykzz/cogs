@@ -130,7 +130,6 @@ class TestHatSelection:
         mock_config.register_global(hats={})
 
         # Test storing hat metadata (simplified for unit test)
-        hat_name = "santa"
         hat_data = {"filename": "santa.png", "default": True}
 
         # Verify the data structure

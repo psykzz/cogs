@@ -12,7 +12,6 @@ Tests cover:
 
 import pytest
 import re
-from unittest.mock import AsyncMock, MagicMock, patch
 
 # Fixtures are automatically discovered from conftest.py
 # No need to import them explicitly
