@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import random
 
@@ -24,6 +25,25 @@ class QuoteDB(commands.Cog):
 
         self.config.register_guild(**default_guild)
 
+        # Lock to prevent race conditions when updating quotes in Config
+        self._config_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
+
+    def _get_guild_lock(self, guild_id: int) -> asyncio.Lock:
+        """Get or create a lock for a specific guild to prevent config race conditions.
+
+        Args:
+            guild_id: The ID of the guild
+
+        Returns:
+            An asyncio.Lock for the guild
+        """
+        if guild_id not in self._config_locks:
+            # Use a lock to ensure only one lock is created per guild
+            # Note: We can't await here, but this is safe because dict access is atomic
+            self._config_locks[guild_id] = asyncio.Lock()
+        return self._config_locks[guild_id]
+
     @commands.guild_only()
     @commands.hybrid_command(name="qadd", aliases=["."])
     async def quote_add(self, ctx, trigger: str, *, quote: str):
@@ -38,20 +58,23 @@ class QuoteDB(commands.Cog):
         """
         await ctx.defer(ephemeral=True)
 
-        guild_group = self.config.guild(ctx.guild)
-        incr = await guild_group.quotes.incr() + 1
-        await guild_group.quotes.incr.set(incr)
-        async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
-            quotes[incr] = {
-                "content": quote,
-                "user": ctx.author.id,
-                "trigger": trigger,
-                "jump_url": ctx.message.jump_url if ctx.message else None,
-                "datetime": datetime.datetime.now().timestamp()
-            }
+        # Use lock to prevent race conditions when multiple users add quotes simultaneously
+        lock = self._get_guild_lock(ctx.guild.id)
+        async with lock:
+            guild_group = self.config.guild(ctx.guild)
+            incr = await guild_group.quotes.incr() + 1
+            await guild_group.quotes.incr.set(incr)
+            async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
+                quotes[incr] = {
+                    "content": quote,
+                    "user": ctx.author.id,
+                    "trigger": trigger,
+                    "jump_url": ctx.message.jump_url if ctx.message else None,
+                    "datetime": datetime.datetime.now().timestamp()
+                }
 
-            triggers.setdefault(trigger, [])
-            triggers[trigger] += [str(incr)]
+                triggers.setdefault(trigger, [])
+                triggers[trigger] += [str(incr)]
 
         await ctx.send(f"{ctx.author.mention}, added quote `#{incr}`.", ephemeral=True)
 
@@ -94,19 +117,22 @@ class QuoteDB(commands.Cog):
         """
         await ctx.defer(ephemeral=True)
 
-        guild_group = self.config.guild(ctx.guild)
-        async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
-            if qid not in quotes:
-                await ctx.send(f"{ctx.author.mention}, invalid quote id.", ephemeral=True)
-                return
-            data = quotes[qid]
-            member = discord.utils.find(lambda m: m.id == data['user'], ctx.channel.guild.members)
-            if ctx.author != member and not await self.bot.is_admin(ctx.author):
-                await ctx.send(f"{ctx.author.mention}, only the creator (or admins) can delete that.", ephemeral=True)
-                return
-            trigger = data['trigger']
-            del quotes[qid]
-            triggers[trigger].remove(qid)
+        # Use lock to prevent race conditions when multiple users delete quotes simultaneously
+        lock = self._get_guild_lock(ctx.guild.id)
+        async with lock:
+            guild_group = self.config.guild(ctx.guild)
+            async with guild_group.quotes.id() as quotes, guild_group.quotes.trigger() as triggers:
+                if qid not in quotes:
+                    await ctx.send(f"{ctx.author.mention}, invalid quote id.", ephemeral=True)
+                    return
+                data = quotes[qid]
+                member = discord.utils.find(lambda m: m.id == data['user'], ctx.channel.guild.members)
+                if ctx.author != member and not await self.bot.is_admin(ctx.author):
+                    await ctx.send(f"{ctx.author.mention}, only the creator (or admins) can delete that.", ephemeral=True)
+                    return
+                trigger = data['trigger']
+                del quotes[qid]
+                triggers[trigger].remove(qid)
 
         await ctx.send(f"{ctx.author.mention}, deleted quote #{qid}.", ephemeral=True)
 
