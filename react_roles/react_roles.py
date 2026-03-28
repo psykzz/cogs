@@ -52,9 +52,16 @@ class RoleReacts(commands.Cog):
             await ctx.send("Already monitoring that message / reaction.", ephemeral=True)
             return
 
-        message = await channel.fetch_message(message_id)
-        if not message:
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
             await ctx.send("That message doesn't exist anymore.", ephemeral=True)
+            return
+        except discord.Forbidden:
+            await ctx.send("No permission to access that message.", ephemeral=True)
+            return
+        except discord.HTTPException as e:
+            await ctx.send(f"Failed to fetch message: {e}", ephemeral=True)
             return
 
         watching.setdefault(message_id, {})
@@ -87,10 +94,18 @@ class RoleReacts(commands.Cog):
         watching = await guild_config.watching()
         react_id = str(react.id)
 
-        message = await channel.fetch_message(message_id)
-        if not message:
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
             await ctx.send("That message doesn't exist anymore.", ephemeral=True)
             return
+        except discord.Forbidden:
+            await ctx.send("No permission to access that message.", ephemeral=True)
+            return
+        except discord.HTTPException as e:
+            await ctx.send(f"Failed to fetch message: {e}", ephemeral=True)
+            return
+
         if message_id not in watching or react_id not in watching[message_id]:
             await ctx.send("Not monitoring that message, nothing to do.", ephemeral=True)
             return
