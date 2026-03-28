@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import logging
 import random
@@ -41,6 +42,25 @@ class SecretSanta(commands.Cog):
         }
         self.config.register_guild(**default_guild)
         self.config.register_global(**default_global)
+
+        # Lock to prevent race conditions when updating events in Config
+        self._config_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
+
+    def _get_guild_lock(self, guild_id: int) -> asyncio.Lock:
+        """Get or create a lock for a specific guild to prevent config race conditions.
+
+        Args:
+            guild_id: The ID of the guild
+
+        Returns:
+            An asyncio.Lock for the guild
+        """
+        if guild_id not in self._config_locks:
+            # Use a lock to ensure only one lock is created per guild
+            # Note: We can't await here, but this is safe because dict access is atomic
+            self._config_locks[guild_id] = asyncio.Lock()
+        return self._config_locks[guild_id]
 
     async def red_delete_data_for_user(self, *, requester, user_id: int):
         """Delete user data when requested."""
@@ -1404,8 +1424,11 @@ class SecretSanta(commands.Cog):
             return
 
         # Update the wishlist
-        async with self.config.guild_from_id(guild_id).events() as events:
-            events[event_name]["participants"][user_id_str]["wishlist"] = wishlist
+        # Use lock to prevent race conditions when multiple users update wishlists simultaneously
+        lock = self._get_guild_lock(guild_id)
+        async with lock:
+            async with self.config.guild_from_id(guild_id).events() as events:
+                events[event_name]["participants"][user_id_str]["wishlist"] = wishlist
 
         guild = self.bot.get_guild(guild_id)
         guild_name = guild.name if guild else "Unknown Server"

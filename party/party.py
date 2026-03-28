@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timezone
@@ -127,16 +128,19 @@ class EditPartyModal(discord.ui.Modal):
         new_description = self.description_input.value.strip() or None
 
         # Update the party data
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            if self.party_id not in parties:
-                await interaction.followup.send("❌ Party not found.", ephemeral=True)
-                return
+        # Use lock to prevent race conditions
+        lock = self.cog._get_guild_lock(interaction.guild.id)
+        async with lock:
+            async with self.cog.config.guild(interaction.guild).parties() as parties:
+                if self.party_id not in parties:
+                    await interaction.followup.send("❌ Party not found.", ephemeral=True)
+                    return
 
-            old_title = parties[self.party_id]['name']
-            old_description = parties[self.party_id].get('description')
+                old_title = parties[self.party_id]['name']
+                old_description = parties[self.party_id].get('description')
 
-            parties[self.party_id]['name'] = new_title
-            parties[self.party_id]['description'] = new_description
+                parties[self.party_id]['name'] = new_title
+                parties[self.party_id]['description'] = new_description
 
         # Update the party message
         await self.cog.update_party_message(interaction.guild.id, self.party_id)
@@ -271,8 +275,11 @@ class CreatePartyModal(discord.ui.Modal):
             party["signups"][role] = []
 
         # Save the party
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id] = party
+        # Use lock to prevent race conditions when multiple parties are created simultaneously
+        lock = self.cog._get_guild_lock(interaction.guild.id)
+        async with lock:
+            async with self.cog.config.guild(interaction.guild).parties() as parties:
+                parties[party_id] = party
 
         # Create the party embed
         embed = await self.cog.create_party_embed(party, interaction.guild)
@@ -285,9 +292,12 @@ class CreatePartyModal(discord.ui.Modal):
         message = await channel.send(embed=embed, view=view)
 
         # Save the message ID and channel ID
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = channel.id
+        # Use lock to prevent race conditions when multiple parties are created simultaneously
+        lock = self.cog._get_guild_lock(interaction.guild.id)
+        async with lock:
+            async with self.cog.config.guild(interaction.guild).parties() as parties:
+                parties[party_id]["message_id"] = message.id
+                parties[party_id]["channel_id"] = channel.id
 
         # Create modlog entry
         await self.cog.create_party_modlog(
@@ -737,10 +747,29 @@ class Party(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
+        # Lock to prevent race conditions when updating parties in Config
+        self._config_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
+
         # Load persistent views for existing parties
         self.bot.loop.create_task(self._register_persistent_views())
         # Register custom modlog casetypes
         self.bot.loop.create_task(self._register_casetypes())
+
+    def _get_guild_lock(self, guild_id: int) -> asyncio.Lock:
+        """Get or create a lock for a specific guild to prevent config race conditions.
+
+        Args:
+            guild_id: The ID of the guild
+
+        Returns:
+            An asyncio.Lock for the guild
+        """
+        if guild_id not in self._config_locks:
+            # Use a lock to ensure only one lock is created per guild
+            # Note: We can't await here, but this is safe because dict access is atomic
+            self._config_locks[guild_id] = asyncio.Lock()
+        return self._config_locks[guild_id]
 
     @staticmethod
     def parse_allow_multiple(allow_multiple_text: str) -> tuple[bool, Optional[str]]:
@@ -1021,74 +1050,77 @@ class Party(commands.Cog):
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
 
-        async with self.config.guild_from_id(guild_id).parties() as parties:
-            if party_id not in parties:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content="❌ Party not found.",
-                            view=None
-                        )
+        # Use lock to prevent race conditions when multiple users sign up simultaneously
+        lock = self._get_guild_lock(guild_id)
+        async with lock:
+            async with self.config.guild_from_id(guild_id).parties() as parties:
+                if party_id not in parties:
+                    if disabled_view:
+                        # Edit the original message to show error and remove the select view
+                        if deferred:
+                            await interaction.edit_original_response(
+                                content="❌ Party not found.",
+                                view=None
+                            )
+                        else:
+                            await interaction.response.edit_message(
+                                content="❌ Party not found.",
+                                view=None
+                            )
                     else:
-                        await interaction.response.edit_message(
-                            content="❌ Party not found.",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
+                        if deferred:
+                            await interaction.followup.send(
+                                "❌ Party not found.",
+                                ephemeral=True
+                            )
+                        else:
+                            await interaction.response.send_message(
+                                "❌ Party not found.",
+                                ephemeral=True
+                            )
+                    return
+
+                party = parties[party_id]
+                allow_multiple = party.get("allow_multiple_per_role", True)
+
+                # Remove user from any existing role first
+                for role_name, users in party["signups"].items():
+                    if user_id in users:
+                        party["signups"][role_name].remove(user_id)
+
+                # Check if role exists in signups, if not create it
+                if role not in party["signups"]:
+                    party["signups"][role] = []
+
+                # Check if multiple signups allowed
+                if not allow_multiple and len(party["signups"][role]) > 0:
+                    if disabled_view:
+                        # Edit the original message to show error and remove the select view
+                        if deferred:
+                            await interaction.edit_original_response(
+                                content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                                view=None
+                            )
+                        else:
+                            await interaction.response.edit_message(
+                                content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                                view=None
+                            )
                     else:
-                        await interaction.response.send_message(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
-                return
+                        if deferred:
+                            await interaction.followup.send(
+                                f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                                ephemeral=True
+                            )
+                        else:
+                            await interaction.response.send_message(
+                                f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                                ephemeral=True
+                            )
+                    return
 
-            party = parties[party_id]
-            allow_multiple = party.get("allow_multiple_per_role", True)
-
-            # Remove user from any existing role first
-            for role_name, users in party["signups"].items():
-                if user_id in users:
-                    party["signups"][role_name].remove(user_id)
-
-            # Check if role exists in signups, if not create it
-            if role not in party["signups"]:
-                party["signups"][role] = []
-
-            # Check if multiple signups allowed
-            if not allow_multiple and len(party["signups"][role]) > 0:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                    else:
-                        await interaction.response.edit_message(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
-                    else:
-                        await interaction.response.send_message(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
-                return
-
-            # Add user to the role
-            party["signups"][role].append(user_id)
+                # Add user to the role
+                party["signups"][role].append(user_id)
 
         # Send success response
         if disabled_view:

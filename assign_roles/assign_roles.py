@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 
 from redbot.core import commands  # Changed from discord.ext
@@ -33,6 +35,25 @@ class AssignRoles(commands.Cog):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=73600, force_registration=True)
         self.config.register_guild(roles={})
+
+        # Lock to prevent race conditions when updating roles in Config
+        self._config_locks = {}  # {guild_id: asyncio.Lock}
+        self._locks_creation_lock = asyncio.Lock()  # Lock for creating per-guild locks
+
+    def _get_guild_lock(self, guild_id: int) -> asyncio.Lock:
+        """Get or create a lock for a specific guild to prevent config race conditions.
+
+        Args:
+            guild_id: The ID of the guild
+
+        Returns:
+            An asyncio.Lock for the guild
+        """
+        if guild_id not in self._config_locks:
+            # Use a lock to ensure only one lock is created per guild
+            # Note: We can't await here, but this is safe because dict access is atomic
+            self._config_locks[guild_id] = asyncio.Lock()
+        return self._config_locks[guild_id]
 
     # Events
 
@@ -92,25 +113,33 @@ class AssignRoles(commands.Cog):
         await ctx.defer(ephemeral=True)
 
         gld = ctx.guild
-        server_dict = await self.config.guild(gld).roles()
 
-        author_max_role = max(r for r in ctx.author.roles)
-        authorised_id = str(authorised_role.id)
-        giveable_id = str(giveable_role.id)
+        # Use lock to prevent race conditions when multiple users authorize roles simultaneously
+        lock = self._get_guild_lock(gld.id)
+        async with lock:
+            server_dict = await self.config.guild(gld).roles()
 
-        if authorised_role.is_default():  # Role to be authorised should not be @everyone.
-            notice = self.AUTHORISE_NO_EVERYONE
-        elif giveable_role.is_default():  # Same goes for role to be given.
-            notice = self.AUTHORISE_NOT_DEFAULT
-        elif authorised_role >= author_max_role and ctx.author != gld.owner:  # Hierarchical role order check.
-            notice = self.AUTHORISE_NO_HIGHER
-        # Check if "pair" already exists.
-        elif giveable_id in server_dict and authorised_id in server_dict[giveable_id]:
-            notice = self.AUTHORISE_EXISTS
-        else:  # Role authorisation is valid.
-            server_dict.setdefault(giveable_id, []).append(authorised_id)
-            await self.config.guild(gld).roles.set(server_dict)
-            notice = self.AUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
+            author_max_role = max(r for r in ctx.author.roles)
+            authorised_id = str(authorised_role.id)
+            giveable_id = str(giveable_role.id)
+
+            if authorised_role.is_default():  # Role to be authorised should not be @everyone.
+                notice = self.AUTHORISE_NO_EVERYONE
+            elif giveable_role.is_default():  # Same goes for role to be given.
+                notice = self.AUTHORISE_NOT_DEFAULT
+            elif authorised_role >= author_max_role and ctx.author != gld.owner:  # Hierarchical role order check.
+                notice = self.AUTHORISE_NO_HIGHER
+            # Check if "pair" already exists.
+            elif giveable_id in server_dict and authorised_id in server_dict[giveable_id]:
+                notice = self.AUTHORISE_EXISTS
+            else:  # Role authorisation is valid.
+                if giveable_id not in server_dict:
+                    server_dict[giveable_id] = []
+                # Double-check for duplicates before appending (safety check)
+                if authorised_id not in server_dict[giveable_id]:
+                    server_dict[giveable_id].append(authorised_id)
+                await self.config.guild(gld).roles.set(server_dict)
+                notice = self.AUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
         await ctx.send(notice, ephemeral=True)
 
     @commands.guild_only()
@@ -131,26 +160,30 @@ class AssignRoles(commands.Cog):
         await ctx.defer(ephemeral=True)
 
         gld = ctx.guild
-        server_dict = await self.config.guild(gld).roles()
 
-        author_max_role = max(r for r in ctx.author.roles)
-        authorised_id = str(authorised_role.id)
-        giveable_id = str(giveable_role.id)
+        # Use lock to prevent race conditions when multiple users deauthorize roles simultaneously
+        lock = self._get_guild_lock(gld.id)
+        async with lock:
+            server_dict = await self.config.guild(gld).roles()
 
-        if authorised_role.is_default():  # Role to be de-authorised should not be @everyone.
-            notice = self.AUTHORISE_NO_EVERYONE
-        elif giveable_role.is_default():  # Same goes for role to be given.
-            notice = self.AUTHORISE_NOT_DEFAULT
-        elif authorised_role >= author_max_role and ctx.author != gld.owner:  # Hierarchical role order check.
-            notice = self.AUTHORISE_NO_HIGHER
-        elif giveable_id not in server_dict:
-            notice = self.AUTHORISE_EMPTY.format(giveable_role.name)
-        elif authorised_id not in server_dict[giveable_id]:
-            notice = self.AUTHORISE_MISMATCH.format(authorised_role.name, giveable_role.name)
-        else:  # Role de-authorisation is valid.
-            server_dict[giveable_id].remove(authorised_id)
-            await self.config.guild(gld).roles.set(server_dict)
-            notice = self.DEAUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
+            author_max_role = max(r for r in ctx.author.roles)
+            authorised_id = str(authorised_role.id)
+            giveable_id = str(giveable_role.id)
+
+            if authorised_role.is_default():  # Role to be de-authorised should not be @everyone.
+                notice = self.AUTHORISE_NO_EVERYONE
+            elif giveable_role.is_default():  # Same goes for role to be given.
+                notice = self.AUTHORISE_NOT_DEFAULT
+            elif authorised_role >= author_max_role and ctx.author != gld.owner:  # Hierarchical role order check.
+                notice = self.AUTHORISE_NO_HIGHER
+            elif giveable_id not in server_dict:
+                notice = self.AUTHORISE_EMPTY.format(giveable_role.name)
+            elif authorised_id not in server_dict[giveable_id]:
+                notice = self.AUTHORISE_MISMATCH.format(authorised_role.name, giveable_role.name)
+            else:  # Role de-authorisation is valid.
+                server_dict[giveable_id].remove(authorised_id)
+                await self.config.guild(gld).roles.set(server_dict)
+                notice = self.DEAUTHORISE_SUCCESS.format(authorised_role.name, giveable_role.name)
         await ctx.send(notice, ephemeral=True)
 
     @commands.guild_only()
