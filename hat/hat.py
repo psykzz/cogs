@@ -110,10 +110,13 @@ class Hat(commands.Cog):
                 if old_msg:
                     await old_msg.delete()
             except (discord.NotFound, discord.Forbidden):
-                pass
-            except Exception:
-                pass
-            del self._preview_messages[key]
+                pass  # Expected: message was already deleted or we lack permissions
+            except discord.HTTPException as e:
+                log.error(f"HTTP error deleting previous preview message: {e}", exc_info=True)
+            except Exception as e:
+                log.exception(f"Unexpected error deleting previous preview message: {e}")
+            finally:
+                del self._preview_messages[key]
 
     async def _schedule_message_cleanup(self, message: discord.Message, delay: int = CLEANUP_DELAY):
         """Schedule a message to be deleted after a delay."""
@@ -121,11 +124,13 @@ class Hat(commands.Cog):
             await asyncio.sleep(delay)
             await message.delete()
         except asyncio.CancelledError:
-            pass  # Task was cancelled during cog unload
+            pass  # Task was cancelled during cog unload - expected
         except (discord.NotFound, discord.Forbidden):
-            pass
-        except Exception:
-            pass
+            pass  # Expected: message was already deleted or we lack permissions
+        except discord.HTTPException as e:
+            log.error(f"HTTP error during scheduled message cleanup: {e}", exc_info=True)
+        except Exception as e:
+            log.exception(f"Unexpected error during scheduled message cleanup: {e}")
 
     def _create_cleanup_task(self, message: discord.Message, delay: int = CLEANUP_DELAY):
         """Create a tracked cleanup task for a message."""
@@ -209,7 +214,11 @@ class Hat(commands.Cog):
         avatar = user.display_avatar
         try:
             return await avatar.read()
-        except Exception:
+        except discord.HTTPException as e:
+            log.error(f"HTTP error fetching avatar for {user}: {e}", exc_info=True)
+            return None
+        except Exception as e:
+            log.exception(f"Unexpected error fetching avatar for {user}: {e}")
             return None
 
     async def _send_live_preview(self, ctx, error_msg: Optional[str] = None):

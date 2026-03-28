@@ -93,10 +93,14 @@ class EmptyVoices(commands.Cog):
                 if channel.id in temp_channels:
                     temp_channels.remove(channel.id)
                     await guild_group.emptyvoices.temp_channels.set(temp_channels)
+            except (KeyError, ValueError) as e:
+                log.error(f"Configuration error cleaning up deleted channel: {e}", exc_info=True)
             except Exception as e:
-                log.error(f"Error cleaning up deleted channel from config: {e}")
+                log.exception(f"Unexpected error cleaning up deleted channel from config: {e}")
+        except discord.HTTPException as e:
+            log.error(f"HTTP error deleting channel {channel.name}: {e}", exc_info=True)
         except Exception as e:
-            log.error(f"Unexpected error deleting channel {channel.name}: {e}")
+            log.exception(f"Unexpected error deleting channel {channel.name}: {e}")
 
     async def validate_category(self, guild: discord.Guild, category: discord.CategoryChannel):
         """Validate and maintain temporary channels in a category.
@@ -154,8 +158,11 @@ class EmptyVoices(commands.Cog):
         except discord.Forbidden:
             log.error(f"Missing permissions to fetch category {category.name}")
             return
+        except discord.HTTPException as e:
+            log.error(f"HTTP error refreshing category {category.name}: {e}", exc_info=True)
+            return
         except Exception as e:
-            log.error(f"Error refreshing category {category.name}: {e}")
+            log.exception(f"Unexpected error refreshing category {category.name}: {e}")
             return
 
         # Check how many temp channels we currently have in this category
@@ -228,8 +235,18 @@ class EmptyVoices(commands.Cog):
                 except discord.Forbidden:
                     log.error(f"Missing permissions to create voice channel in category {category.name}")
                     break
+                except discord.HTTPException as e:
+                    log.error(
+                        f"HTTP error creating voice channel '{channel_name}' "
+                        f"in category {category.name}: {e}",
+                        exc_info=True
+                    )
+                    break
                 except Exception as e:
-                    log.error(f"Error creating voice channel '{channel_name}' in category {category.name}: {e}")
+                    log.exception(
+                        f"Unexpected error creating voice channel '{channel_name}' "
+                        f"in category {category.name}: {e}"
+                    )
                     break
 
             if created_count > 0:
@@ -276,9 +293,9 @@ class EmptyVoices(commands.Cog):
         except discord.Forbidden:
             log.error(f"Missing permissions to rename channel {channel.name} in guild {guild.name}")
         except discord.HTTPException as e:
-            log.error(f"HTTP error renaming channel {channel.name}: {e}")
+            log.error(f"HTTP error renaming channel {channel.name}: {e}", exc_info=True)
         except Exception as e:
-            log.error(f"Unexpected error renaming channel {channel.name}: {e}")
+            log.exception(f"Unexpected error renaming channel {channel.name}: {e}")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
