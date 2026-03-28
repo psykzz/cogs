@@ -43,8 +43,12 @@ class ServerStatus(commands.Cog):
         try:
             self.queue_data = await self.get_queue_data(worldId=None)
             await self.update_monitor_channels()
-        except Exception:
-            logger.exception("Error in task")
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error in background task: {e}", exc_info=True)
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout in background task: {e}", exc_info=True)
+        except Exception as e:
+            logger.exception(f"Unexpected error in background task: {e}")
         logger.info("Finished queue task")
 
     async def get_queue_data(self, worldId=ishtakar_world_id):
@@ -62,8 +66,14 @@ class ServerStatus(commands.Cog):
                 self.parse_server(server).get("worldName"): self.parse_server(server)
                 for server in servers
             }
-        except Exception:
-            logger.exception("Exception while downloading new data")
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error downloading server data: {e}", exc_info=True)
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout downloading server data: {e}", exc_info=True)
+        except (KeyError, ValueError) as e:
+            logger.error(f"Data parsing error: {e}", exc_info=True)
+        except Exception as e:
+            logger.exception(f"Unexpected error downloading server data: {e}")
 
     def parse_server(self, server):
         (
@@ -254,7 +264,11 @@ async def http_get(url):
             else:
                 attempt += 1
             await asyncio.sleep(5)
-        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
+        except httpx.TimeoutException as e:
+            logger.warning(f"Timeout on attempt {attempt + 1}/{max_attempts}: {e}")
             attempt += 1
             await asyncio.sleep(5)
-            pass
+        except httpx.HTTPError as e:
+            logger.warning(f"HTTP error on attempt {attempt + 1}/{max_attempts}: {e}")
+            attempt += 1
+            await asyncio.sleep(5)
