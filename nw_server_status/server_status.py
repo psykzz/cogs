@@ -131,7 +131,7 @@ class ServerStatus(commands.Cog):
     async def update_monitor_channels(self):
         # iterate through bot discords and get the guild config
         for guild in self.bot.guilds:
-            self.update_guild_channel(guild)
+            await self.update_guild_channel(guild)
 
     async def get_server_status(self, server_name, data=None):
         if not data:
