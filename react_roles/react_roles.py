@@ -66,7 +66,7 @@ class RoleReacts(commands.Cog):
 
         watching.setdefault(message_id, {})
 
-        watching[message_id][react.id] = role.id
+        watching[message_id][str(react.id)] = role.id
 
         await message.add_reaction(react)
         await guild_config.watching.set(watching)
