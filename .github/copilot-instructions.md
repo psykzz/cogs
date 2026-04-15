@@ -236,6 +236,7 @@ async def mycommand(self, ctx):
 - **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
+- **video_dl/**: Download videos from YouTube, TikTok, and Instagram via DM for bot owner only (requires: yt-dlp>=2023.1.1)
 
 ## Dependencies and Installation
 
@@ -261,8 +262,11 @@ pip3 install httpx>=0.14.1
 # For game_embed cog (Steam server monitoring)
 pip3 install python-a2s>=1.3.0
 
-# For hat cog (avatar image manipulation)
+# For hat and albion_ava cogs (image manipulation)
 pip3 install Pillow>=10.2.0
+
+# For video_dl cog (video downloading)
+pip3 install yt-dlp>=2023.1.1
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py
@@ -343,6 +347,36 @@ When making changes to cogs, validate functionality by:
    output = io.BytesIO()
    img.save(output, format='PNG')
    print('Image creation test: OK')"
+   ```
+
+7. **For video_dl changes**: Test yt-dlp module import and URL pattern matching
+   ```bash
+   # Test yt-dlp module import
+   python3 -c "
+   import yt_dlp
+   print('yt-dlp import successful')
+   print('yt-dlp version:', yt_dlp.version.__version__)"
+
+   # Test URL pattern detection
+   python3 -c "
+   import re
+   youtube_pattern = re.compile(r'(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w-]+')
+   tiktok_pattern = re.compile(r'(?:https?://)?(?:www\.|vm\.)?tiktok\.com/[\w/@-]+')
+   instagram_pattern = re.compile(r'(?:https?://)?(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?')
+
+   test_urls = [
+       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+       'https://www.tiktok.com/@user/video/123',
+       'https://www.instagram.com/reel/ABC123/'
+   ]
+
+   for url in test_urls:
+       if youtube_pattern.search(url):
+           print(f'✓ YouTube detected: {url}')
+       elif tiktok_pattern.search(url):
+           print(f'✓ TikTok detected: {url}')
+       elif instagram_pattern.search(url):
+           print(f'✓ Instagram detected: {url}')"
    ```
 
 ### Red-bot Framework Testing
