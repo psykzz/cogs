@@ -236,7 +236,7 @@ async def mycommand(self, ctx):
 - **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
-- **video_dl/**: Download videos from YouTube, TikTok, and Instagram via DM for bot owner only (requires: yt-dlp>=2023.1.1)
+- **video_dl/**: Download videos from YouTube, TikTok, and Instagram via DM for bot owner only (requires: yt-dlp>=2023.1.1, system: ffmpeg)
 
 ## Dependencies and Installation
 
@@ -267,6 +267,9 @@ pip3 install Pillow>=10.2.0
 
 # For video_dl cog (video downloading)
 pip3 install yt-dlp>=2023.1.1
+# System dependency for video_dl (required for merging video/audio streams)
+sudo apt-get install ffmpeg  # Ubuntu/Debian
+# brew install ffmpeg  # macOS
 
 # For Discord functionality (if testing imports)
 pip3 install discord.py

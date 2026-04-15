@@ -538,6 +538,49 @@ Interface for the TGMC (TerraGov Marine Corps) game API.
 
 ---
 
+### Video Downloader
+
+Download videos from YouTube, TikTok, and Instagram via DM for bot owner only.
+
+**Requirements:**
+- Python: `yt-dlp>=2023.1.1`
+- System: `ffmpeg` (required for merging video and audio streams)
+
+**Installation:**
+
+First, install ffmpeg on your system:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows
+# Download from https://ffmpeg.org/download.html
+```
+
+Then install the cog:
+
+```
+[p]cog install psykzz-cogs video_dl
+[p]load video_dl
+```
+
+**Usage:**
+
+Simply send a YouTube, TikTok, or Instagram URL to the bot via DM. The bot will download the video and send it back to you as a Discord attachment (max 25MB).
+
+**Supported platforms:**
+- YouTube (videos and shorts)
+- TikTok
+- Instagram (reels and posts)
+
+**Note:** This cog only responds to DMs from the bot owner.
+
+---
+
 ### User
 
 Manage bot user settings (nickname and avatar).
