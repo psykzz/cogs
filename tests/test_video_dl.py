@@ -9,15 +9,17 @@ Tests cover:
 - URL extraction from messages
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-import discord
 import sys
+from unittest.mock import MagicMock, AsyncMock, patch
+
+import discord
+import pytest
 
 # Mock redbot before importing the cog
 sys.modules['redbot'] = MagicMock()
 sys.modules['redbot.core'] = MagicMock()
 sys.modules['redbot.core.commands'] = MagicMock()
+
 
 # Create a mock Cog class with listener decorator
 class MockCog:
@@ -27,10 +29,11 @@ class MockCog:
             return func
         return decorator
 
+
 sys.modules['redbot.core'].commands.Cog = MockCog
 sys.modules['redbot.core'].commands.Cog.listener = MockCog.listener
 
-from video_dl.video_dl import VideoDownloader
+from video_dl.video_dl import VideoDownloader  # noqa: E402
 
 
 # ============================================================================
@@ -48,11 +51,14 @@ class MockDMChannel(discord.abc.PrivateChannel):
 
     def typing(self):
         """Mock typing context manager."""
+
         class TypingContext:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *args):
                 pass
+
         return TypingContext()
 
 
@@ -65,11 +71,14 @@ class MockGuildChannel:
 
     def typing(self):
         """Mock typing context manager."""
+
         class TypingContext:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *args):
                 pass
+
         return TypingContext()
 
 
