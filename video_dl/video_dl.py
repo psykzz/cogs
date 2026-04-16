@@ -276,26 +276,28 @@ class VideoDownloader(commands.Cog):
                     log.error(f"Failed to clean up temp directory {temp_dir}: {e}")
 
     @commands.guild_only()
-    @checks.admin_or_permissions(manage_guild=True)
     @commands.hybrid_group(name="videodl")
     async def videodl(self, ctx):
         """Configure video download settings."""
         pass
 
+    @checks.is_owner()
     @videodl.command(name="enable")
     async def videodl_enable(self, ctx):
-        """Enable automatic video downloads in this server."""
+        """Enable automatic video downloads in this server (bot owner only)."""
         await ctx.defer(ephemeral=True)
         await self.config.guild(ctx.guild).enabled.set(True)
         await ctx.send("✅ Automatic video downloads enabled for this server.", ephemeral=True)
 
+    @checks.is_owner()
     @videodl.command(name="disable")
     async def videodl_disable(self, ctx):
-        """Disable automatic video downloads in this server."""
+        """Disable automatic video downloads in this server (bot owner only)."""
         await ctx.defer(ephemeral=True)
         await self.config.guild(ctx.guild).enabled.set(False)
         await ctx.send("✅ Automatic video downloads disabled for this server.", ephemeral=True)
 
+    @checks.admin_or_permissions(manage_guild=True)
     @videodl.command(name="channelenable")
     async def videodl_channel_enable(self, ctx, channel: discord.TextChannel = None):
         """Enable automatic video downloads in a specific channel.
@@ -316,6 +318,7 @@ class VideoDownloader(commands.Cog):
         else:
             await ctx.send(f"ℹ️ Automatic video downloads are already enabled in {channel.mention}.", ephemeral=True)
 
+    @checks.admin_or_permissions(manage_guild=True)
     @videodl.command(name="channeldisable")
     async def videodl_channel_disable(self, ctx, channel: discord.TextChannel = None):
         """Disable automatic video downloads in a specific channel.
@@ -336,6 +339,7 @@ class VideoDownloader(commands.Cog):
         else:
             await ctx.send(f"ℹ️ Automatic video downloads are already disabled in {channel.mention}.", ephemeral=True)
 
+    @checks.admin_or_permissions(manage_guild=True)
     @videodl.command(name="userenable")
     async def videodl_user_enable(self, ctx, user: discord.Member):
         """Enable automatic video downloads for a specific user.
@@ -355,6 +359,7 @@ class VideoDownloader(commands.Cog):
         else:
             await ctx.send(f"ℹ️ Automatic video downloads are already enabled for {user.mention}.", ephemeral=True)
 
+    @checks.admin_or_permissions(manage_guild=True)
     @videodl.command(name="userdisable")
     async def videodl_user_disable(self, ctx, user: discord.Member):
         """Disable automatic video downloads for a specific user.
@@ -374,6 +379,7 @@ class VideoDownloader(commands.Cog):
         else:
             await ctx.send(f"ℹ️ Automatic video downloads are already disabled for {user.mention}.", ephemeral=True)
 
+    @checks.admin_or_permissions(manage_guild=True)
     @videodl.command(name="status")
     async def videodl_status(self, ctx):
         """Show current video download configuration for this server."""
