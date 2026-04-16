@@ -52,7 +52,7 @@ class VideoDownloader(commands.Cog):
             "enabled": False,
             "disabled_channels": [],
             "disabled_users": [],
-            "catbox_userhash": "",
+            "catbox_userhash": "psykzz",
             "too_large_emoji": "💥",
         }
         self.config.register_guild(**default_guild)
