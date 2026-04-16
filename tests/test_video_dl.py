@@ -96,9 +96,10 @@ class MockUser:
 class MockGuild:
     """Mock Discord Guild."""
 
-    def __init__(self, id: int = 54321):
+    def __init__(self, id: int = 54321, premium_tier: int = 0):
         self.id = id
         self.name = f"Guild{id}"
+        self.premium_tier = premium_tier
 
 
 class MockMessage:
@@ -269,10 +270,11 @@ class TestMessageFiltering:
         with patch.object(cog, '_download_video', new=AsyncMock(
             return_value=(True, '/tmp/video.mp4', None)
         )):
-            with patch('discord.File'):
-                with patch.object(message, 'reply', new=AsyncMock()):
-                    await cog.on_message(message)
-                    cog._download_video.assert_called_once()
+            with patch('os.path.getsize', return_value=1024 * 1024):  # 1MB
+                with patch('discord.File'):
+                    with patch.object(message, 'reply', new=AsyncMock()):
+                        await cog.on_message(message)
+                        cog._download_video.assert_called_once()
 
     async def test_ignore_guild_message_in_disabled_channel(self, cog, mock_bot, mock_guild):
         """Test that messages in disabled channels are ignored even when guild is enabled."""
@@ -336,11 +338,12 @@ class TestMessageFiltering:
         mock_bot.is_owner.return_value = True
 
         with patch.object(cog, '_download_video', new=AsyncMock(return_value=(True, '/tmp/video.mp4', None))):
-            with patch('discord.File'):
-                with patch.object(message, 'reply', new=AsyncMock()):
-                    await cog.on_message(message)
-                    # Should check is_owner
-                    mock_bot.is_owner.assert_called_once_with(author)
+            with patch('os.path.getsize', return_value=1024 * 1024):  # 1MB
+                with patch('discord.File'):
+                    with patch.object(message, 'reply', new=AsyncMock()):
+                        await cog.on_message(message)
+                        # Should check is_owner
+                        mock_bot.is_owner.assert_called_once_with(author)
 
     async def test_ignore_owner_dms_without_url(self, cog, mock_bot):
         """Test that DMs from owner without URLs are ignored."""
