@@ -24,8 +24,8 @@ class VideoDownloader(commands.Cog):
         3: 100 * 1024 * 1024,  # 100MB for level 3
     }
 
-    # Catbox.moe size limit (100MB)
-    CATBOX_SIZE_LIMIT = 100 * 1024 * 1024
+    # Catbox.moe size limit (200MB)
+    CATBOX_SIZE_LIMIT = 200 * 1024 * 1024
 
     # URL patterns for supported platforms
     URL_PATTERNS = {
