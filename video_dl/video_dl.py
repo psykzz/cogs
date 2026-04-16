@@ -5,13 +5,13 @@ import tempfile
 from pathlib import Path
 
 import discord
-from redbot.core import commands
+from redbot.core import commands, Config, checks
 
 log = logging.getLogger("red.cogs.video_dl")
 
 
 class VideoDownloader(commands.Cog):
-    """Download videos from DMs for bot owner only
+    """Download videos from URLs in DMs and guilds
 
     Supports YouTube, TikTok, and Instagram videos/shorts/reels.
     """
@@ -36,10 +36,52 @@ class VideoDownloader(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.config = Config.get_conf(
+            self, identifier=7360073600, force_registration=True
+        )
+        # Default: guilds disabled, users enabled, channels enabled
+        default_guild = {
+            "enabled": False,
+            "disabled_channels": [],
+            "disabled_users": [],
+        }
+        self.config.register_guild(**default_guild)
 
     async def _is_owner(self, user):
         """Check if user is bot owner."""
         return await self.bot.is_owner(user)
+
+    async def _can_download_in_guild(self, message: discord.Message):
+        """Check if downloading is allowed in this guild/channel/user.
+
+        Parameters
+        ----------
+        message : discord.Message
+            The message to check permissions for
+
+        Returns
+        -------
+        bool
+            True if download is allowed, False otherwise
+        """
+        # Always allow in DMs for bot owner
+        if isinstance(message.channel, discord.abc.PrivateChannel):
+            return await self._is_owner(message.author)
+
+        # Check guild is enabled
+        guild_config = await self.config.guild(message.guild).all()
+        if not guild_config["enabled"]:
+            return False
+
+        # Check channel is not disabled
+        if message.channel.id in guild_config["disabled_channels"]:
+            return False
+
+        # Check user is not disabled
+        if message.author.id in guild_config["disabled_users"]:
+            return False
+
+        return True
 
     def _detect_platform(self, url: str):
         """Detect which platform a URL belongs to.
@@ -128,23 +170,19 @@ class VideoDownloader(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Listen for DMs with video URLs from bot owner.
+        """Listen for messages with video URLs.
 
         Parameters
         ----------
         message : discord.Message
             The message that was sent
         """
-        # Only process DMs
-        if not isinstance(message.channel, discord.abc.PrivateChannel):
-            return
-
         # Ignore bot's own messages
         if message.author.id == self.bot.user.id:
             return
 
-        # Only respond to bot owner
-        if not await self._is_owner(message.author):
+        # Check if downloading is allowed for this message
+        if not await self._can_download_in_guild(message):
             return
 
         # Look for video URLs in the message
@@ -176,11 +214,10 @@ class VideoDownloader(commands.Cog):
                             content=f"Downloaded from {platform.title()}:",
                             file=discord.File(file_path)
                         )
-                    except discord.HTTPException as e:
-                        await message.reply(f"❌ Failed to upload file: {e}")
-                else:
-                    # Send error message
-                    await message.reply(f"❌ {error_msg}")
+                    except discord.HTTPException:
+                        # Suppress errors for automatic downloads
+                        pass
+                # Suppress error messages for automatic downloads
 
             finally:
                 # Clean up temporary directory
@@ -189,3 +226,189 @@ class VideoDownloader(commands.Cog):
                     shutil.rmtree(temp_dir)
                 except Exception as e:
                     log.error(f"Failed to clean up temp directory {temp_dir}: {e}")
+
+    @commands.hybrid_command(name="download")
+    async def download_command(self, ctx, url: str):
+        """Manually download a video from a URL.
+
+        Parameters
+        ----------
+        url : str
+            The URL of the video to download
+        """
+        await ctx.defer(ephemeral=True)
+
+        # Detect platform
+        platform = self._detect_platform(url)
+        if not platform:
+            await ctx.send("❌ URL not recognized. Supported platforms: YouTube, TikTok, Instagram", ephemeral=True)
+            return
+
+        # Send typing indicator
+        async with ctx.typing():
+            # Create temporary directory
+            temp_dir = tempfile.mkdtemp(prefix='video_dl_')
+
+            try:
+                # Download the video
+                success, file_path, error_msg = await self._download_video(url, platform, temp_dir)
+
+                if success and file_path:
+                    # Send the file
+                    try:
+                        await ctx.send(
+                            content=f"Downloaded from {platform.title()}:",
+                            file=discord.File(file_path),
+                            ephemeral=True
+                        )
+                    except discord.HTTPException as e:
+                        await ctx.send(f"❌ Failed to upload file: {e}", ephemeral=True)
+                else:
+                    # Send error message
+                    await ctx.send(f"❌ {error_msg}", ephemeral=True)
+
+            finally:
+                # Clean up temporary directory
+                try:
+                    import shutil
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    log.error(f"Failed to clean up temp directory {temp_dir}: {e}")
+
+    @commands.guild_only()
+    @commands.hybrid_group(name="videodl")
+    async def videodl(self, ctx):
+        """Configure video download settings."""
+        pass
+
+    @checks.is_owner()
+    @videodl.command(name="enable")
+    async def videodl_enable(self, ctx):
+        """Enable automatic video downloads in this server (bot owner only)."""
+        await ctx.defer(ephemeral=True)
+        await self.config.guild(ctx.guild).enabled.set(True)
+        await ctx.send("✅ Automatic video downloads enabled for this server.", ephemeral=True)
+
+    @checks.is_owner()
+    @videodl.command(name="disable")
+    async def videodl_disable(self, ctx):
+        """Disable automatic video downloads in this server (bot owner only)."""
+        await ctx.defer(ephemeral=True)
+        await self.config.guild(ctx.guild).enabled.set(False)
+        await ctx.send("✅ Automatic video downloads disabled for this server.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="channelenable")
+    async def videodl_channel_enable(self, ctx, channel: discord.TextChannel = None):
+        """Enable automatic video downloads in a specific channel.
+
+        Parameters
+        ----------
+        channel : discord.TextChannel, optional
+            The channel to enable (defaults to current channel)
+        """
+        await ctx.defer(ephemeral=True)
+        channel = channel or ctx.channel
+
+        disabled_channels = await self.config.guild(ctx.guild).disabled_channels()
+        if channel.id in disabled_channels:
+            disabled_channels.remove(channel.id)
+            await self.config.guild(ctx.guild).disabled_channels.set(disabled_channels)
+            await ctx.send(f"✅ Automatic video downloads enabled in {channel.mention}.", ephemeral=True)
+        else:
+            await ctx.send(f"ℹ️ Automatic video downloads are already enabled in {channel.mention}.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="channeldisable")
+    async def videodl_channel_disable(self, ctx, channel: discord.TextChannel = None):
+        """Disable automatic video downloads in a specific channel.
+
+        Parameters
+        ----------
+        channel : discord.TextChannel, optional
+            The channel to disable (defaults to current channel)
+        """
+        await ctx.defer(ephemeral=True)
+        channel = channel or ctx.channel
+
+        disabled_channels = await self.config.guild(ctx.guild).disabled_channels()
+        if channel.id not in disabled_channels:
+            disabled_channels.append(channel.id)
+            await self.config.guild(ctx.guild).disabled_channels.set(disabled_channels)
+            await ctx.send(f"✅ Automatic video downloads disabled in {channel.mention}.", ephemeral=True)
+        else:
+            await ctx.send(f"ℹ️ Automatic video downloads are already disabled in {channel.mention}.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="userenable")
+    async def videodl_user_enable(self, ctx, user: discord.Member):
+        """Enable automatic video downloads for a specific user.
+
+        Parameters
+        ----------
+        user : discord.Member
+            The user to enable
+        """
+        await ctx.defer(ephemeral=True)
+
+        disabled_users = await self.config.guild(ctx.guild).disabled_users()
+        if user.id in disabled_users:
+            disabled_users.remove(user.id)
+            await self.config.guild(ctx.guild).disabled_users.set(disabled_users)
+            await ctx.send(f"✅ Automatic video downloads enabled for {user.mention}.", ephemeral=True)
+        else:
+            await ctx.send(f"ℹ️ Automatic video downloads are already enabled for {user.mention}.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="userdisable")
+    async def videodl_user_disable(self, ctx, user: discord.Member):
+        """Disable automatic video downloads for a specific user.
+
+        Parameters
+        ----------
+        user : discord.Member
+            The user to disable
+        """
+        await ctx.defer(ephemeral=True)
+
+        disabled_users = await self.config.guild(ctx.guild).disabled_users()
+        if user.id not in disabled_users:
+            disabled_users.append(user.id)
+            await self.config.guild(ctx.guild).disabled_users.set(disabled_users)
+            await ctx.send(f"✅ Automatic video downloads disabled for {user.mention}.", ephemeral=True)
+        else:
+            await ctx.send(f"ℹ️ Automatic video downloads are already disabled for {user.mention}.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="status")
+    async def videodl_status(self, ctx):
+        """Show current video download configuration for this server."""
+        await ctx.defer(ephemeral=True)
+
+        guild_config = await self.config.guild(ctx.guild).all()
+        enabled = guild_config["enabled"]
+        disabled_channels = guild_config["disabled_channels"]
+        disabled_users = guild_config["disabled_users"]
+
+        status_msg = f"**Video Download Status for {ctx.guild.name}**\n\n"
+        status_msg += f"Server-wide: {'✅ Enabled' if enabled else '❌ Disabled'}\n\n"
+
+        if disabled_channels:
+            channel_mentions = []
+            for channel_id in disabled_channels:
+                channel = ctx.guild.get_channel(channel_id)
+                if channel:
+                    channel_mentions.append(channel.mention)
+            if channel_mentions:
+                status_msg += f"**Disabled Channels:** {', '.join(channel_mentions)}\n\n"
+
+        if disabled_users:
+            user_mentions = []
+            for user_id in disabled_users:
+                member = ctx.guild.get_member(user_id)
+                if member:
+                    user_mentions.append(member.mention)
+            if user_mentions:
+                status_msg += f"**Disabled Users:** {', '.join(user_mentions)}\n\n"
+
+        await ctx.send(status_msg, ephemeral=True)

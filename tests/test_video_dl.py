@@ -5,6 +5,8 @@ Tests cover:
 - URL pattern detection (YouTube, TikTok, Instagram)
 - Owner-only DM filtering
 - Message type filtering (DM vs Guild)
+- Guild enable/disable logic
+- Channel and user disable logic
 - Platform detection logic
 - URL extraction from messages
 """
@@ -91,18 +93,49 @@ class MockUser:
         self.bot = is_bot
 
 
+class MockGuild:
+    """Mock Discord Guild."""
+
+    def __init__(self, id: int = 54321):
+        self.id = id
+        self.name = f"Guild{id}"
+
+
 class MockMessage:
     """Mock Discord Message."""
 
-    def __init__(self, content: str, author: MockUser, channel, bot_id: int = 999):
+    def __init__(self, content: str, author: MockUser, channel, bot_id: int = 999,
+                 guild=None):
         self.content = content
         self.author = author
         self.channel = channel
         self.bot = MockUser(id=bot_id, is_bot=True)
+        self.guild = guild
 
     async def reply(self, content=None, file=None):
         """Mock reply method."""
         pass
+
+
+def _make_guild_config_mock(enabled=False, disabled_channels=None, disabled_users=None):
+    """Create a properly async-mocked Config for guild tests."""
+    guild_config_data = {
+        "enabled": enabled,
+        "disabled_channels": disabled_channels or [],
+        "disabled_users": disabled_users or [],
+    }
+    guild_scope = MagicMock()
+    guild_scope.all = AsyncMock(return_value=guild_config_data)
+    guild_scope.enabled = AsyncMock(return_value=guild_config_data["enabled"])
+    guild_scope.disabled_channels = AsyncMock(
+        return_value=guild_config_data["disabled_channels"]
+    )
+    guild_scope.disabled_users = AsyncMock(
+        return_value=guild_config_data["disabled_users"]
+    )
+    config_mock = MagicMock()
+    config_mock.guild = MagicMock(return_value=guild_scope)
+    return config_mock
 
 
 # ============================================================================
@@ -119,9 +152,18 @@ def mock_bot():
 
 
 @pytest.fixture
+def mock_guild():
+    """Create a mock guild."""
+    return MockGuild()
+
+
+@pytest.fixture
 def cog(mock_bot):
-    """Create a VideoDownloader cog instance."""
-    return VideoDownloader(mock_bot)
+    """Create a VideoDownloader cog instance with a mocked Config."""
+    instance = VideoDownloader(mock_bot)
+    # Replace config with a default (guild disabled) async-compatible mock
+    instance.config = _make_guild_config_mock(enabled=False)
+    return instance
 
 
 # ============================================================================
@@ -201,16 +243,62 @@ class TestURLPatternDetection:
 class TestMessageFiltering:
     """Test message filtering logic."""
 
-    async def test_ignore_guild_messages(self, cog, mock_bot):
-        """Test that guild messages are ignored."""
+    async def test_ignore_guild_messages_when_disabled(self, cog, mock_bot, mock_guild):
+        """Test that guild messages are ignored when the guild has downloads disabled."""
         channel = MockGuildChannel()
         author = MockUser(id=1)
-        message = MockMessage("https://youtube.com/watch?v=test", author, channel)
+        message = MockMessage(
+            "https://youtube.com/watch?v=test", author, channel, guild=mock_guild
+        )
 
-        # Should return early without processing
-        await cog.on_message(message)
-        # If it processes, is_owner would be called - verify it wasn't
-        mock_bot.is_owner.assert_not_called()
+        # Guild is disabled by default in the fixture
+        with patch.object(cog, '_download_video', new=AsyncMock()) as mock_download:
+            await cog.on_message(message)
+            mock_bot.is_owner.assert_not_called()
+            mock_download.assert_not_called()
+
+    async def test_process_guild_messages_when_enabled(self, cog, mock_bot, mock_guild):
+        """Test that guild messages are processed when the guild has downloads enabled."""
+        cog.config = _make_guild_config_mock(enabled=True)
+        channel = MockGuildChannel()
+        author = MockUser(id=1)
+        message = MockMessage(
+            "https://youtube.com/watch?v=test", author, channel, guild=mock_guild
+        )
+
+        with patch.object(cog, '_download_video', new=AsyncMock(
+            return_value=(True, '/tmp/video.mp4', None)
+        )):
+            with patch('discord.File'):
+                with patch.object(message, 'reply', new=AsyncMock()):
+                    await cog.on_message(message)
+                    cog._download_video.assert_called_once()
+
+    async def test_ignore_guild_message_in_disabled_channel(self, cog, mock_bot, mock_guild):
+        """Test that messages in disabled channels are ignored even when guild is enabled."""
+        channel = MockGuildChannel()  # channel.id == 67890
+        cog.config = _make_guild_config_mock(enabled=True, disabled_channels=[67890])
+        author = MockUser(id=1)
+        message = MockMessage(
+            "https://youtube.com/watch?v=test", author, channel, guild=mock_guild
+        )
+
+        with patch.object(cog, '_download_video', new=AsyncMock()) as mock_download:
+            await cog.on_message(message)
+            mock_download.assert_not_called()
+
+    async def test_ignore_guild_message_from_disabled_user(self, cog, mock_bot, mock_guild):
+        """Test that messages from disabled users are ignored even when guild is enabled."""
+        channel = MockGuildChannel()
+        cog.config = _make_guild_config_mock(enabled=True, disabled_users=[1])
+        author = MockUser(id=1)  # user id 1 is in disabled_users
+        message = MockMessage(
+            "https://youtube.com/watch?v=test", author, channel, guild=mock_guild
+        )
+
+        with patch.object(cog, '_download_video', new=AsyncMock()) as mock_download:
+            await cog.on_message(message)
+            mock_download.assert_not_called()
 
     async def test_ignore_bot_own_messages(self, cog, mock_bot):
         """Test that bot's own messages are ignored."""

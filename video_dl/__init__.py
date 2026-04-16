@@ -1,7 +1,8 @@
 from .video_dl import VideoDownloader
 
 __red_end_user_data_statement__ = (
-    "This cog does not store any user data."
+    "This cog stores guild configuration data including enabled status, "
+    "disabled channels, and disabled users. No personal user data is stored."
 )
 
 
