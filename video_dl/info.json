@@ -4,7 +4,7 @@
     "short": "Download videos from URLs in DMs and guilds",
     "description": "Downloads videos from YouTube, TikTok, and Instagram. Supports automatic downloads in configured guilds and manual downloads via command. Uses yt-dlp to download videos and sends them back as Discord attachments.",
     "permissions": ["Send Messages", "Attach Files"],
-    "requirements": ["yt-dlp>=2023.1.1"],
+    "requirements": ["yt-dlp>=2023.1.1", "catboxpy>=0.0.5"],
     "tags": [
         "Video",
         "Download",
