@@ -16,8 +16,16 @@ class VideoDownloader(commands.Cog):
     Supports YouTube, TikTok, and Instagram videos/shorts/reels.
     """
 
-    # Discord file size limits (in bytes)
-    MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB for non-Nitro users
+    # Discord file size limits by boost level (in bytes)
+    FILE_SIZE_LIMITS = {
+        0: 25 * 1024 * 1024,   # 25MB for non-boosted
+        1: 10 * 1024 * 1024,   # 10MB for level 1
+        2: 50 * 1024 * 1024,   # 50MB for level 2
+        3: 100 * 1024 * 1024,  # 100MB for level 3
+    }
+
+    # Catbox.moe size limit (100MB)
+    CATBOX_SIZE_LIMIT = 100 * 1024 * 1024
 
     # URL patterns for supported platforms
     URL_PATTERNS = {
@@ -44,12 +52,62 @@ class VideoDownloader(commands.Cog):
             "enabled": False,
             "disabled_channels": [],
             "disabled_users": [],
+            "catbox_userhash": "",
+            "too_large_emoji": "💥",
         }
         self.config.register_guild(**default_guild)
 
     async def _is_owner(self, user):
         """Check if user is bot owner."""
         return await self.bot.is_owner(user)
+
+    def _get_file_size_limit(self, guild: discord.Guild = None):
+        """Get the file size limit based on guild boost level.
+
+        Parameters
+        ----------
+        guild : discord.Guild, optional
+            The guild to check boost level for. If None, returns default limit.
+
+        Returns
+        -------
+        int
+            File size limit in bytes
+        """
+        if guild is None:
+            return self.FILE_SIZE_LIMITS[0]
+
+        # Map premium_tier to our boost levels
+        boost_level = min(guild.premium_tier, 3)
+        return self.FILE_SIZE_LIMITS[boost_level]
+
+    async def _upload_to_catbox(self, file_path: str, userhash: str = None):
+        """Upload a file to catbox.moe.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to the file to upload
+        userhash : str, optional
+            Catbox user hash for authentication
+
+        Returns
+        -------
+        tuple
+            (success: bool, url: str or None, error_message: str or None)
+        """
+        try:
+            from catboxpy.catbox import CatboxClient
+        except ImportError:
+            return False, None, "catboxpy is not installed. Please install it with: pip install catboxpy"
+
+        try:
+            client = CatboxClient(userhash=userhash if userhash else "")
+            file_url = client.upload(file_path)
+            return True, file_url, None
+        except Exception as e:
+            log.exception(f"Failed to upload to catbox.moe: {e}")
+            return False, None, f"Failed to upload to catbox.moe: {str(e)}"
 
     async def _can_download_in_guild(self, message: discord.Message):
         """Check if downloading is allowed in this guild/channel/user.
@@ -101,7 +159,7 @@ class VideoDownloader(commands.Cog):
                 return platform
         return None
 
-    async def _download_video(self, url: str, platform: str, temp_dir: str):
+    async def _download_video(self, url: str, platform: str, temp_dir: str, guild: discord.Guild = None):
         """Download video using yt-dlp.
 
         Parameters
@@ -112,6 +170,8 @@ class VideoDownloader(commands.Cog):
             Platform name (youtube, tiktok, instagram)
         temp_dir : str
             Temporary directory to download to
+        guild : discord.Guild, optional
+            Guild context for determining file size limits
 
         Returns
         -------
@@ -154,10 +214,9 @@ class VideoDownloader(commands.Cog):
                     else:
                         return False, None, "Download succeeded but could not find the file"
 
-                # Check file size
+                # Check file size - we just return the file and let the caller decide what to do
                 file_size = os.path.getsize(file_path)
-                if file_size > self.MAX_FILE_SIZE:
-                    return False, None, f"Video is too large ({file_size / 1024 / 1024:.1f}MB). Discord limit is 25MB."
+                log.info(f"Downloaded video: {file_size / 1024 / 1024:.1f}MB")
 
                 return True, file_path, None
 
@@ -205,18 +264,52 @@ class VideoDownloader(commands.Cog):
 
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(url, platform, temp_dir)
+                success, file_path, error_msg = await self._download_video(url, platform, temp_dir, message.guild)
 
                 if success and file_path:
-                    # Send the file
-                    try:
-                        await message.reply(
-                            content=f"Downloaded from {platform.title()}:",
-                            file=discord.File(file_path)
-                        )
-                    except discord.HTTPException:
-                        # Suppress errors for automatic downloads
-                        pass
+                    file_size = os.path.getsize(file_path)
+                    file_size_limit = self._get_file_size_limit(message.guild)
+
+                    # Try to send directly if within limit
+                    if file_size <= file_size_limit:
+                        try:
+                            await message.reply(
+                                content=f"Downloaded from {platform.title()}:",
+                                file=discord.File(file_path)
+                            )
+                        except discord.HTTPException:
+                            # Suppress errors for automatic downloads
+                            pass
+                    # Try catbox.moe if file is too large for Discord but within catbox limit
+                    elif file_size <= self.CATBOX_SIZE_LIMIT:
+                        guild_config = await self.config.guild(message.guild).all()
+                        userhash = guild_config.get("catbox_userhash", "")
+
+                        success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
+                        if success and catbox_url:
+                            try:
+                                content_msg = (
+                                    f"Downloaded from {platform.title()} "
+                                    f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                                )
+                                await message.reply(content=content_msg)
+                            except discord.HTTPException:
+                                pass
+                        else:
+                            # Catbox failed, react with emoji
+                            try:
+                                emoji = guild_config.get("too_large_emoji", "💥")
+                                await message.add_reaction(emoji)
+                            except discord.HTTPException:
+                                pass
+                    else:
+                        # File is too large even for catbox
+                        try:
+                            guild_config = await self.config.guild(message.guild).all()
+                            emoji = guild_config.get("too_large_emoji", "💥")
+                            await message.add_reaction(emoji)
+                        except discord.HTTPException:
+                            pass
                 # Suppress error messages for automatic downloads
 
             finally:
@@ -251,18 +344,56 @@ class VideoDownloader(commands.Cog):
 
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(url, platform, temp_dir)
+                success, file_path, error_msg = await self._download_video(url, platform, temp_dir, ctx.guild)
 
                 if success and file_path:
-                    # Send the file
-                    try:
+                    file_size = os.path.getsize(file_path)
+                    file_size_limit = self._get_file_size_limit(ctx.guild)
+
+                    # Try to send directly if within limit
+                    if file_size <= file_size_limit:
+                        try:
+                            await ctx.send(
+                                content=f"Downloaded from {platform.title()}:",
+                                file=discord.File(file_path),
+                                ephemeral=True
+                            )
+                        except discord.HTTPException as e:
+                            await ctx.send(f"❌ Failed to upload file: {e}", ephemeral=True)
+                    # Try catbox.moe if file is too large for Discord but within catbox limit
+                    elif file_size <= self.CATBOX_SIZE_LIMIT:
+                        if ctx.guild:
+                            guild_config = await self.config.guild(ctx.guild).all()
+                            userhash = guild_config.get("catbox_userhash", "")
+                        else:
+                            userhash = ""
+
+                        success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
+                        if success and catbox_url:
+                            content_msg = (
+                                f"Downloaded from {platform.title()} "
+                                f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                            )
+                            await ctx.send(
+                                content=content_msg,
+                                ephemeral=True
+                            )
+                        else:
+                            error_msg = (
+                                f"❌ File is too large for Discord and "
+                                f"catbox.moe upload failed: {error}"
+                            )
+                            await ctx.send(error_msg, ephemeral=True)
+                    else:
+                        # File is too large even for catbox
+                        error_msg = (
+                            f"❌ File is too large ({file_size / 1024 / 1024:.1f}MB). "
+                            f"Maximum size is {self.CATBOX_SIZE_LIMIT / 1024 / 1024:.1f}MB."
+                        )
                         await ctx.send(
-                            content=f"Downloaded from {platform.title()}:",
-                            file=discord.File(file_path),
+                            error_msg,
                             ephemeral=True
                         )
-                    except discord.HTTPException as e:
-                        await ctx.send(f"❌ Failed to upload file: {e}", ephemeral=True)
                 else:
                     # Send error message
                     await ctx.send(f"❌ {error_msg}", ephemeral=True)
@@ -389,9 +520,18 @@ class VideoDownloader(commands.Cog):
         enabled = guild_config["enabled"]
         disabled_channels = guild_config["disabled_channels"]
         disabled_users = guild_config["disabled_users"]
+        catbox_userhash = guild_config.get("catbox_userhash", "")
+        too_large_emoji = guild_config.get("too_large_emoji", "💥")
+
+        # Get boost level and file size limit
+        boost_level = ctx.guild.premium_tier
+        file_size_limit = self._get_file_size_limit(ctx.guild)
 
         status_msg = f"**Video Download Status for {ctx.guild.name}**\n\n"
-        status_msg += f"Server-wide: {'✅ Enabled' if enabled else '❌ Disabled'}\n\n"
+        status_msg += f"Server-wide: {'✅ Enabled' if enabled else '❌ Disabled'}\n"
+        status_msg += f"Boost Level: {boost_level} (File size limit: {file_size_limit / 1024 / 1024:.0f}MB)\n"
+        status_msg += f"Catbox.moe: {'✅ Configured' if catbox_userhash else '❌ Not configured'}\n"
+        status_msg += f"Too large emoji: {too_large_emoji}\n\n"
 
         if disabled_channels:
             channel_mentions = []
@@ -412,3 +552,34 @@ class VideoDownloader(commands.Cog):
                 status_msg += f"**Disabled Users:** {', '.join(user_mentions)}\n\n"
 
         await ctx.send(status_msg, ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="setcatbox")
+    async def videodl_set_catbox(self, ctx, userhash: str = ""):
+        """Set the catbox.moe userhash for uploading large files.
+
+        Parameters
+        ----------
+        userhash : str, optional
+            The catbox.moe userhash. Leave empty to clear.
+        """
+        await ctx.defer(ephemeral=True)
+        await self.config.guild(ctx.guild).catbox_userhash.set(userhash)
+        if userhash:
+            await ctx.send("✅ Catbox.moe userhash has been set.", ephemeral=True)
+        else:
+            await ctx.send("✅ Catbox.moe userhash has been cleared.", ephemeral=True)
+
+    @checks.admin_or_permissions(manage_guild=True)
+    @videodl.command(name="setemoji")
+    async def videodl_set_emoji(self, ctx, emoji: str = "💥"):
+        """Set the emoji to react with when a file is too large.
+
+        Parameters
+        ----------
+        emoji : str, optional
+            The emoji to use (default: 💥)
+        """
+        await ctx.defer(ephemeral=True)
+        await self.config.guild(ctx.guild).too_large_emoji.set(emoji)
+        await ctx.send(f"✅ Too large emoji has been set to {emoji}", ephemeral=True)
