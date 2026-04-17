@@ -64,12 +64,26 @@ class MockDMChannel(discord.abc.PrivateChannel):
         return TypingContext()
 
 
+class MockPermissions:
+    """Mock Discord Permissions."""
+
+    def __init__(self, manage_messages: bool = True):
+        self.manage_messages = manage_messages
+
+
 class MockGuildChannel:
     """Mock Discord Guild channel."""
 
-    def __init__(self):
+    def __init__(self, manage_messages: bool = True):
         self.id = 67890
         self.type = discord.ChannelType.text
+        self._manage_messages = manage_messages
+        self.guild = MagicMock()
+        self.guild.me = MagicMock()
+
+    def permissions_for(self, member):
+        """Return mock permissions for the given member."""
+        return MockPermissions(manage_messages=self._manage_messages)
 
     def typing(self):
         """Mock typing context manager."""
@@ -115,6 +129,10 @@ class MockMessage:
 
     async def reply(self, content=None, file=None):
         """Mock reply method."""
+        pass
+
+    async def edit(self, suppress=False):
+        """Mock edit method."""
         pass
 
 
