@@ -61,6 +61,39 @@ class VideoDownloader(commands.Cog):
         """Check if user is bot owner."""
         return await self.bot.is_owner(user)
 
+    def _can_manage_messages(self, channel: discord.TextChannel):
+        """Check if bot has manage_messages permission in the channel.
+
+        Parameters
+        ----------
+        channel : discord.TextChannel
+            The channel to check permissions for
+
+        Returns
+        -------
+        bool
+            True if bot has manage_messages permission, False otherwise
+        """
+        if isinstance(channel, discord.abc.PrivateChannel):
+            return False
+
+        permissions = channel.permissions_for(channel.guild.me)
+        return permissions.manage_messages
+
+    async def _remove_embed(self, message: discord.Message):
+        """Suppress embeds from a message if the bot has permission.
+
+        Parameters
+        ----------
+        message : discord.Message
+            The message to suppress embeds from
+        """
+        if self._can_manage_messages(message.channel):
+            try:
+                await message.edit(suppress=True)
+            except discord.HTTPException:
+                pass
+
     def _get_file_size_limit(self, guild: discord.Guild = None):
         """Get the file size limit based on guild boost level.
 
@@ -277,6 +310,7 @@ class VideoDownloader(commands.Cog):
                                 content=f"Downloaded from {platform.title()}:",
                                 file=discord.File(file_path)
                             )
+                            await self._remove_embed(message)
                         except discord.HTTPException:
                             # Suppress errors for automatic downloads
                             pass
@@ -293,6 +327,7 @@ class VideoDownloader(commands.Cog):
                                     f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
                                 )
                                 await message.reply(content=content_msg)
+                                await self._remove_embed(message)
                             except discord.HTTPException:
                                 pass
                         else:
