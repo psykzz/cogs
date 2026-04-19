@@ -111,7 +111,7 @@ class ServerStatus(commands.Cog):
 
         # Check if the channel is valid
         if not channel_id or channel_id == "0":
-            logging.warn(f"Skipping {guild}...")
+            logging.warning(f"Skipping {guild}...")
             return
 
         # If the channel doesn't exist, reset configuration and return
