@@ -125,6 +125,9 @@ class ServerStatus(commands.Cog):
         logger.info(f"Updating guild {guild}...")
         channel = await self.get_guild_monitor_channel(guild)
 
+        if not channel:
+            return
+
         guild_config = self.config.guild(guild)
         realm_name = await guild_config.default_realm()
         server_status = await self.get_server_status(realm_name)
@@ -217,6 +220,11 @@ class ServerStatus(commands.Cog):
         "Force an update of the monitor voice channel wth the current realm status"
 
         voice_channel = await self.get_guild_monitor_channel(ctx.guild)
+
+        if not voice_channel:
+            await ctx.send("❌ No monitor channel is configured. Use `/monitor <channel>` first.")
+            return
+
         bot_perms = voice_channel.permissions_for(ctx.me)
         if not bot_perms.manage_channels:
             await ctx.send(
