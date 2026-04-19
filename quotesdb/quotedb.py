@@ -16,6 +16,12 @@ default_guild = {
 
 
 class QuoteDB(commands.Cog):
+    """Store and retrieve user-generated quotes with triggers.
+
+    Users can add quotes with triggers and recall them later.
+    Each quote is assigned a unique ID for management.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(

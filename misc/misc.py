@@ -4,7 +4,7 @@ from redbot.core import commands
 
 
 class Misc(commands.Cog):
-    "Misc things for your server"
+    """Misc things for your server."""
 
     def __init__(self, bot):
         self.bot = bot

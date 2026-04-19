@@ -224,6 +224,20 @@ class CreatePartyModal(discord.ui.Modal):
         allow_multiple_text = self.allow_multiple_input.value
         scheduled_time_text = self.scheduled_time_input.value.strip()
 
+        # Validate title
+        if not title:
+            await interaction.followup.send(
+                "❌ Party name cannot be empty.",
+                ephemeral=True
+            )
+            return
+        if len(title) > 256:
+            await interaction.followup.send(
+                "❌ Party name must be 256 characters or less.",
+                ephemeral=True
+            )
+            return
+
         # Parse and validate allow_multiple setting
         allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
         if error:
@@ -525,9 +539,12 @@ class EditPartyFullModal(discord.ui.Modal):
                             except discord.HTTPException:
                                 # Other Discord API errors, skip silently
                                 pass
-                    except (ValueError, discord.NotFound):
-                        # Invalid user ID or user not found, skip
-                        pass
+                    except ValueError:
+                        log.warning(f"Invalid user ID format: {user_id_str}")
+                        continue
+                    except discord.NotFound:
+                        log.debug(f"User {user_id_str} not found, may have left Discord")
+                        continue
 
 
 class RoleSelectView(discord.ui.View):
@@ -687,6 +704,9 @@ class PartyView(discord.ui.View):
 
         # Delete the party
         async with self.cog.config.guild(interaction.guild).parties() as parties:
+            if self.party_id not in parties:
+                await interaction.followup.send("❌ Party not found.", ephemeral=True)
+                return
             del parties[self.party_id]
 
         # Try to delete the message
@@ -1049,6 +1069,10 @@ class Party(commands.Cog):
             party = parties[party_id]
             allow_multiple = party.get("allow_multiple_per_role", True)
 
+            # Ensure signups dictionary exists (defensive check)
+            if "signups" not in party:
+                party["signups"] = {}
+
             # Remove user from any existing role first
             for role_name, users in party["signups"].items():
                 if user_id in users:
@@ -1279,8 +1303,12 @@ class Party(commands.Cog):
             # Create and send the modal
             modal = CreatePartyModal(self)
 
-            # We need to create an interaction to send the modal
-            # Since we're in a text command context, we need to send a message first
+            # For slash commands, show the modal directly
+            if ctx.interaction:
+                await ctx.interaction.response.send_modal(modal)
+                return
+
+            # For text commands, we need to send a button first
             # that the user can interact with to trigger the modal
             view = discord.ui.View(timeout=300)  # 5 minute timeout
 
