@@ -1682,6 +1682,67 @@ class Party(commands.Cog):
                 f"✅ Scheduled time set for party `{party_id}`: <t:{ts}:F> (<t:{ts}:R>)"
             )
 
+    @party.command(name="compact")
+    async def party_compact(self, ctx, party_id: str, compact: bool):
+        """Set the compact display mode for a party.
+
+        Compact mode displays party fields inline (side-by-side).
+        Non-compact mode displays fields stacked vertically (default).
+
+        Only the party creator or server admins can change this setting.
+
+        Parameters
+        ----------
+        party_id : str
+            The ID of the party to update
+        compact : bool
+            True for compact (inline) display, False for stacked display
+
+        Examples:
+        - [p]party compact abc123 True
+        - [p]party compact abc123 False
+        """
+        parties = await self.config.guild(ctx.guild).parties()
+
+        if party_id not in parties:
+            await ctx.send("❌ Party not found.")
+            return
+
+        party = parties[party_id]
+
+        # Check permissions
+        is_author = party["author_id"] == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await ctx.send("❌ You don't have permission to modify this party.")
+            return
+
+        old_compact = party.get("compact", False)
+
+        # Update compact setting
+        async with self.config.guild(ctx.guild).parties() as parties:
+            parties[party_id]["compact"] = compact
+
+        # Update the message
+        await self.update_party_message(ctx.guild.id, party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) compact mode updated.\n"
+            f"Old: {'Compact' if old_compact else 'Not compact'}\n"
+            f"New: {'Compact' if compact else 'Not compact'}"
+        )
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_edit",
+            ctx.author,
+            reason
+        )
+
+        mode_text = "compact (inline)" if compact else "non-compact (stacked)"
+        await ctx.send(f"✅ Party `{party_id}` display mode set to **{mode_text}**.")
+
     @party.command(name="rename-option")
     async def party_rename_option(self, ctx, party_id: str, old_option: str, *, new_option: str):
         """Rename an option/role in a party.
