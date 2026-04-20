@@ -805,7 +805,7 @@ class Party(commands.Cog):
             return True
         if v in ("no", "false", "n", "0"):
             return False
-        return None  # empty / unrecognised
+        return None  # empty / unrecognized
 
     @staticmethod
     def parse_settings_text(
@@ -817,7 +817,7 @@ class Party(commands.Cog):
 
         Accepts one ``key=value`` or ``key: value`` pair per line.
         Supported keys: ``allow_multiple``, ``compact``.
-        Unrecognised keys are ignored.  Missing keys fall back to the
+        Unrecognized keys are ignored.  Missing keys fall back to the
         supplied defaults so that existing parties are not affected.
 
         Args:
@@ -833,7 +833,7 @@ class Party(commands.Cog):
         compact = default_compact
 
         valid_keys = {"allow_multiple", "compact"}
-        valid_values = {"yes", "no", "true", "false", "y", "n", "1", "0", ""}
+        valid_values = {"yes", "no", "true", "false", "y", "n", "1", "0"}
 
         for line in settings_text.splitlines():
             line = line.strip()
