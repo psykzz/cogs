@@ -194,15 +194,16 @@ class CreatePartyModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Allow multiple signups per role
-        self.allow_multiple_input = discord.ui.TextInput(
-            label="Allow Multiple Per Role? (yes/no)",
-            placeholder="yes",
+        # Combined settings field (allow_multiple + compact)
+        self.settings_input = discord.ui.TextInput(
+            label="Settings (Optional)",
+            placeholder="allow_multiple=yes\ncompact=no",
             required=False,
-            max_length=3,
-            default="yes",
+            style=discord.TextStyle.paragraph,
+            max_length=100,
+            default="allow_multiple=yes\ncompact=no",
         )
-        self.add_item(self.allow_multiple_input)
+        self.add_item(self.settings_input)
 
         # Scheduled date & time
         self.scheduled_time_input = discord.ui.TextInput(
@@ -221,7 +222,7 @@ class CreatePartyModal(discord.ui.Modal):
         title = self.title_input.value.strip()
         description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value
+        settings_text = self.settings_input.value
         scheduled_time_text = self.scheduled_time_input.value.strip()
 
         # Validate title
@@ -238,8 +239,8 @@ class CreatePartyModal(discord.ui.Modal):
             )
             return
 
-        # Parse and validate allow_multiple setting
-        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        # Parse and validate settings (allow_multiple + compact)
+        allow_multiple, compact, error = Party.parse_settings_text(settings_text)
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -275,7 +276,7 @@ class CreatePartyModal(discord.ui.Modal):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": scheduled_time,
-            "compact": False,  # Default to not compact (inline=False)
+            "compact": compact,  # Use compact from settings field
         }
 
         # Initialize signups for each predefined role
@@ -357,16 +358,19 @@ class EditPartyFullModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Allow multiple signups per role
-        allow_multiple_default = "yes" if party.get("allow_multiple_per_role", True) else "no"
-        self.allow_multiple_input = discord.ui.TextInput(
-            label="Allow Multiple Per Role? (yes/no)",
-            placeholder="yes or no",
-            default=allow_multiple_default,
+        # Combined settings field (allow_multiple + compact)
+        allow_multiple_val = "yes" if party.get("allow_multiple_per_role", True) else "no"
+        compact_val = "yes" if party.get("compact", False) else "no"
+        settings_default = f"allow_multiple={allow_multiple_val}\ncompact={compact_val}"
+        self.settings_input = discord.ui.TextInput(
+            label="Settings (Optional)",
+            placeholder="allow_multiple=yes\ncompact=no",
+            default=settings_default,
             required=False,
-            max_length=3,
+            style=discord.TextStyle.paragraph,
+            max_length=100,
         )
-        self.add_item(self.allow_multiple_input)
+        self.add_item(self.settings_input)
 
         # Scheduled date & time
         scheduled_ts = party.get("scheduled_time")
@@ -394,11 +398,21 @@ class EditPartyFullModal(discord.ui.Modal):
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value
+        settings_text = self.settings_input.value
         scheduled_time_text = self.scheduled_time_input.value.strip()
 
-        # Parse and validate allow_multiple setting
-        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        # Read current values as defaults so omitted keys leave the party unchanged
+        async with self.cog.config.guild(interaction.guild).parties() as _parties:
+            _current = _parties.get(self.party_id, {})
+            _default_allow_multiple = _current.get("allow_multiple_per_role", True)
+            _default_compact = _current.get("compact", False)
+
+        # Parse and validate settings (allow_multiple + compact)
+        allow_multiple, compact, error = Party.parse_settings_text(
+            settings_text,
+            default_allow_multiple=_default_allow_multiple,
+            default_compact=_default_compact,
+        )
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -428,12 +442,14 @@ class EditPartyFullModal(discord.ui.Modal):
             old_description = parties[self.party_id].get('description')
             old_roles = parties[self.party_id].get('roles', [])
             old_allow_multiple = parties[self.party_id].get('allow_multiple_per_role', True)
+            old_compact = parties[self.party_id].get('compact', False)
             old_scheduled_time = parties[self.party_id].get('scheduled_time')
 
             parties[self.party_id]['name'] = new_title
             parties[self.party_id]['description'] = new_description
             parties[self.party_id]['roles'] = unique_roles
             parties[self.party_id]['allow_multiple_per_role'] = allow_multiple
+            parties[self.party_id]['compact'] = compact
             parties[self.party_id]['scheduled_time'] = scheduled_time
 
             # Handle role changes: preserve signups for roles that still exist
@@ -488,6 +504,8 @@ class EditPartyFullModal(discord.ui.Modal):
                 changes.append(f"Removed roles affected {total_notified} user(s), DMs will be sent")
         if old_allow_multiple != allow_multiple:
             changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
+        if old_compact != compact:
+            changes.append(f"Compact: {old_compact} → {compact}")
         if old_scheduled_time != scheduled_time:
             def _fmt_ts(ts):
                 if ts is None:
@@ -778,6 +796,80 @@ class Party(commands.Cog):
             return False, "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'."
 
         return allow_multiple, None
+
+    @staticmethod
+    def _parse_bool_value(value: str) -> Optional[bool]:
+        """Parse a yes/no/true/false string to bool, or None if empty."""
+        v = value.strip().lower()
+        if v in ("yes", "true", "y", "1"):
+            return True
+        if v in ("no", "false", "n", "0"):
+            return False
+        return None  # empty / unrecognised
+
+    @staticmethod
+    def parse_settings_text(
+        settings_text: str,
+        default_allow_multiple: bool = True,
+        default_compact: bool = False,
+    ) -> tuple[bool, bool, Optional[str]]:
+        """Parse the combined settings field (allow_multiple + compact).
+
+        Accepts one ``key=value`` or ``key: value`` pair per line.
+        Supported keys: ``allow_multiple``, ``compact``.
+        Unrecognised keys are ignored.  Missing keys fall back to the
+        supplied defaults so that existing parties are not affected.
+
+        Args:
+            settings_text: Raw text from the settings TextInput.
+            default_allow_multiple: Value to use when key is absent.
+            default_compact: Value to use when key is absent.
+
+        Returns:
+            Tuple of (allow_multiple, compact, error_message).
+            error_message is None when the input is valid.
+        """
+        allow_multiple = default_allow_multiple
+        compact = default_compact
+
+        valid_keys = {"allow_multiple", "compact"}
+        valid_values = {"yes", "no", "true", "false", "y", "n", "1", "0", ""}
+
+        for line in settings_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # Support both "key=value" and "key: value"
+            if "=" in line:
+                key, _, raw_val = line.partition("=")
+            elif ":" in line:
+                key, _, raw_val = line.partition(":")
+            else:
+                return allow_multiple, compact, (
+                    f"❌ Invalid settings format in '{line}'. "
+                    "Use 'allow_multiple=yes' or 'compact=no'."
+                )
+
+            key = key.strip().lower()
+            raw_val = raw_val.strip().lower()
+
+            if key not in valid_keys:
+                return allow_multiple, compact, (
+                    f"❌ Unknown setting '{key}'. "
+                    "Supported settings: allow_multiple, compact."
+                )
+            if raw_val not in valid_values:
+                return allow_multiple, compact, (
+                    f"❌ Invalid value '{raw_val}' for '{key}'. Use 'yes' or 'no'."
+                )
+
+            parsed = Party._parse_bool_value(raw_val)
+            if key == "allow_multiple":
+                allow_multiple = parsed if parsed is not None else default_allow_multiple
+            elif key == "compact":
+                compact = parsed if parsed is not None else default_compact
+
+        return allow_multiple, compact, None
 
     @staticmethod
     def parse_roles_from_text(roles_text: str) -> list[str]:
