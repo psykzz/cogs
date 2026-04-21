@@ -1262,7 +1262,7 @@ class Party(commands.Cog):
     async def party(self, ctx):
         """Party management commands."""
 
-    @party.command(name="create")
+    @party.hybrid_command(name="create")
     async def party_create(
         self,
         ctx,
@@ -1424,7 +1424,7 @@ class Party(commands.Cog):
             # Bot doesn't have permission to delete messages
             pass
 
-    @party.command(name="delete")
+    @party.hybrid_command(name="delete")
     async def party_delete(self, ctx, *, party_identifier: str):
         """Delete a party by ID or title.
 
@@ -1500,7 +1500,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Party `{party_id}` ({party['name']}) deleted.")
 
-    @party.command(name="list")
+    @party.hybrid_command(name="list")
     async def party_list(self, ctx):
         """List all active parties in this server.
 
@@ -1554,7 +1554,7 @@ class Party(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @party.command(name="config")
+    @party.hybrid_command(name="config")
     @checks.admin_or_permissions(manage_guild=True)
     async def party_config(self, ctx, setting: str, value: str):
         """Configure party settings for this server.
@@ -1578,7 +1578,7 @@ class Party(commands.Cog):
         else:
             await ctx.send(f"❌ Unknown setting: `{setting}`")
 
-    @party.command(name="description")
+    @party.hybrid_command(name="description")
     async def party_description(self, ctx, party_id: str, *, description: str):
         """Set the description for a party.
 
@@ -1624,7 +1624,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Description updated for party `{party_id}`.")
 
-    @party.command(name="settime")
+    @party.hybrid_command(name="settime")
     async def party_settime(self, ctx, party_id: str, *, scheduled_time: str):
         """Set or clear the scheduled date and time for a party (UTC).
 
@@ -1702,7 +1702,7 @@ class Party(commands.Cog):
                 f"✅ Scheduled time set for party `{party_id}`: <t:{ts}:F> (<t:{ts}:R>)"
             )
 
-    @party.command(name="rename-option")
+    @party.hybrid_command(name="rename-option")
     async def party_rename_option(self, ctx, party_id: str, old_option: str, *, new_option: str):
         """Rename an option/role in a party.
 
@@ -1779,7 +1779,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Renamed role `{old_option}` to `{new_option}` in party `{party_id}`.")
 
-    @party.group(name="template")
+    @party.hybrid_group(name="template")
     @commands.guild_only()
     async def party_template(self, ctx):
         """Manage party templates.
@@ -1788,7 +1788,7 @@ class Party(commands.Cog):
         Bot owner can create global templates available across all guilds.
         """
 
-    @party_template.command(name="create")
+    @party_template.hybrid_command(name="create")
     @checks.admin_or_permissions(manage_guild=True)
     async def party_template_create(self, ctx, name: str, *, roles: str):
         """Create a guild-specific party template with predefined roles.
@@ -1820,7 +1820,7 @@ class Party(commands.Cog):
             f"✅ Guild template `{name}` created with {len(roles_list)} role(s): {', '.join(roles_list)}"
         )
 
-    @party_template.command(name="global-create")
+    @party_template.hybrid_command(name="global-create")
     @checks.is_owner()
     async def party_template_global_create(self, ctx, name: str, *, roles: str):
         """Create a global party template accessible across all guilds (bot owner only).
@@ -1852,7 +1852,7 @@ class Party(commands.Cog):
             f"✅ Global template `{name}` created with {len(roles_list)} role(s): {', '.join(roles_list)}"
         )
 
-    @party_template.command(name="delete")
+    @party_template.hybrid_command(name="delete")
     @checks.admin_or_permissions(manage_guild=True)
     async def party_template_delete(self, ctx, *, name: str):
         """Delete a guild-specific party template.
@@ -1870,7 +1870,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Guild template `{name}` deleted.")
 
-    @party_template.command(name="global-delete")
+    @party_template.hybrid_command(name="global-delete")
     @checks.is_owner()
     async def party_template_global_delete(self, ctx, *, name: str):
         """Delete a global party template (bot owner only).
@@ -1886,7 +1886,7 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Global template `{name}` deleted.")
 
-    @party_template.command(name="list")
+    @party_template.hybrid_command(name="list")
     async def party_template_list(self, ctx):
         """List all available party templates (global and guild-specific).
 
@@ -1919,7 +1919,7 @@ class Party(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @party_template.command(name="use")
+    @party_template.hybrid_command(name="use")
     async def party_template_use(self, ctx, template_name: str, *, title: str):
         """Create a party from a template with a custom title.
 
