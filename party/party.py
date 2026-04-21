@@ -1260,7 +1260,13 @@ class Party(commands.Cog):
     @commands.hybrid_group()
     @commands.guild_only()
     async def party(self, ctx):
-        """Party management commands."""
+        """Party management commands.
+
+        Create and manage party signups with role-based composition.
+        Users can sign up for parties using interactive buttons and select their roles.
+
+        Use subcommands to create, list, delete, and configure parties.
+        """
 
     @party.command(name="create")
     async def party_create(
@@ -1784,8 +1790,11 @@ class Party(commands.Cog):
     async def party_template(self, ctx):
         """Manage party templates.
 
+        Templates allow you to save role configurations for quick party creation.
         Guild admins can create guild-specific templates.
         Bot owner can create global templates available across all guilds.
+
+        Use subcommands to create, list, delete, and use templates.
         """
 
     @party_template.command(name="create")
