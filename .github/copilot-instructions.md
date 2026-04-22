@@ -630,7 +630,7 @@ Remember: Accurate documentation prevents confusion and reduces errors in future
 ├── .github/workflows/lint.yml    # CI configuration
 ├── .gitignore                    # Standard Python gitignore
 ├── README.md                     # Basic installation instructions
-├── LICENSE                       # MIT license
+├── LICENSE                       # AGPL-3.0 license
 └── [cog_directories]/            # Individual cog implementations
 ```
 
