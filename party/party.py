@@ -1414,15 +1414,12 @@ class Party(commands.Cog):
 
         await ctx.send(f"✅ Party created! ID: `{party_id}`", delete_after=10)
 
-        # Delete the original command message
-        try:
-            await ctx.message.delete()
-        except discord.NotFound:
-            # Message already deleted
-            pass
-        except discord.Forbidden:
-            # Bot doesn't have permission to delete messages
-            pass
+        # Delete the original command message (not applicable for slash commands)
+        if not ctx.interaction:
+            try:
+                await ctx.message.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
 
     @party.command(name="delete")
     async def party_delete(self, ctx, *, party_identifier: str):
@@ -2011,8 +2008,9 @@ class Party(commands.Cog):
             delete_after=10
         )
 
-        # Delete the original command message
-        try:
-            await ctx.message.delete()
-        except (discord.NotFound, discord.Forbidden):
-            pass
+        # Delete the original command message (not applicable for slash commands)
+        if not ctx.interaction:
+            try:
+                await ctx.message.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
