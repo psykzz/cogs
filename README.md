@@ -34,6 +34,30 @@ Load the cog:
 
 ## Available Cogs
 
+### Access
+
+Manage channel access and permissions for roles or members with a confirmation dialog.
+
+**Installation:**
+```
+[p]cog install psykzz-cogs access
+[p]load access
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]access give <@role_or_user> [#channel]` | Grant view/send/read-history access to a role or member (Mod) |
+| `[p]access remove <@role_or_user> [#channel]` | Deny view/send/read-history access for a role or member (Mod) |
+
+**Features:**
+- Adapts permission changes based on `@everyone` channel overrides
+- Requires confirmation via reaction before applying changes
+- Targets current channel if no channel is specified
+
+---
+
 ### Activity Stats
 
 Track Discord activity and game statistics for all members.
@@ -427,6 +451,24 @@ Create and manage party signups with role-based compositions using interactive D
 
 ---
 
+### Psymin
+
+Bot owner administration commands for inspecting bot permissions across all servers.
+
+**Installation:**
+```
+[p]cog install psykzz-cogs psymin
+[p]load psymin
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]psymin permissions` | List the bot's effective permissions in every server it belongs to (Bot Owner) |
+
+---
+
 ### QuotesDB
 
 Store and retrieve user-generated quotes with triggers.
@@ -554,6 +596,41 @@ Manage bot user settings (nickname and avatar).
 |---------|-------------|
 | `[p]user nick [nickname]` | Change the bot's nickname in this guild (reset if no nickname provided) |
 | `[p]user avatar` | Change the bot's avatar using an attached image |
+
+---
+
+### Video DL
+
+Automatically download and re-share videos from YouTube, TikTok, and Instagram posted in configured channels.
+
+**Requirements:** `yt-dlp>=2023.1.1`, `catboxpy>=0.0.5`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs video_dl
+[p]load video_dl
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `[p]download <url>` | Manually download and send a video from a URL |
+| `[p]videodl enable` | Enable automatic video downloads server-wide (Bot Owner) |
+| `[p]videodl disable` | Disable automatic video downloads server-wide (Bot Owner) |
+| `[p]videodl channelenable [#channel]` | Enable auto-downloads in a channel (Admin) |
+| `[p]videodl channeldisable [#channel]` | Disable auto-downloads in a channel (Admin) |
+| `[p]videodl userenable @user` | Re-enable auto-downloads for a specific user (Admin) |
+| `[p]videodl userdisable @user` | Disable auto-downloads for a specific user (Admin) |
+| `[p]videodl status` | Show current configuration for this server (Admin) |
+| `[p]videodl setcatbox [userhash]` | Set the catbox.moe userhash for large-file uploads (Admin) |
+| `[p]videodl setemoji [emoji]` | Set the reaction emoji used when a file is too large (Admin) |
+
+**Features:**
+- Supports YouTube, TikTok, and Instagram links (including Shorts and Reels)
+- Automatically suppresses the original URL embed after downloading
+- Falls back to catbox.moe for files that exceed Discord's size limit
+- Per-channel and per-user enable/disable controls
 
 ---
 
