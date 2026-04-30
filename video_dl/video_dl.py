@@ -27,6 +27,9 @@ class VideoDownloader(commands.Cog):
     # Catbox.moe size limit (200MB)
     CATBOX_SIZE_LIMIT = 200 * 1024 * 1024
 
+    # Maximum file size to attempt downloading (500MB)
+    MAX_DOWNLOAD_SIZE = 500 * 1024 * 1024
+
     # URL patterns for supported platforms
     URL_PATTERNS = {
         'youtube': re.compile(
@@ -233,6 +236,25 @@ class VideoDownloader(commands.Cog):
             ydl_opts['format_sort'] = ['proto', 'ext:mp4:m4a', 'res', 'br']
 
         try:
+            # Pre-check file size before downloading
+            probe_opts = {'quiet': True, 'no_warnings': True}
+            try:
+                with yt_dlp.YoutubeDL(probe_opts) as ydl:
+                    probe_info = ydl.extract_info(url, download=False)
+                    file_size_estimate = (
+                        probe_info.get('filesize')
+                        or probe_info.get('filesize_approx')
+                    )
+                    if file_size_estimate is not None and file_size_estimate > self.MAX_DOWNLOAD_SIZE:
+                        size_mb = file_size_estimate / 1024 / 1024
+                        max_mb = self.MAX_DOWNLOAD_SIZE / 1024 / 1024
+                        return False, None, (
+                            f"Video is too large ({size_mb:.1f}MB). "
+                            f"Maximum allowed size is {max_mb:.0f}MB."
+                        )
+            except Exception as e:
+                log.warning(f"Could not probe video size for {url}: {e}")
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
 
