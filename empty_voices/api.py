@@ -79,24 +79,18 @@ class EmptyVoices(commands.Cog):
                 return
 
             log.debug(f"I should delete {channel.mention}, it's empty...")
+            await channel.delete(reason="Removing empty temp channel")
+            # Only remove from tracking after a successful deletion
             temp_channels.remove(channel.id)
             await guild_group.emptyvoices.temp_channels.set(temp_channels)
-            await channel.delete(reason="Removing empty temp channel")
         except discord.Forbidden:
             log.error(f"Missing permissions to delete channel {channel.name} in guild {guild.name}")
         except discord.NotFound:
+            # Channel was already deleted externally; clean up config now
             log.warning(f"Channel {channel.name} was already deleted")
-            # Remove from temp_channels if it was there
-            try:
-                guild_group = self.config.guild(guild)
-                temp_channels = await guild_group.emptyvoices.temp_channels()
-                if channel.id in temp_channels:
-                    temp_channels.remove(channel.id)
-                    await guild_group.emptyvoices.temp_channels.set(temp_channels)
-            except (KeyError, ValueError) as e:
-                log.error(f"Configuration error cleaning up deleted channel: {e}", exc_info=True)
-            except Exception as e:
-                log.exception(f"Unexpected error cleaning up deleted channel from config: {e}")
+            if channel.id in temp_channels:
+                temp_channels.remove(channel.id)
+                await guild_group.emptyvoices.temp_channels.set(temp_channels)
         except discord.HTTPException as e:
             log.error(f"HTTP error deleting channel {channel.name}: {e}", exc_info=True)
         except Exception as e:
