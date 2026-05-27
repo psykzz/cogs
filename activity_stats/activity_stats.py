@@ -104,10 +104,9 @@ class ActivityStats(commands.Cog):
                         del last_activity_update[user_id_str]
 
     @commands.guild_only()
-    @commands.hybrid_group(name="activity", invoke_without_command=True)
+    @commands.hybrid_group(name="activity")
     async def activity_group(self, ctx):
         """Activity tracking commands"""
-        await ctx.send_help()
 
     @activity_group.command(name="topgames")
     async def top_games(self, ctx, limit: int = 10):
@@ -290,11 +289,10 @@ class ActivityStats(commands.Cog):
 
         await ctx.send(embed=embed, ephemeral=True)
 
-    @activity_group.group(name="set", invoke_without_command=True)
+    @activity_group.group(name="set")
     @commands.has_permissions(manage_guild=True)
     async def set_config(self, ctx):
         """Configure activity tracking settings"""
-        await ctx.send_help()
 
     @set_config.command(name="enabled")
     @commands.has_permissions(manage_guild=True)

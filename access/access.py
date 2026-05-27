@@ -15,10 +15,9 @@ class Access(commands.Cog):
 
     @commands.guild_only()
     @checks.mod_or_permissions(manage_roles=True)
-    @commands.hybrid_group(name="access", invoke_without_command=True)
+    @commands.hybrid_group(name="access")
     async def access(self, ctx):
         """Manage channel access permissions for roles and members"""
-        await ctx.send_help(ctx.command)
 
     @access.command(name="give")
     async def access_give(

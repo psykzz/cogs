@@ -14,11 +14,10 @@ class Psymin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.hybrid_group(name="psymin", invoke_without_command=True)
+    @commands.hybrid_group(name="psymin")
     @commands.is_owner()
     async def psymin(self, ctx):
         """Bot owner administration commands"""
-        await ctx.send_help(ctx.command)
 
     @psymin.command(name="permissions")
     async def permissions(self, ctx):

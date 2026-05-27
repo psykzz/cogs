@@ -600,11 +600,10 @@ class AlbionBandits(commands.Cog):
 
         log.info(f"Recorded NATS bandit call for guild {guild.name}")
 
-    @commands.hybrid_group(invoke_without_command=True)
+    @commands.hybrid_group()
     @commands.guild_only()
     async def bandits(self, ctx):
         """Manage bandit tracking"""
-        await ctx.send_help()
 
     @bandits.command(name="next")
     async def bandits_next(self, ctx):

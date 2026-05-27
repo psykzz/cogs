@@ -48,17 +48,17 @@ class MovieVote(commands.Cog):
         log.debug("Checking %s episodes against '%s'", len(all_data), imdb_id)
         return next((x for x in all_data if x.get('imdb_id', '') == f"tt{imdb_id}"), None)
 
-    @commands.hybrid_group(autohelp=False)
+    @commands.hybrid_group()
     @commands.guild_only()
     @checks.admin_or_permissions(manage_guild=True)
     async def movie(self, ctx):
         """Movie cog settings"""
 
-        if ctx.invoked_subcommand is not None:
-            return
-
-        await ctx.send_help()
-
+    @movie.command(name="status")
+    @commands.guild_only()
+    @checks.admin_or_permissions(manage_guild=True)
+    async def _movievote_status(self, ctx):
+        """Show active channels and emoji configuration"""
         guild_data = await self.config.guild(ctx.guild).all()
         bad_channels = []
         msg = "Active Channels:\n"

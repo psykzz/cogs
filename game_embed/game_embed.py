@@ -226,11 +226,9 @@ class GameEmbed(commands.Cog):
             logger.exception(f"Error updating embed: {e}")
 
     @commands.guild_only()
-    @commands.hybrid_group(name="gameserver", invoke_without_command=True)
+    @commands.hybrid_group(name="gameserver")
     async def gameserver_group(self, ctx):
-        await ctx.defer()
         """Game server monitoring commands."""
-        await ctx.send_help()
 
     @gameserver_group.command(name="add")
     @commands.admin_or_permissions(manage_guild=True)
