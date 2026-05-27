@@ -13,9 +13,6 @@ IDENTIFIER = 2847102938475019
 # Discord embed field character limit
 EMBED_FIELD_MAX_LENGTH = 1024
 
-# Whether embed fields should be displayed inline
-EMBED_FIELD_INLINE = False
-
 
 class RoleSelectionModal(discord.ui.Modal):
     """Modal for selecting a role when signing up for a party (for freeform entry)."""
@@ -197,15 +194,16 @@ class CreatePartyModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Allow multiple signups per role
-        self.allow_multiple_input = discord.ui.TextInput(
-            label="Allow Multiple Per Role? (yes/no)",
-            placeholder="yes",
+        # Combined settings field (allow_multiple + compact)
+        self.settings_input = discord.ui.TextInput(
+            label="Settings (Optional)",
+            placeholder="allow_multiple=yes\ncompact=no",
             required=False,
-            max_length=3,
-            default="yes",
+            style=discord.TextStyle.paragraph,
+            max_length=100,
+            default="allow_multiple=yes\ncompact=no",
         )
-        self.add_item(self.allow_multiple_input)
+        self.add_item(self.settings_input)
 
         # Scheduled date & time
         self.scheduled_time_input = discord.ui.TextInput(
@@ -224,7 +222,7 @@ class CreatePartyModal(discord.ui.Modal):
         title = self.title_input.value.strip()
         description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value
+        settings_text = self.settings_input.value
         scheduled_time_text = self.scheduled_time_input.value.strip()
 
         # Validate title
@@ -241,8 +239,8 @@ class CreatePartyModal(discord.ui.Modal):
             )
             return
 
-        # Parse and validate allow_multiple setting
-        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        # Parse and validate settings (allow_multiple + compact)
+        allow_multiple, compact, error = Party.parse_settings_text(settings_text)
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -278,6 +276,7 @@ class CreatePartyModal(discord.ui.Modal):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": scheduled_time,
+            "compact": compact,  # Use compact from settings field
         }
 
         # Initialize signups for each predefined role
@@ -359,16 +358,19 @@ class EditPartyFullModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Allow multiple signups per role
-        allow_multiple_default = "yes" if party.get("allow_multiple_per_role", True) else "no"
-        self.allow_multiple_input = discord.ui.TextInput(
-            label="Allow Multiple Per Role? (yes/no)",
-            placeholder="yes or no",
-            default=allow_multiple_default,
+        # Combined settings field (allow_multiple + compact)
+        allow_multiple_val = "yes" if party.get("allow_multiple_per_role", True) else "no"
+        compact_val = "yes" if party.get("compact", False) else "no"
+        settings_default = f"allow_multiple={allow_multiple_val}\ncompact={compact_val}"
+        self.settings_input = discord.ui.TextInput(
+            label="Settings (Optional)",
+            placeholder="allow_multiple=yes\ncompact=no",
+            default=settings_default,
             required=False,
-            max_length=3,
+            style=discord.TextStyle.paragraph,
+            max_length=100,
         )
-        self.add_item(self.allow_multiple_input)
+        self.add_item(self.settings_input)
 
         # Scheduled date & time
         scheduled_ts = party.get("scheduled_time")
@@ -396,11 +398,21 @@ class EditPartyFullModal(discord.ui.Modal):
         new_title = self.title_input.value.strip()
         new_description = self.description_input.value.strip() or None
         roles_text = self.roles_input.value.strip()
-        allow_multiple_text = self.allow_multiple_input.value
+        settings_text = self.settings_input.value
         scheduled_time_text = self.scheduled_time_input.value.strip()
 
-        # Parse and validate allow_multiple setting
-        allow_multiple, error = Party.parse_allow_multiple(allow_multiple_text)
+        # Read current values as defaults so omitted keys leave the party unchanged
+        async with self.cog.config.guild(interaction.guild).parties() as _parties:
+            _current = _parties.get(self.party_id, {})
+            _default_allow_multiple = _current.get("allow_multiple_per_role", True)
+            _default_compact = _current.get("compact", False)
+
+        # Parse and validate settings (allow_multiple + compact)
+        allow_multiple, compact, error = Party.parse_settings_text(
+            settings_text,
+            default_allow_multiple=_default_allow_multiple,
+            default_compact=_default_compact,
+        )
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -430,12 +442,14 @@ class EditPartyFullModal(discord.ui.Modal):
             old_description = parties[self.party_id].get('description')
             old_roles = parties[self.party_id].get('roles', [])
             old_allow_multiple = parties[self.party_id].get('allow_multiple_per_role', True)
+            old_compact = parties[self.party_id].get('compact', False)
             old_scheduled_time = parties[self.party_id].get('scheduled_time')
 
             parties[self.party_id]['name'] = new_title
             parties[self.party_id]['description'] = new_description
             parties[self.party_id]['roles'] = unique_roles
             parties[self.party_id]['allow_multiple_per_role'] = allow_multiple
+            parties[self.party_id]['compact'] = compact
             parties[self.party_id]['scheduled_time'] = scheduled_time
 
             # Handle role changes: preserve signups for roles that still exist
@@ -490,6 +504,8 @@ class EditPartyFullModal(discord.ui.Modal):
                 changes.append(f"Removed roles affected {total_notified} user(s), DMs will be sent")
         if old_allow_multiple != allow_multiple:
             changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
+        if old_compact != compact:
+            changes.append(f"Compact: {old_compact} → {compact}")
         if old_scheduled_time != scheduled_time:
             def _fmt_ts(ts):
                 if ts is None:
@@ -780,6 +796,80 @@ class Party(commands.Cog):
             return False, "❌ Invalid value for 'Allow Multiple Per Role'. Use 'yes' or 'no'."
 
         return allow_multiple, None
+
+    @staticmethod
+    def _parse_bool_value(value: str) -> Optional[bool]:
+        """Parse a yes/no/true/false string to bool, or None if empty."""
+        v = value.strip().lower()
+        if v in ("yes", "true", "y", "1"):
+            return True
+        if v in ("no", "false", "n", "0"):
+            return False
+        return None  # empty / unrecognized
+
+    @staticmethod
+    def parse_settings_text(
+        settings_text: str,
+        default_allow_multiple: bool = True,
+        default_compact: bool = False,
+    ) -> tuple[bool, bool, Optional[str]]:
+        """Parse the combined settings field (allow_multiple + compact).
+
+        Accepts one ``key=value`` or ``key: value`` pair per line.
+        Supported keys: ``allow_multiple``, ``compact``.
+        Unrecognized keys are ignored.  Missing keys fall back to the
+        supplied defaults so that existing parties are not affected.
+
+        Args:
+            settings_text: Raw text from the settings TextInput.
+            default_allow_multiple: Value to use when key is absent.
+            default_compact: Value to use when key is absent.
+
+        Returns:
+            Tuple of (allow_multiple, compact, error_message).
+            error_message is None when the input is valid.
+        """
+        allow_multiple = default_allow_multiple
+        compact = default_compact
+
+        valid_keys = {"allow_multiple", "compact"}
+        valid_values = {"yes", "no", "true", "false", "y", "n", "1", "0"}
+
+        for line in settings_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # Support both "key=value" and "key: value"
+            if "=" in line:
+                key, _, raw_val = line.partition("=")
+            elif ":" in line:
+                key, _, raw_val = line.partition(":")
+            else:
+                return allow_multiple, compact, (
+                    f"❌ Invalid settings format in '{line}'. "
+                    "Use 'allow_multiple=yes' or 'compact=no'."
+                )
+
+            key = key.strip().lower()
+            raw_val = raw_val.strip().lower()
+
+            if key not in valid_keys:
+                return allow_multiple, compact, (
+                    f"❌ Unknown setting '{key}'. "
+                    "Supported settings: allow_multiple, compact."
+                )
+            if raw_val not in valid_values:
+                return allow_multiple, compact, (
+                    f"❌ Invalid value '{raw_val}' for '{key}'. Use 'yes' or 'no'."
+                )
+
+            parsed = Party._parse_bool_value(raw_val)
+            if key == "allow_multiple":
+                allow_multiple = parsed if parsed is not None else default_allow_multiple
+            elif key == "compact":
+                compact = parsed if parsed is not None else default_compact
+
+        return allow_multiple, compact, None
 
     @staticmethod
     def parse_roles_from_text(roles_text: str) -> list[str]:
@@ -1204,6 +1294,9 @@ class Party(commands.Cog):
             color=discord.Color.blue()
         )
 
+        # Get the compact setting (inline fields) - default to False (not compact)
+        compact = party.get("compact", False)
+
         # Show scheduled time if set
         scheduled_time = party.get("scheduled_time")
         if scheduled_time:
@@ -1212,7 +1305,7 @@ class Party(commands.Cog):
                 embed.add_field(
                     name="📅 Scheduled Time",
                     value=f"<t:{ts}:F>\n(<t:{ts}:R>)",
-                    inline=EMBED_FIELD_INLINE
+                    inline=compact
                 )
             except (ValueError, OSError):
                 pass
@@ -1233,7 +1326,7 @@ class Party(commands.Cog):
             else:
                 value = "-"
 
-            embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
+            embed.add_field(name=role, value=value, inline=compact)
 
         # Add roles that have signups but aren't in the predefined list (freeform roles)
         for role, users in signups.items():
@@ -1243,11 +1336,11 @@ class Party(commands.Cog):
                     value = ', '.join(user_mentions)
                     if len(value) > EMBED_FIELD_MAX_LENGTH:
                         value = value[:EMBED_FIELD_MAX_LENGTH-3] + "..."
-                    embed.add_field(name=role, value=value, inline=EMBED_FIELD_INLINE)
+                    embed.add_field(name=role, value=value, inline=compact)
 
         # If no roles defined and no signups, show a message
         if not roles and not any(users for users in signups.values()):
-            embed.add_field(name="Signups", value="-", inline=EMBED_FIELD_INLINE)
+            embed.add_field(name="Signups", value="-", inline=compact)
 
         # Get owner name for footer
         owner_name = await self._get_user_display_name(party['author_id'], guild)
@@ -1267,7 +1360,8 @@ class Party(commands.Cog):
         self,
         ctx,
         name: Optional[str] = None,
-        roles: Optional[str] = None
+        roles: Optional[str] = None,
+        compact: Optional[bool] = False
     ):
         """Create a new party with predefined roles.
 
@@ -1284,6 +1378,8 @@ class Party(commands.Cog):
             The name of the party
         roles : Optional[str]
             Space or comma-separated list of roles (e.g., "Tank Healer DPS" or "Tank, Healer, DPS")
+        compact : Optional[bool]
+            Display party in compact mode (inline fields). Default is False (not compact).
 
         Examples:
         - [p]party create  (opens interactive modal)
@@ -1292,6 +1388,7 @@ class Party(commands.Cog):
         - [p]party create "Game Night" "Player1 Player2 Player3 Player4"
         - [p]party create "PvP Team" "Warrior, Mage, Archer"
         - [p]party create "Siege" "Siege Crossbow, Energy Shaper, GA"
+        - [p]party create "Compact Party" "Tank Healer DPS" True
         """
         # If no arguments provided, show the modal
         if name is None:
@@ -1380,6 +1477,7 @@ class Party(commands.Cog):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": None,
+            "compact": compact,  # Use the compact parameter from command
         }
 
         # Initialize signups for each predefined role
@@ -1550,7 +1648,9 @@ class Party(commands.Cog):
                 f"{time_text}"
                 f"{link_text}"
             )
-            embed.add_field(name=party["name"], value=value, inline=EMBED_FIELD_INLINE)
+            # Use party's compact setting, default to False
+            compact = party.get("compact", False)
+            embed.add_field(name=party["name"], value=value, inline=compact)
 
         await ctx.send(embed=embed)
 
@@ -1701,6 +1801,67 @@ class Party(commands.Cog):
             await ctx.send(
                 f"✅ Scheduled time set for party `{party_id}`: <t:{ts}:F> (<t:{ts}:R>)"
             )
+
+    @party.command(name="compact")
+    async def party_compact(self, ctx, party_id: str, compact: bool):
+        """Set the compact display mode for a party.
+
+        Compact mode displays party fields inline (side-by-side).
+        Non-compact mode displays fields stacked vertically (default).
+
+        Only the party creator or server admins can change this setting.
+
+        Parameters
+        ----------
+        party_id : str
+            The ID of the party to update
+        compact : bool
+            True for compact (inline) display, False for stacked display
+
+        Examples:
+        - [p]party compact abc123 True
+        - [p]party compact abc123 False
+        """
+        parties = await self.config.guild(ctx.guild).parties()
+
+        if party_id not in parties:
+            await ctx.send("❌ Party not found.")
+            return
+
+        party = parties[party_id]
+
+        # Check permissions
+        is_author = party["author_id"] == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_author or is_admin):
+            await ctx.send("❌ You don't have permission to modify this party.")
+            return
+
+        old_compact = party.get("compact", False)
+
+        # Update compact setting
+        async with self.config.guild(ctx.guild).parties() as parties:
+            parties[party_id]["compact"] = compact
+
+        # Update the message
+        await self.update_party_message(ctx.guild.id, party_id)
+
+        # Create modlog entry
+        reason = (
+            f"Party '{party['name']}' (ID: {party_id}) compact mode updated.\n"
+            f"Old: {'Compact' if old_compact else 'Not compact'}\n"
+            f"New: {'Compact' if compact else 'Not compact'}"
+        )
+        await self.create_party_modlog(
+            ctx.guild,
+            "party_edit",
+            ctx.author,
+            reason
+        )
+
+        mode_text = "compact (inline)" if compact else "non-compact (stacked)"
+        await ctx.send(f"✅ Party `{party_id}` display mode set to **{mode_text}**.")
 
     @party.command(name="rename-option")
     async def party_rename_option(self, ctx, party_id: str, old_option: str, *, new_option: str):
@@ -1915,7 +2076,8 @@ class Party(commands.Cog):
             roles_text = ', '.join(template['roles'])
             if len(roles_text) > EMBED_FIELD_MAX_LENGTH:
                 roles_text = roles_text[:EMBED_FIELD_MAX_LENGTH - 3] + "..."
-            embed.add_field(name=label, value=roles_text, inline=EMBED_FIELD_INLINE)
+            # Templates list display is not compact by default
+            embed.add_field(name=label, value=roles_text, inline=False)
 
         await ctx.send(embed=embed)
 
@@ -1973,6 +2135,7 @@ class Party(commands.Cog):
             "channel_id": None,
             "message_id": None,
             "scheduled_time": None,
+            "compact": False,  # Default to not compact
         }
 
         # Initialize signups for each predefined role
