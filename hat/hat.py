@@ -307,14 +307,13 @@ class Hat(commands.Cog):
         msg = await ctx.send(embed=embed, file=file)
         await self._track_preview_message(ctx, msg)
 
-    @commands.hybrid_group(name="hat", invoke_without_command=True)
+    @commands.hybrid_group(name="hat")
     async def _hat(self, ctx):
         """Add a festive Christmas hat to your avatar!
 
         Commands automatically show a live preview and save your settings.
         Use `/hat show` to refresh the preview with your current avatar.
         """
-        await ctx.send_help(ctx.command)
 
     @_hat.command(name="list")
     async def _hat_list(self, ctx):
@@ -514,11 +513,10 @@ class Hat(commands.Cog):
         await self._send_live_preview(ctx)
 
     # Admin commands
-    @commands.hybrid_group(name="sethat", invoke_without_command=True)
+    @commands.hybrid_group(name="sethat")
     @checks.admin_or_permissions(manage_guild=True)
     async def _sethat(self, ctx):
         """Admin commands for managing hats"""
-        await ctx.send_help(ctx.command)
 
     @_sethat.command(name="upload")
     @checks.admin_or_permissions(manage_guild=True)

@@ -162,10 +162,9 @@ class User(commands.Cog):
         await self.bot.http.request(route, json=payload)
 
     @commands.guild_only()
-    @commands.hybrid_group(name="user", invoke_without_command=True)
+    @commands.hybrid_group(name="user")
     async def _user(self, ctx):
         """Manage bot user settings"""
-        await ctx.send_help(ctx.command)
 
     @commands.guild_only()
     @_user.command(name="nick")
