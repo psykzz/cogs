@@ -19,7 +19,7 @@ class VideoDownloader(commands.Cog):
     # Discord file size limits by boost level (in bytes)
     FILE_SIZE_LIMITS = {
         0: 25 * 1024 * 1024,   # 25MB for non-boosted
-        1: 10 * 1024 * 1024,   # 10MB for level 1
+        1: 25 * 1024 * 1024,   # 25MB for level 1
         2: 50 * 1024 * 1024,   # 50MB for level 2
         3: 100 * 1024 * 1024,  # 100MB for level 3
     }
