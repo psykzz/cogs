@@ -592,6 +592,6 @@ async def http_get(url):
             else:
                 attempt += 1
             await asyncio.sleep(1)
-        except (httpx._exceptions.ConnectTimeout, httpx._exceptions.HTTPError):
+        except (httpx.ConnectTimeout, httpx.HTTPError):
             attempt += 1
             await asyncio.sleep(1)
