@@ -179,6 +179,55 @@ class Party(commands.Cog):
         parties = await self.config.guild_from_id(guild_id).parties()
         return parties.get(party_id)
 
+    @staticmethod
+    def _make_party(
+        party_id: str,
+        name: str,
+        author_id: int,
+        roles: list,
+        *,
+        description=None,
+        allow_multiple: bool = True,
+        compact: bool = False,
+        scheduled_time=None,
+    ) -> dict:
+        """Build a new party data dict with all required fields."""
+        return {
+            "id": party_id,
+            "name": name,
+            "description": description,
+            "author_id": author_id,
+            "roles": roles,
+            "signups": {role: [] for role in roles},
+            "allow_multiple_per_role": allow_multiple,
+            "allow_freeform": False,
+            "channel_id": None,
+            "message_id": None,
+            "scheduled_time": scheduled_time,
+            "compact": compact,
+        }
+
+    async def _post_party(
+        self,
+        guild: discord.Guild,
+        channel: discord.TextChannel,
+        party: dict,
+        party_id: str,
+    ) -> discord.Message:
+        """Save party to config, send embed+view, then save message/channel IDs."""
+        async with self.config.guild(guild).parties() as parties:
+            parties[party_id] = party
+
+        embed = await self.create_party_embed(party, guild)
+        view = PartyView(party_id, self)
+        message = await channel.send(embed=embed, view=view)
+
+        async with self.config.guild(guild).parties() as parties:
+            parties[party_id]["message_id"] = message.id
+            parties[party_id]["channel_id"] = channel.id
+
+        return message
+
     async def signup_user(
         self,
         interaction: discord.Interaction,
@@ -521,43 +570,15 @@ class Party(commands.Cog):
         # Get guild settings
         allow_multiple = await self.config.guild(ctx.guild).allow_multiple_per_role()
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": name,
-            "description": None,
-            "author_id": ctx.author.id,
-            "roles": roles_list,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,  # Only allow predefined roles
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": None,
-            "compact": compact,  # Use the compact parameter from command
-        }
-
-        # Initialize signups for each predefined role
-        for role in roles_list:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.create_party_embed(party, ctx.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self)
-
-        # Send the message
-        message = await ctx.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = ctx.channel.id
+        party = self._make_party(
+            party_id,
+            name,
+            ctx.author.id,
+            roles_list,
+            allow_multiple=allow_multiple,
+            compact=compact,
+        )
+        await self._post_party(ctx.guild, ctx.channel, party, party_id)
 
         # Create modlog entry
         await self.create_party_modlog(
@@ -1205,43 +1226,14 @@ class Party(commands.Cog):
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": title,
-            "description": None,
-            "author_id": ctx.author.id,
-            "roles": roles_list,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": None,
-            "compact": False,  # Default to not compact
-        }
-
-        # Initialize signups for each predefined role
-        for role in roles_list:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.create_party_embed(party, ctx.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self)
-
-        # Send the message
-        message = await ctx.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = ctx.channel.id
+        party = self._make_party(
+            party_id,
+            title,
+            ctx.author.id,
+            roles_list,
+            allow_multiple=allow_multiple,
+        )
+        await self._post_party(ctx.guild, ctx.channel, party, party_id)
 
         # Create modlog entry
         await self.create_party_modlog(

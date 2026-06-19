@@ -265,44 +265,17 @@ class CreatePartyModal(discord.ui.Modal):
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": title,
-            "description": description,
-            "author_id": interaction.user.id,
-            "roles": unique_roles,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": scheduled_time,
-            "compact": compact,  # Use compact from settings field
-        }
-
-        # Initialize signups for each predefined role
-        for role in unique_roles:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.cog.create_party_embed(party, interaction.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self.cog)
-
-        # Send the message to the channel where the interaction occurred
-        channel = interaction.channel
-        message = await channel.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = channel.id
+        party = self.cog._make_party(
+            party_id,
+            title,
+            interaction.user.id,
+            unique_roles,
+            description=description,
+            allow_multiple=allow_multiple,
+            compact=compact,
+            scheduled_time=scheduled_time,
+        )
+        await self.cog._post_party(interaction.guild, interaction.channel, party, party_id)
 
         # Create modlog entry
         await self.cog.create_party_modlog(
