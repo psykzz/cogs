@@ -5,7 +5,6 @@ from typing import Optional
 
 import discord
 from redbot.core import Config, checks, commands, modlog
-from redbot.core.utils.menus import menu
 
 log = logging.getLogger("red.cog.party")
 
@@ -753,6 +752,164 @@ class PartyView(discord.ui.View):
             f"✅ Party `{self.party_id}` ({party['name']}) deleted.",
             ephemeral=True
         )
+
+
+class PartyListView(discord.ui.View):
+    """Interactive paginated view for [p]party list with sort and filter controls."""
+
+    PARTIES_PER_PAGE = 5
+
+    def __init__(self, party_items: list, guild_id: int):
+        super().__init__(timeout=120)
+        self.all_party_items = party_items  # insertion order = oldest first
+        self.guild_id = guild_id
+        self.newest_first = True
+        self.hide_past = False
+        self.current_page = 0
+
+        # Set initial button states
+        self._sync_buttons()
+
+    # ------------------------------------------------------------------
+    # Data helpers
+    # ------------------------------------------------------------------
+
+    def _filtered_sorted(self) -> list:
+        items = list(self.all_party_items)
+
+        if self.hide_past:
+            now = datetime.now(timezone.utc).timestamp()
+            items = [
+                (pid, p) for pid, p in items
+                if not p.get("scheduled_time") or float(p["scheduled_time"]) >= now
+            ]
+
+        if self.newest_first:
+            items = list(reversed(items))
+
+        return items
+
+    def _build_embed(self, items: list, page: int, total_pages: int) -> discord.Embed:
+        embed = discord.Embed(title="🎉 Active Parties", color=discord.Color.blue())
+
+        start = page * self.PARTIES_PER_PAGE
+        for party_id, party in items[start:start + self.PARTIES_PER_PAGE]:
+            total_signups = sum(len(users) for users in party["signups"].values())
+            role_count = len(party["roles"]) if party["roles"] else "Freeform"
+
+            link_text = ""
+            channel_id = party.get("channel_id")
+            message_id = party.get("message_id")
+            if channel_id and message_id:
+                jump_url = (
+                    f"https://discord.com/channels/"
+                    f"{self.guild_id}/{channel_id}/{message_id}"
+                )
+                link_text = f"\n**[Jump to Party]({jump_url})**"
+
+            time_text = ""
+            scheduled_time = party.get("scheduled_time")
+            if scheduled_time:
+                try:
+                    ts = int(float(scheduled_time))
+                    time_text = f"\n**Time**: <t:{ts}:F> (<t:{ts}:R>)"
+                except (ValueError, OSError):
+                    pass
+
+            value = (
+                f"**ID**: `{party_id}`\n"
+                f"**Roles**: {role_count}\n"
+                f"**Signups**: {total_signups}\n"
+                f"**Author**: <@{party['author_id']}>"
+                f"{time_text}"
+                f"{link_text}"
+            )
+            compact = party.get("compact", False)
+            embed.add_field(name=party["name"], value=value, inline=compact)
+
+        order_label = "⬆ Newest first" if self.newest_first else "⬇ Oldest first"
+        filter_label = " · 🚫 Past hidden" if self.hide_past else ""
+        embed.set_footer(
+            text=f"Page {page + 1}/{total_pages} · {len(items)} parties · {order_label}{filter_label}"
+        )
+        return embed
+
+    # ------------------------------------------------------------------
+    # Button state sync
+    # ------------------------------------------------------------------
+
+    def _sync_buttons(self, total_pages: int = 1):
+        self.prev_button.disabled = self.current_page == 0
+        self.next_button.disabled = self.current_page >= total_pages - 1
+
+        if self.newest_first:
+            self.sort_button.label = "Oldest First"
+            self.sort_button.emoji = discord.PartialEmoji(name="⬇")
+            self.sort_button.style = discord.ButtonStyle.gray
+        else:
+            self.sort_button.label = "Newest First"
+            self.sort_button.emoji = discord.PartialEmoji(name="⬆")
+            self.sort_button.style = discord.ButtonStyle.blurple
+
+        if self.hide_past:
+            self.filter_past_button.label = "Show Past"
+            self.filter_past_button.style = discord.ButtonStyle.red
+        else:
+            self.filter_past_button.label = "Hide Past"
+            self.filter_past_button.style = discord.ButtonStyle.gray
+
+    # ------------------------------------------------------------------
+    # Shared refresh helper
+    # ------------------------------------------------------------------
+
+    async def _refresh(self, interaction: discord.Interaction):
+        items = self._filtered_sorted()
+        total_pages = max(1, (len(items) + self.PARTIES_PER_PAGE - 1) // self.PARTIES_PER_PAGE)
+        self.current_page = min(self.current_page, total_pages - 1)
+
+        if not items:
+            embed = discord.Embed(
+                title="🎉 Active Parties",
+                description="No parties match the current filters.",
+                color=discord.Color.blue(),
+            )
+            self._sync_buttons(1)
+            await interaction.response.edit_message(embed=embed, view=self)
+            return
+
+        self._sync_buttons(total_pages)
+        embed = self._build_embed(items, self.current_page, total_pages)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+    # ------------------------------------------------------------------
+    # Buttons
+    # ------------------------------------------------------------------
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.blurple, row=0)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page -= 1
+        await self._refresh(interaction)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.blurple, row=0)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page += 1
+        await self._refresh(interaction)
+
+    @discord.ui.button(label="Oldest First", emoji="⬇", style=discord.ButtonStyle.gray, row=1)
+    async def sort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.newest_first = not self.newest_first
+        self.current_page = 0
+        await self._refresh(interaction)
+
+    @discord.ui.button(label="Hide Past", emoji="🚫", style=discord.ButtonStyle.gray, row=1)
+    async def filter_past_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.hide_past = not self.hide_past
+        self.current_page = 0
+        await self._refresh(interaction)
 
 
 class Party(commands.Cog):
@@ -1605,7 +1762,9 @@ class Party(commands.Cog):
 
     @party.command(name="list")
     async def party_list(self, ctx):
-        """List all active parties in this server.
+        """List all active parties in this server, newest first.
+
+        Use the ◀ ▶ buttons to page, toggle sort order, or hide past parties.
 
         Example: [p]party list
         """
@@ -1615,63 +1774,15 @@ class Party(commands.Cog):
             await ctx.send("No active parties in this server.")
             return
 
-        party_items = list(parties.items())
-        parties_per_page = 5
-        total_pages = (len(party_items) + parties_per_page - 1) // parties_per_page
+        party_items = list(parties.items())  # insertion order = oldest first
+        view = PartyListView(party_items, ctx.guild.id)
 
-        pages = []
-        for page_num in range(total_pages):
-            start = page_num * parties_per_page
-            page_parties = party_items[start:start + parties_per_page]
+        items = view._filtered_sorted()
+        total_pages = max(1, (len(items) + PartyListView.PARTIES_PER_PAGE - 1) // PartyListView.PARTIES_PER_PAGE)
+        view._sync_buttons(total_pages)
+        embed = view._build_embed(items, 0, total_pages)
 
-            embed = discord.Embed(
-                title="🎉 Active Parties",
-                color=discord.Color.blue()
-            )
-
-            for party_id, party in page_parties:
-                total_signups = sum(len(users) for users in party["signups"].values())
-                role_count = len(party["roles"]) if party["roles"] else "Freeform"
-
-                # Build the link to the party message if available
-                link_text = ""
-                channel_id = party.get("channel_id")
-                message_id = party.get("message_id")
-                if channel_id and message_id:
-                    jump_url = (
-                        f"https://discord.com/channels/"
-                        f"{ctx.guild.id}/{channel_id}/{message_id}"
-                    )
-                    link_text = f"\n**[Jump to Party]({jump_url})**"
-
-                # Build scheduled time text if available
-                time_text = ""
-                scheduled_time = party.get("scheduled_time")
-                if scheduled_time:
-                    try:
-                        ts = int(float(scheduled_time))
-                        time_text = f"\n**Time**: <t:{ts}:F> (<t:{ts}:R>)"
-                    except (ValueError, OSError):
-                        pass
-
-                value = (
-                    f"**ID**: `{party_id}`\n"
-                    f"**Roles**: {role_count}\n"
-                    f"**Signups**: {total_signups}\n"
-                    f"**Author**: <@{party['author_id']}>"
-                    f"{time_text}"
-                    f"{link_text}"
-                )
-                # Use party's compact setting, default to False
-                compact = party.get("compact", False)
-                embed.add_field(name=party["name"], value=value, inline=compact)
-
-            embed.set_footer(
-                text=f"Page {page_num + 1}/{total_pages} | Total parties: {len(party_items)}"
-            )
-            pages.append(embed)
-
-        await menu(ctx, pages)
+        await ctx.send(embed=embed, view=view)
 
     @party.command(name="fix")
     @checks.admin_or_permissions(manage_guild=True)
