@@ -5,6 +5,7 @@ from typing import Optional
 
 import discord
 from redbot.core import Config, checks, commands, modlog
+from redbot.core.utils.menus import menu
 
 log = logging.getLogger("red.cog.party")
 
@@ -1609,49 +1610,63 @@ class Party(commands.Cog):
             await ctx.send("No active parties in this server.")
             return
 
-        embed = discord.Embed(
-            title="🎉 Active Parties",
-            color=discord.Color.blue()
-        )
+        party_items = list(parties.items())
+        parties_per_page = 5
+        total_pages = (len(party_items) + parties_per_page - 1) // parties_per_page
 
-        for party_id, party in parties.items():
-            total_signups = sum(len(users) for users in party["signups"].values())
-            role_count = len(party["roles"]) if party["roles"] else "Freeform"
+        pages = []
+        for page_num in range(total_pages):
+            start = page_num * parties_per_page
+            page_parties = party_items[start:start + parties_per_page]
 
-            # Build the link to the party message if available
-            link_text = ""
-            channel_id = party.get("channel_id")
-            message_id = party.get("message_id")
-            if channel_id and message_id:
-                jump_url = (
-                    f"https://discord.com/channels/"
-                    f"{ctx.guild.id}/{channel_id}/{message_id}"
-                )
-                link_text = f"\n**[Jump to Party]({jump_url})**"
-
-            # Build scheduled time text if available
-            time_text = ""
-            scheduled_time = party.get("scheduled_time")
-            if scheduled_time:
-                try:
-                    ts = int(float(scheduled_time))
-                    time_text = f"\n**Time**: <t:{ts}:F> (<t:{ts}:R>)"
-                except (ValueError, OSError):
-                    pass
-
-            value = (
-                f"**ID**: `{party_id}`\n"
-                f"**Roles**: {role_count}\n"
-                f"**Signups**: {total_signups}\n"
-                f"**Author**: <@{party['author_id']}>"
-                f"{time_text}"
-                f"{link_text}"
+            embed = discord.Embed(
+                title="🎉 Active Parties",
+                color=discord.Color.blue()
             )
-            # Use party's compact setting, default to False
-            compact = party.get("compact", False)
-            embed.add_field(name=party["name"], value=value, inline=compact)
 
-        await ctx.send(embed=embed)
+            for party_id, party in page_parties:
+                total_signups = sum(len(users) for users in party["signups"].values())
+                role_count = len(party["roles"]) if party["roles"] else "Freeform"
+
+                # Build the link to the party message if available
+                link_text = ""
+                channel_id = party.get("channel_id")
+                message_id = party.get("message_id")
+                if channel_id and message_id:
+                    jump_url = (
+                        f"https://discord.com/channels/"
+                        f"{ctx.guild.id}/{channel_id}/{message_id}"
+                    )
+                    link_text = f"\n**[Jump to Party]({jump_url})**"
+
+                # Build scheduled time text if available
+                time_text = ""
+                scheduled_time = party.get("scheduled_time")
+                if scheduled_time:
+                    try:
+                        ts = int(float(scheduled_time))
+                        time_text = f"\n**Time**: <t:{ts}:F> (<t:{ts}:R>)"
+                    except (ValueError, OSError):
+                        pass
+
+                value = (
+                    f"**ID**: `{party_id}`\n"
+                    f"**Roles**: {role_count}\n"
+                    f"**Signups**: {total_signups}\n"
+                    f"**Author**: <@{party['author_id']}>"
+                    f"{time_text}"
+                    f"{link_text}"
+                )
+                # Use party's compact setting, default to False
+                compact = party.get("compact", False)
+                embed.add_field(name=party["name"], value=value, inline=compact)
+
+            embed.set_footer(
+                text=f"Page {page_num + 1}/{total_pages} | Total parties: {len(party_items)}"
+            )
+            pages.append(embed)
+
+        await menu(ctx, pages)
 
     @party.command(name="config")
     @checks.admin_or_permissions(manage_guild=True)
