@@ -1288,8 +1288,12 @@ class Party(commands.Cog):
             party: The party data dictionary
             guild: Optional guild object to resolve the owner's display name
         """
+        # Show roles and signups
+        signups = party.get("signups", {})
+        total_signups = sum(len(users) for users in signups.values())
+
         embed = discord.Embed(
-            title=f"🎉 {party['name']}",
+            title=f"🎉 {party['name']} ({total_signups} signed up)",
             description=party.get("description", "Join the party by selecting your role!"),
             color=discord.Color.blue()
         )
@@ -1310,8 +1314,6 @@ class Party(commands.Cog):
             except (ValueError, OSError):
                 pass
 
-        # Show roles and signups
-        signups = party.get("signups", {})
         roles = party.get("roles", [])
 
         # Add each role as a field
