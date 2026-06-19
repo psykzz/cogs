@@ -11,6 +11,7 @@ from .helpers import (
     EMBED_FIELD_MAX_LENGTH,
     _parse_roles_from_args,
     format_timestamp,
+    has_party_permission,
     parse_scheduled_time,
     validate_roles,
 )
@@ -615,10 +616,7 @@ class Party(commands.Cog):
                 party_id, party = matching_parties[0]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to delete this party.")
             return
 
@@ -787,10 +785,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -843,10 +838,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -914,10 +906,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -963,10 +952,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
