@@ -1028,10 +1028,15 @@ class Party(commands.Cog):
         all_guilds = await self.config.all_guilds()
         for guild_id, guild_data in all_guilds.items():
             parties = guild_data.get("parties", {})
-            for party_id in parties:
+            for party_id, party in parties.items():
                 view = PartyView(party_id, self)
-                self.bot.add_view(view)
-                log.debug(f"Registered persistent view for party {party_id}")
+                message_id = party.get("message_id")
+                if message_id:
+                    self.bot.add_view(view, message_id=message_id)
+                    log.debug(f"Registered persistent view for party {party_id} (message {message_id})")
+                else:
+                    self.bot.add_view(view)
+                    log.warning(f"Party {party_id} has no message_id, registering view without message binding")
 
     def _get_user_mentions(self, user_ids):
         """Convert user IDs to Discord mentions, filtering out invalid IDs.
