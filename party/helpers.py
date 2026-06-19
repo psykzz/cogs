@@ -48,7 +48,7 @@ def parse_settings_text(
             key, _, raw_val = line.partition(":")
         else:
             return allow_multiple, compact, (
-                f"❌ Invalid settings format in '{line}'. " 
+                f"❌ Invalid settings format in '{line}'. "
                 "Use 'allow_multiple=yes' or 'compact=no'."
             )
 

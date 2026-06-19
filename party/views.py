@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
@@ -6,7 +6,6 @@ from typing import Optional
 import discord
 
 from .helpers import (
-    EMBED_FIELD_MAX_LENGTH,
     format_timestamp,
     parse_roles_from_text,
     parse_scheduled_time,
@@ -920,5 +919,3 @@ class PartyListView(discord.ui.View):
         self.hide_past = not self.hide_past
         self.current_page = 0
         await self._refresh(interaction)
-
-

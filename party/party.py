@@ -11,11 +11,10 @@ from .helpers import (
     EMBED_FIELD_MAX_LENGTH,
     _parse_roles_from_args,
     format_timestamp,
-    parse_allow_multiple,
     parse_scheduled_time,
     validate_roles,
 )
-from .views import CreatePartyModal, EditPartyFullModal, PartyListView, PartyView
+from .views import CreatePartyModal, PartyListView, PartyView
 
 log = logging.getLogger("red.cog.party")
 
