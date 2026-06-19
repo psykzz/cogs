@@ -766,6 +766,7 @@ class PartyListView(discord.ui.View):
         self.newest_first = True
         self.hide_past = False
         self.current_page = 0
+        self.message: Optional[discord.Message] = None  # set after send
 
         # Set initial button states
         self._sync_buttons()
@@ -882,8 +883,11 @@ class PartyListView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
+        if self.message:
+            try:
+                await self.message.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
 
     # ------------------------------------------------------------------
     # Buttons
@@ -898,6 +902,16 @@ class PartyListView(discord.ui.View):
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page += 1
         await self._refresh(interaction)
+
+    @discord.ui.button(label="Close", emoji="🗑️", style=discord.ButtonStyle.red, row=0)
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        self.stop()
+        if self.message:
+            try:
+                await self.message.delete()
+            except (discord.NotFound, discord.Forbidden):
+                pass
 
     @discord.ui.button(label="Oldest First", emoji="⬇", style=discord.ButtonStyle.gray, row=1)
     async def sort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1782,7 +1796,7 @@ class Party(commands.Cog):
         view._sync_buttons(total_pages)
         embed = view._build_embed(items, 0, total_pages)
 
-        await ctx.send(embed=embed, view=view)
+        view.message = await ctx.send(embed=embed, view=view)
 
     @party.command(name="fix")
     @checks.admin_or_permissions(manage_guild=True)
