@@ -46,13 +46,16 @@ flake8 . --count --statistics
 ## Repository Structure
 
 ### Cog Directories
-Each cog follows this structure:
+Each cog has at least this structure:
 ```
 cog_name/
 ├── __init__.py          # Cog registration with async setup
 ├── main_file.py         # Main implementation
 └── info.json           # Metadata and dependencies
 ```
+
+Some larger cogs may also include extra support modules alongside the main cog file
+(for example, `party/helpers.py` and `party/views.py`).
 
 ### Cog Registration Pattern
 All cogs use async setup functions in `__init__.py`:
@@ -229,7 +232,7 @@ async def mycommand(self, ctx):
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
-- **party/**: Party signup system with role-based composition management using Discord buttons and modals (no external deps)
+- **party/**: Party signup system with role-based composition management using Discord buttons and modals; split across `party.py`, `helpers.py`, and `views.py` (no external deps)
 - **psymin/**: Bot owner administration commands for viewing permissions across all servers (no external deps)
 - **quotesdb/**: Quote storage system (no external deps)
 - **react_roles/**: Role assignment via reactions (no external deps)
