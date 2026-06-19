@@ -1673,6 +1673,76 @@ class Party(commands.Cog):
 
         await menu(ctx, pages)
 
+    @party.command(name="fix")
+    @checks.admin_or_permissions(manage_guild=True)
+    async def party_fix(self, ctx, party_id: str):
+        """Re-render a party embed and re-register its buttons.
+
+        Use this to fix parties whose buttons stopped working after a bot restart.
+
+        Parameters
+        ----------
+        party_id : str
+            The ID of the party to fix (shown in [p]party list).
+
+        Example: [p]party fix abc123
+        """
+        await ctx.defer(ephemeral=True)
+
+        party = await self.get_party(ctx.guild.id, party_id)
+        if not party:
+            await ctx.send("❌ Party not found.", ephemeral=True)
+            return
+
+        channel_id = party.get("channel_id")
+        message_id = party.get("message_id")
+
+        if not channel_id or not message_id:
+            await ctx.send(
+                "❌ Party has no associated message. It may need to be recreated.",
+                ephemeral=True
+            )
+            return
+
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            await ctx.send(
+                f"❌ Cannot find channel <#{channel_id}>. It may have been deleted.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
+            await ctx.send(
+                "❌ Party message no longer exists. You may need to delete and recreate the party.",
+                ephemeral=True
+            )
+            return
+        except discord.Forbidden:
+            await ctx.send("❌ Missing permissions to read that channel.", ephemeral=True)
+            return
+
+        # Build a fresh view and re-register it bound to this specific message
+        view = PartyView(party_id, self)
+        self.bot.add_view(view, message_id=message_id)
+
+        # Edit the message with a fresh embed + re-attached view
+        embed = await self.create_party_embed(party, ctx.guild)
+        try:
+            await message.edit(embed=embed, view=view)
+        except discord.HTTPException as e:
+            log.error(f"Failed to fix party message {message_id}: {e}")
+            await ctx.send(f"❌ Failed to update the message: {e}", ephemeral=True)
+            return
+
+        log.info(f"Party {party_id} fixed by {ctx.author} ({ctx.author.id})")
+        await ctx.send(
+            f"✅ Party `{party_id}` ({party['name']}) has been re-rendered and its buttons re-registered.",
+            ephemeral=True
+        )
+
     @party.command(name="config")
     @checks.admin_or_permissions(manage_guild=True)
     async def party_config(self, ctx, setting: str, value: str):
