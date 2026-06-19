@@ -179,6 +179,26 @@ class Party(commands.Cog):
         parties = await self.config.guild_from_id(guild_id).parties()
         return parties.get(party_id)
 
+    async def _reply(
+        self,
+        interaction: discord.Interaction,
+        content: str,
+        *,
+        disabled_view: Optional[discord.ui.View],
+        deferred: bool,
+    ) -> None:
+        """Send an interaction reply, handling disabled_view and deferred state."""
+        if disabled_view is not None:
+            if deferred:
+                await interaction.edit_original_response(content=content, view=None)
+            else:
+                await interaction.response.edit_message(content=content, view=None)
+        else:
+            if deferred:
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+
     async def signup_user(
         self,
         interaction: discord.Interaction,
@@ -187,118 +207,46 @@ class Party(commands.Cog):
         disabled_view: Optional[discord.ui.View] = None,
         deferred: bool = False
     ):
-        """Sign up a user for a party with a specific role.
-
-        Args:
-            interaction: The Discord interaction
-            party_id: The party to sign up for
-            role: The role to sign up as
-            disabled_view: A pre-disabled view to include in the response message.
-                          If provided, the original message will be edited instead of sending a new one.
-                          If None, a new ephemeral message is sent.
-            deferred: Whether the interaction has already been deferred. If True, uses followup/edit_original_response.
-                     If False, uses response methods.
-        """
+        """Sign up a user for a party with a specific role."""
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
 
         async with self.config.guild_from_id(guild_id).parties() as parties:
             if party_id not in parties:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content="❌ Party not found.",
-                            view=None
-                        )
-                    else:
-                        await interaction.response.edit_message(
-                            content="❌ Party not found.",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
-                    else:
-                        await interaction.response.send_message(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
+                await self._reply(
+                    interaction,
+                    "❌ Party not found.",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
                 return
 
             party = parties[party_id]
             allow_multiple = party.get("allow_multiple_per_role", True)
+            signups = party.setdefault("signups", {})
 
-            # Ensure signups dictionary exists (defensive check)
-            if "signups" not in party:
-                party["signups"] = {}
-
-            # Remove user from any existing role first
-            for role_name, users in party["signups"].items():
+            for role_name, users in signups.items():
                 if user_id in users:
-                    party["signups"][role_name].remove(user_id)
+                    users.remove(user_id)
 
-            # Check if role exists in signups, if not create it
-            if role not in party["signups"]:
-                party["signups"][role] = []
-
-            # Check if multiple signups allowed
-            if not allow_multiple and len(party["signups"][role]) > 0:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                    else:
-                        await interaction.response.edit_message(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
-                    else:
-                        await interaction.response.send_message(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
+            role_signups = signups.setdefault(role, [])
+            if not allow_multiple and role_signups:
+                await self._reply(
+                    interaction,
+                    f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
                 return
 
-            # Add user to the role
-            party["signups"][role].append(user_id)
+            role_signups.append(user_id)
 
-        # Send success response
-        if disabled_view:
-            # Edit the original message to show success and remove the select view
-            if deferred:
-                await interaction.edit_original_response(
-                    content=f"✅ You've signed up as **{role}**!",
-                    view=None
-                )
-            else:
-                await interaction.response.edit_message(
-                    content=f"✅ You've signed up as **{role}**!",
-                    view=None
-                )
-        else:
-            if deferred:
-                await interaction.followup.send(
-                    f"✅ You've signed up as **{role}**!",
-                    ephemeral=True
-                )
-            else:
-                await interaction.response.send_message(
-                    f"✅ You've signed up as **{role}**!",
-                    ephemeral=True
-                )
+        await self._reply(
+            interaction,
+            f"✅ You've signed up as **{role}**!",
+            disabled_view=disabled_view,
+            deferred=deferred,
+        )
         await self.update_party_message(guild_id, party_id)
 
     async def leave_party(self, guild_id: int, party_id: str, user_id: int) -> bool:
