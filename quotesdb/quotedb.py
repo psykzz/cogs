@@ -30,6 +30,19 @@ class QuoteDB(commands.Cog):
 
         self.config.register_guild(**default_guild)
 
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int):
+        """Anonymise all quotes authored by the given user across all guilds."""
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            id_map = guild_data.get("quotes", {}).get("id", {})
+            modified = False
+            for quote_id, quote in id_map.items():
+                if quote.get("user") == user_id:
+                    id_map[quote_id]["user"] = None
+                    modified = True
+            if modified:
+                await self.config.guild_from_id(guild_id).quotes.id.set(id_map)
+
     @commands.guild_only()
     @commands.hybrid_command(name="qadd", aliases=["."])
     async def quote_add(self, ctx, trigger: str, *, quote: str):

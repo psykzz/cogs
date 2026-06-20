@@ -1,7 +1,8 @@
 from .api import EmptyVoices
 
 __red_end_user_data_statement__ = (
-    "This cog stores user IDs temporarily while they occupy a managed voice channel."
+    "This cog does not persistently store any end user data. "
+    "Only voice channel IDs are tracked, not individual user IDs."
 )
 
 

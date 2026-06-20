@@ -24,6 +24,25 @@ class ActivityStats(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int):
+        """Remove all stored activity data for the given user."""
+        user_id_str = str(user_id)
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            modified = False
+            user_game_stats = guild_data.get("user_game_stats", {})
+            last_activity = guild_data.get("last_activity", {})
+            if user_id_str in user_game_stats:
+                del user_game_stats[user_id_str]
+                modified = True
+            if user_id_str in last_activity:
+                del last_activity[user_id_str]
+                modified = True
+            if modified:
+                guild_conf = self.config.guild_from_id(guild_id)
+                await guild_conf.user_game_stats.set(user_game_stats)
+                await guild_conf.last_activity.set(last_activity)
+
     @commands.Cog.listener()
     async def on_presence_update(self, before: discord.Member, after: discord.Member):
         """Track when users start or stop playing games."""

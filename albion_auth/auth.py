@@ -58,6 +58,16 @@ class AlbionAuth(commands.Cog):
         self._daily_check_loop.cancel()
         log.debug("Cancelled daily name check task")
 
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int):
+        """Remove the user's Albion auth entry from all guilds."""
+        user_id_str = str(user_id)
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            verified_users = guild_data.get("verified_users", {})
+            if user_id_str in verified_users:
+                del verified_users[user_id_str]
+                await self.config.guild_from_id(guild_id).verified_users.set(verified_users)
+
     async def search_player_in_region(self, name, region_url, region_name):
         """Search for a player by name in a specific region"""
         log.debug(f"Searching for player '{name}' in {region_name} region")
