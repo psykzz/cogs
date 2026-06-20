@@ -5,6 +5,11 @@ IDENTIFIER = 2847102938475019
 EMBED_FIELD_MAX_LENGTH = 1024
 
 
+def has_party_permission(party: dict, user) -> bool:
+    """Return True if user is the party author or a server administrator."""
+    return party["author_id"] == user.id or user.guild_permissions.administrator
+
+
 def parse_allow_multiple(allow_multiple_text: str) -> tuple[bool, Optional[str]]:
     """Parse and validate allow_multiple_per_role setting."""
     allow_multiple_text = allow_multiple_text.strip().lower()
