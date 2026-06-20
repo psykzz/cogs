@@ -7,6 +7,7 @@ import discord
 
 from .helpers import (
     format_timestamp,
+    has_party_permission,
     parse_roles_from_text,
     parse_scheduled_time,
     parse_settings_text,
@@ -579,10 +580,7 @@ class PartyView(discord.ui.View):
             return
 
         # Check permissions
-        is_author = party["author_id"] == interaction.user.id
-        is_admin = interaction.user.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, interaction.user):
             await interaction.response.send_message(
                 "❌ You don't have permission to edit this party.",
                 ephemeral=True
@@ -606,10 +604,7 @@ class PartyView(discord.ui.View):
             return
 
         # Check permissions
-        is_author = party["author_id"] == interaction.user.id
-        is_admin = interaction.user.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, interaction.user):
             await interaction.followup.send(
                 "❌ You don't have permission to delete this party.",
                 ephemeral=True
