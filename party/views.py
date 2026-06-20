@@ -26,35 +26,16 @@ class RoleSelectionModal(discord.ui.Modal):
         self.predefined_roles = predefined_roles
         self.cog = cog
 
-        # Create the role input field
         if predefined_roles:
-            # Build placeholder with truncation to respect Discord's 100-char limit
-            roles_text = ', '.join(predefined_roles)
             prefix = "Choose from: "
-            suffix = ""
-            max_roles_length = 100 - len(prefix) - len(suffix)
-
-            if len(roles_text) <= max_roles_length:
-                placeholder = f"{prefix}{roles_text}{suffix}"
-            else:
-                # Truncate at word boundary (last comma) to avoid splitting role names
-                truncate_at = max_roles_length - 3
-                if truncate_at > 0:
-                    last_comma = roles_text.rfind(', ', 0, truncate_at)
-                    if last_comma > 0:
-                        truncated_roles = roles_text[:last_comma] + "..."
-                    else:
-                        # No comma found, truncate at character boundary
-                        truncated_roles = roles_text[:truncate_at] + "..."
-                else:
-                    # Not enough space, just use ellipsis
-                    truncated_roles = "..."
-                placeholder = f"{prefix}{truncated_roles}{suffix}"
-
-            label = "Your Role"
+            roles_text = ', '.join(predefined_roles)
+            available = 100 - len(prefix)
+            placeholder = prefix + (
+                roles_text if len(roles_text) <= available else roles_text[:available - 3] + "..."
+            )
         else:
             placeholder = "Enter your role"
-            label = "Your Role"
+        label = "Your Role"
 
         self.role_input = discord.ui.TextInput(
             label=label,
