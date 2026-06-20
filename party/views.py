@@ -7,6 +7,7 @@ import discord
 
 from .helpers import (
     format_timestamp,
+    has_party_permission,
     parse_roles_from_text,
     parse_scheduled_time,
     parse_settings_text,
@@ -25,35 +26,16 @@ class RoleSelectionModal(discord.ui.Modal):
         self.predefined_roles = predefined_roles
         self.cog = cog
 
-        # Create the role input field
         if predefined_roles:
-            # Build placeholder with truncation to respect Discord's 100-char limit
-            roles_text = ', '.join(predefined_roles)
             prefix = "Choose from: "
-            suffix = ""
-            max_roles_length = 100 - len(prefix) - len(suffix)
-
-            if len(roles_text) <= max_roles_length:
-                placeholder = f"{prefix}{roles_text}{suffix}"
-            else:
-                # Truncate at word boundary (last comma) to avoid splitting role names
-                truncate_at = max_roles_length - 3
-                if truncate_at > 0:
-                    last_comma = roles_text.rfind(', ', 0, truncate_at)
-                    if last_comma > 0:
-                        truncated_roles = roles_text[:last_comma] + "..."
-                    else:
-                        # No comma found, truncate at character boundary
-                        truncated_roles = roles_text[:truncate_at] + "..."
-                else:
-                    # Not enough space, just use ellipsis
-                    truncated_roles = "..."
-                placeholder = f"{prefix}{truncated_roles}{suffix}"
-
-            label = "Your Role"
+            roles_text = ', '.join(predefined_roles)
+            available = 100 - len(prefix)
+            placeholder = prefix + (
+                roles_text if len(roles_text) <= available else roles_text[:available - 3] + "..."
+            )
         else:
             placeholder = "Enter your role"
-            label = "Your Role"
+        label = "Your Role"
 
         self.role_input = discord.ui.TextInput(
             label=label,
@@ -86,78 +68,6 @@ class RoleSelectionModal(discord.ui.Modal):
         # Add the user to the party with the selected role
         # Note: Modals don't have persistent UI components, so no view cleanup needed
         await self.cog.signup_user(interaction, self.party_id, role, disabled_view=None, deferred=True)
-
-
-class EditPartyModal(discord.ui.Modal):
-    """Modal for editing party title and description."""
-
-    def __init__(self, party_id: str, party: dict, cog):
-        super().__init__(title="Edit Party")
-        self.party_id = party_id
-        self.cog = cog
-
-        # Title input
-        self.title_input = discord.ui.TextInput(
-            label="Party Title",
-            placeholder="Enter the party title",
-            default=party['name'],
-            required=True,
-            max_length=100,
-        )
-        self.add_item(self.title_input)
-
-        # Description input
-        self.description_input = discord.ui.TextInput(
-            label="Description",
-            placeholder="Enter party description (optional)",
-            default=party.get('description') or "",
-            required=False,
-            style=discord.TextStyle.paragraph,
-            max_length=2000,
-        )
-        self.add_item(self.description_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        """Handle the modal submission."""
-        # Defer immediately to prevent interaction timeout
-        await interaction.response.defer(ephemeral=True)
-
-        new_title = self.title_input.value.strip()
-        new_description = self.description_input.value.strip() or None
-
-        # Update the party data
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            if self.party_id not in parties:
-                await interaction.followup.send("❌ Party not found.", ephemeral=True)
-                return
-
-            old_title = parties[self.party_id]['name']
-            old_description = parties[self.party_id].get('description')
-
-            parties[self.party_id]['name'] = new_title
-            parties[self.party_id]['description'] = new_description
-
-        # Update the party message
-        await self.cog.update_party_message(interaction.guild.id, self.party_id)
-
-        # Create modlog entry
-        reason = (
-            f"Party '{old_title}' (ID: {self.party_id}) edited.\n"
-            f"New title: {new_title}\n"
-            f"Old description: {old_description or 'None'}\n"
-            f"New description: {new_description or 'None'}"
-        )
-        await self.cog.create_party_modlog(
-            interaction.guild,
-            "party_edit",
-            interaction.user,
-            reason
-        )
-
-        await interaction.followup.send(
-            "✅ Party updated successfully!",
-            ephemeral=True
-        )
 
 
 class CreatePartyModal(discord.ui.Modal):
@@ -265,44 +175,17 @@ class CreatePartyModal(discord.ui.Modal):
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": title,
-            "description": description,
-            "author_id": interaction.user.id,
-            "roles": unique_roles,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": scheduled_time,
-            "compact": compact,  # Use compact from settings field
-        }
-
-        # Initialize signups for each predefined role
-        for role in unique_roles:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.cog.create_party_embed(party, interaction.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self.cog)
-
-        # Send the message to the channel where the interaction occurred
-        channel = interaction.channel
-        message = await channel.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.cog.config.guild(interaction.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = channel.id
+        party = self.cog._make_party(
+            party_id,
+            title,
+            interaction.user.id,
+            unique_roles,
+            description=description,
+            allow_multiple=allow_multiple,
+            compact=compact,
+            scheduled_time=scheduled_time,
+        )
+        await self.cog._post_party(interaction.guild, interaction.channel, party, party_id)
 
         # Create modlog entry
         await self.cog.create_party_modlog(
@@ -678,10 +561,7 @@ class PartyView(discord.ui.View):
             return
 
         # Check permissions
-        is_author = party["author_id"] == interaction.user.id
-        is_admin = interaction.user.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, interaction.user):
             await interaction.response.send_message(
                 "❌ You don't have permission to edit this party.",
                 ephemeral=True
@@ -705,10 +585,7 @@ class PartyView(discord.ui.View):
             return
 
         # Check permissions
-        is_author = party["author_id"] == interaction.user.id
-        is_admin = interaction.user.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, interaction.user):
             await interaction.followup.send(
                 "❌ You don't have permission to delete this party.",
                 ephemeral=True

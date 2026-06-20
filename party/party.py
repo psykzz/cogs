@@ -11,6 +11,7 @@ from .helpers import (
     EMBED_FIELD_MAX_LENGTH,
     _parse_roles_from_args,
     format_timestamp,
+    has_party_permission,
     parse_scheduled_time,
     validate_roles,
 )
@@ -179,6 +180,75 @@ class Party(commands.Cog):
         parties = await self.config.guild_from_id(guild_id).parties()
         return parties.get(party_id)
 
+    @staticmethod
+    def _make_party(
+        party_id: str,
+        name: str,
+        author_id: int,
+        roles: list,
+        *,
+        description=None,
+        allow_multiple: bool = True,
+        compact: bool = False,
+        scheduled_time=None,
+    ) -> dict:
+        """Build a new party data dict with all required fields."""
+        return {
+            "id": party_id,
+            "name": name,
+            "description": description,
+            "author_id": author_id,
+            "roles": roles,
+            "signups": {role: [] for role in roles},
+            "allow_multiple_per_role": allow_multiple,
+            "allow_freeform": False,
+            "channel_id": None,
+            "message_id": None,
+            "scheduled_time": scheduled_time,
+            "compact": compact,
+        }
+
+    async def _post_party(
+        self,
+        guild: discord.Guild,
+        channel: discord.TextChannel,
+        party: dict,
+        party_id: str,
+    ) -> discord.Message:
+        """Save party to config, send embed+view, then save message/channel IDs."""
+        async with self.config.guild(guild).parties() as parties:
+            parties[party_id] = party
+
+        embed = await self.create_party_embed(party, guild)
+        view = PartyView(party_id, self)
+        message = await channel.send(embed=embed, view=view)
+
+        async with self.config.guild(guild).parties() as parties:
+            parties[party_id]["message_id"] = message.id
+            parties[party_id]["channel_id"] = channel.id
+
+        return message
+
+    async def _reply(
+        self,
+        interaction: discord.Interaction,
+        content: str,
+        *,
+        disabled_view: Optional[discord.ui.View],
+        deferred: bool,
+    ) -> None:
+        """Send an interaction reply, handling disabled_view and deferred state."""
+        if disabled_view is not None:
+            if deferred:
+                await interaction.edit_original_response(content=content, view=None)
+            else:
+                await interaction.response.edit_message(content=content, view=None)
+        else:
+            if deferred:
+                await interaction.followup.send(content, ephemeral=True)
+            else:
+                await interaction.response.send_message(content, ephemeral=True)
+
     async def signup_user(
         self,
         interaction: discord.Interaction,
@@ -187,118 +257,46 @@ class Party(commands.Cog):
         disabled_view: Optional[discord.ui.View] = None,
         deferred: bool = False
     ):
-        """Sign up a user for a party with a specific role.
-
-        Args:
-            interaction: The Discord interaction
-            party_id: The party to sign up for
-            role: The role to sign up as
-            disabled_view: A pre-disabled view to include in the response message.
-                          If provided, the original message will be edited instead of sending a new one.
-                          If None, a new ephemeral message is sent.
-            deferred: Whether the interaction has already been deferred. If True, uses followup/edit_original_response.
-                     If False, uses response methods.
-        """
+        """Sign up a user for a party with a specific role."""
         guild_id = interaction.guild.id
         user_id = str(interaction.user.id)
 
         async with self.config.guild_from_id(guild_id).parties() as parties:
             if party_id not in parties:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content="❌ Party not found.",
-                            view=None
-                        )
-                    else:
-                        await interaction.response.edit_message(
-                            content="❌ Party not found.",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
-                    else:
-                        await interaction.response.send_message(
-                            "❌ Party not found.",
-                            ephemeral=True
-                        )
+                await self._reply(
+                    interaction,
+                    "❌ Party not found.",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
                 return
 
             party = parties[party_id]
             allow_multiple = party.get("allow_multiple_per_role", True)
+            signups = party.setdefault("signups", {})
 
-            # Ensure signups dictionary exists (defensive check)
-            if "signups" not in party:
-                party["signups"] = {}
-
-            # Remove user from any existing role first
-            for role_name, users in party["signups"].items():
+            for role_name, users in signups.items():
                 if user_id in users:
-                    party["signups"][role_name].remove(user_id)
+                    users.remove(user_id)
 
-            # Check if role exists in signups, if not create it
-            if role not in party["signups"]:
-                party["signups"][role] = []
-
-            # Check if multiple signups allowed
-            if not allow_multiple and len(party["signups"][role]) > 0:
-                if disabled_view:
-                    # Edit the original message to show error and remove the select view
-                    if deferred:
-                        await interaction.edit_original_response(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                    else:
-                        await interaction.response.edit_message(
-                            content=f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            view=None
-                        )
-                else:
-                    if deferred:
-                        await interaction.followup.send(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
-                    else:
-                        await interaction.response.send_message(
-                            f"❌ The role **{role}** is already full (multiple signups not allowed).",
-                            ephemeral=True
-                        )
+            role_signups = signups.setdefault(role, [])
+            if not allow_multiple and role_signups:
+                await self._reply(
+                    interaction,
+                    f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
                 return
 
-            # Add user to the role
-            party["signups"][role].append(user_id)
+            role_signups.append(user_id)
 
-        # Send success response
-        if disabled_view:
-            # Edit the original message to show success and remove the select view
-            if deferred:
-                await interaction.edit_original_response(
-                    content=f"✅ You've signed up as **{role}**!",
-                    view=None
-                )
-            else:
-                await interaction.response.edit_message(
-                    content=f"✅ You've signed up as **{role}**!",
-                    view=None
-                )
-        else:
-            if deferred:
-                await interaction.followup.send(
-                    f"✅ You've signed up as **{role}**!",
-                    ephemeral=True
-                )
-            else:
-                await interaction.response.send_message(
-                    f"✅ You've signed up as **{role}**!",
-                    ephemeral=True
-                )
+        await self._reply(
+            interaction,
+            f"✅ You've signed up as **{role}**!",
+            disabled_view=disabled_view,
+            deferred=deferred,
+        )
         await self.update_party_message(guild_id, party_id)
 
     async def leave_party(self, guild_id: int, party_id: str, user_id: int) -> bool:
@@ -521,43 +519,15 @@ class Party(commands.Cog):
         # Get guild settings
         allow_multiple = await self.config.guild(ctx.guild).allow_multiple_per_role()
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": name,
-            "description": None,
-            "author_id": ctx.author.id,
-            "roles": roles_list,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,  # Only allow predefined roles
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": None,
-            "compact": compact,  # Use the compact parameter from command
-        }
-
-        # Initialize signups for each predefined role
-        for role in roles_list:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.create_party_embed(party, ctx.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self)
-
-        # Send the message
-        message = await ctx.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = ctx.channel.id
+        party = self._make_party(
+            party_id,
+            name,
+            ctx.author.id,
+            roles_list,
+            allow_multiple=allow_multiple,
+            compact=compact,
+        )
+        await self._post_party(ctx.guild, ctx.channel, party, party_id)
 
         # Create modlog entry
         await self.create_party_modlog(
@@ -615,10 +585,7 @@ class Party(commands.Cog):
                 party_id, party = matching_parties[0]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to delete this party.")
             return
 
@@ -787,10 +754,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -843,10 +807,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -914,10 +875,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -963,10 +921,7 @@ class Party(commands.Cog):
         party = parties[party_id]
 
         # Check permissions
-        is_author = party["author_id"] == ctx.author.id
-        is_admin = ctx.author.guild_permissions.administrator
-
-        if not (is_author or is_admin):
+        if not has_party_permission(party, ctx.author):
             await ctx.send("❌ You don't have permission to modify this party.")
             return
 
@@ -1205,43 +1160,14 @@ class Party(commands.Cog):
         # Generate a unique party ID
         party_id = secrets.token_hex(4)
 
-        # Create party data
-        party = {
-            "id": party_id,
-            "name": title,
-            "description": None,
-            "author_id": ctx.author.id,
-            "roles": roles_list,
-            "signups": {},
-            "allow_multiple_per_role": allow_multiple,
-            "allow_freeform": False,
-            "channel_id": None,
-            "message_id": None,
-            "scheduled_time": None,
-            "compact": False,  # Default to not compact
-        }
-
-        # Initialize signups for each predefined role
-        for role in roles_list:
-            party["signups"][role] = []
-
-        # Save the party
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id] = party
-
-        # Create the party embed
-        embed = await self.create_party_embed(party, ctx.guild)
-
-        # Create the view with buttons
-        view = PartyView(party_id, self)
-
-        # Send the message
-        message = await ctx.send(embed=embed, view=view)
-
-        # Save the message ID and channel ID
-        async with self.config.guild(ctx.guild).parties() as parties:
-            parties[party_id]["message_id"] = message.id
-            parties[party_id]["channel_id"] = ctx.channel.id
+        party = self._make_party(
+            party_id,
+            title,
+            ctx.author.id,
+            roles_list,
+            allow_multiple=allow_multiple,
+        )
+        await self._post_party(ctx.guild, ctx.channel, party, party_id)
 
         # Create modlog entry
         await self.create_party_modlog(
