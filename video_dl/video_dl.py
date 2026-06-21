@@ -671,6 +671,7 @@ class VideoDownloader(commands.Cog):
         await self.config.guild(ctx.guild).too_large_emoji.set(emoji)
         await ctx.send(f"✅ Too large emoji has been set to {emoji}", ephemeral=True)
 
+    @commands.guild_only()
     @checks.is_owner()
     @videodl.command(name="setcookies")
     async def videodl_set_cookies(self, ctx, path: str = ""):
