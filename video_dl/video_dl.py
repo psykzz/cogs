@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -137,9 +138,12 @@ class VideoDownloader(commands.Cog):
         except ImportError:
             return False, None, "catboxpy is not installed. Please install it with: pip install catboxpy"
 
-        try:
+        def _do_upload():
             client = CatboxClient(userhash=userhash if userhash else "")
-            file_url = client.upload(file_path)
+            return client.upload(file_path)
+
+        try:
+            file_url = await asyncio.to_thread(_do_upload)
             return True, file_url, None
         except Exception as e:
             log.exception(f"Failed to upload to catbox.moe: {e}")
@@ -235,7 +239,7 @@ class VideoDownloader(commands.Cog):
             # TikTok & Instagram: best available with sorting
             ydl_opts['format_sort'] = ['proto', 'ext:mp4:m4a', 'res', 'br']
 
-        try:
+        def _run_download():
             # Pre-check file size before downloading
             probe_opts = {'quiet': True, 'no_warnings': True}
             try:
@@ -269,12 +273,12 @@ class VideoDownloader(commands.Cog):
                     else:
                         return False, None, "Download succeeded but could not find the file"
 
-                # Check file size - we just return the file and let the caller decide what to do
                 file_size = os.path.getsize(file_path)
                 log.info(f"Downloaded video: {file_size / 1024 / 1024:.1f}MB")
-
                 return True, file_path, None
 
+        try:
+            return await asyncio.to_thread(_run_download)
         except yt_dlp.utils.DownloadError as e:
             log.error(f"yt-dlp download error: {e}")
             return False, None, f"Download failed: {str(e)}"
@@ -338,8 +342,10 @@ class VideoDownloader(commands.Cog):
                             pass
                     # Try catbox.moe if file is too large for Discord but within catbox limit
                     elif file_size <= self.CATBOX_SIZE_LIMIT:
-                        guild_config = await self.config.guild(message.guild).all()
-                        userhash = guild_config.get("catbox_userhash", "")
+                        userhash = ""
+                        if message.guild:
+                            guild_config = await self.config.guild(message.guild).all()
+                            userhash = guild_config.get("catbox_userhash", "")
 
                         success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                         if success and catbox_url:
@@ -353,20 +359,22 @@ class VideoDownloader(commands.Cog):
                             except discord.HTTPException:
                                 pass
                         else:
-                            # Catbox failed, react with emoji
+                            # Catbox failed, react with emoji (guild only)
+                            if message.guild:
+                                try:
+                                    emoji = guild_config.get("too_large_emoji", "💥")
+                                    await message.add_reaction(emoji)
+                                except discord.HTTPException:
+                                    pass
+                    else:
+                        # File is too large even for catbox — react with emoji (guild only)
+                        if message.guild:
                             try:
+                                guild_config = await self.config.guild(message.guild).all()
                                 emoji = guild_config.get("too_large_emoji", "💥")
                                 await message.add_reaction(emoji)
                             except discord.HTTPException:
                                 pass
-                    else:
-                        # File is too large even for catbox
-                        try:
-                            guild_config = await self.config.guild(message.guild).all()
-                            emoji = guild_config.get("too_large_emoji", "💥")
-                            await message.add_reaction(emoji)
-                        except discord.HTTPException:
-                            pass
                 # Suppress error messages for automatic downloads
 
             finally:
