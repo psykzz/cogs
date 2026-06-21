@@ -200,7 +200,10 @@ class VideoDownloader(commands.Cog):
                 return platform
         return None
 
-    async def _download_video(self, url: str, platform: str, temp_dir: str, guild: discord.Guild = None, cookies_file: str = None):
+    async def _download_video(
+        self, url: str, platform: str, temp_dir: str,
+        guild: discord.Guild = None, cookies_file: str = None
+    ):
         """Download video using yt-dlp.
 
         Parameters
