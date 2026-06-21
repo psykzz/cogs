@@ -293,6 +293,24 @@ class VideoDownloader(commands.Cog):
             log.exception(f"Unexpected error downloading video: {e}")
             return False, None, f"Unexpected error: {str(e)}"
 
+    def _is_auth_error(self, error_msg: str) -> bool:
+        """Return True if the error looks like a cookie/auth failure."""
+        if not error_msg:
+            return False
+        lower = error_msg.lower()
+        return any(kw in lower for kw in (
+            "permission", "log in", "login", "cookie",
+            "authentication", "not available", "private",
+        ))
+
+    async def _react_auth_error(self, message: discord.Message):
+        """React with ❌ 🍪 to signal a cookie auth failure."""
+        for emoji in ("❌", "🍪"):
+            try:
+                await message.add_reaction(emoji)
+            except discord.HTTPException:
+                pass
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Listen for messages with video URLs.
@@ -390,7 +408,9 @@ class VideoDownloader(commands.Cog):
                                 await message.add_reaction(emoji)
                             except discord.HTTPException:
                                 pass
-                # Suppress error messages for automatic downloads
+                # React on auth failure; suppress all other download errors
+                elif self._is_auth_error(error_msg):
+                    await self._react_auth_error(message)
 
             finally:
                 # Clean up temporary directory
@@ -483,8 +503,15 @@ class VideoDownloader(commands.Cog):
                             ephemeral=True
                         )
                 else:
-                    # Send error message
-                    await ctx.send(f"❌ {error_msg}", ephemeral=True)
+                    # Send error message; hint about cookies on auth failures
+                    if self._is_auth_error(error_msg):
+                        await ctx.send(
+                            f"❌ 🍪 {error_msg}\n\n"
+                            "Use `[p]videodl setcookies <path>` to configure a cookies file.",
+                            ephemeral=True
+                        )
+                    else:
+                        await ctx.send(f"❌ {error_msg}", ephemeral=True)
 
             finally:
                 # Clean up temporary directory
