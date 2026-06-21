@@ -58,6 +58,7 @@ class VideoDownloader(commands.Cog):
             "disabled_users": [],
             "catbox_userhash": "psykzz",
             "too_large_emoji": "💥",
+            "cookies_file": "",
         }
         self.config.register_guild(**default_guild)
 
@@ -199,7 +200,7 @@ class VideoDownloader(commands.Cog):
                 return platform
         return None
 
-    async def _download_video(self, url: str, platform: str, temp_dir: str, guild: discord.Guild = None):
+    async def _download_video(self, url: str, platform: str, temp_dir: str, guild: discord.Guild = None, cookies_file: str = None):
         """Download video using yt-dlp.
 
         Parameters
@@ -230,6 +231,9 @@ class VideoDownloader(commands.Cog):
             'no_warnings': True,
             'extract_flat': False,
         }
+
+        if cookies_file:
+            ydl_opts['cookiefile'] = cookies_file
 
         if platform == 'youtube':
             # YouTube: best video up to 1080p + best audio
@@ -321,9 +325,17 @@ class VideoDownloader(commands.Cog):
             # Create temporary directory
             temp_dir = tempfile.mkdtemp(prefix='video_dl_')
 
+            # Fetch cookies_file config for guild downloads
+            cookies_file = ""
+            if message.guild:
+                guild_config = await self.config.guild(message.guild).all()
+                cookies_file = guild_config.get("cookies_file", "")
+
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(url, platform, temp_dir, message.guild)
+                success, file_path, error_msg = await self._download_video(
+                    url, platform, temp_dir, message.guild, cookies_file or None
+                )
 
                 if success and file_path:
                     file_size = os.path.getsize(file_path)
@@ -407,9 +419,17 @@ class VideoDownloader(commands.Cog):
             # Create temporary directory
             temp_dir = tempfile.mkdtemp(prefix='video_dl_')
 
+            # Fetch cookies_file config
+            cookies_file = ""
+            if ctx.guild:
+                guild_cfg = await self.config.guild(ctx.guild).all()
+                cookies_file = guild_cfg.get("cookies_file", "")
+
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(url, platform, temp_dir, ctx.guild)
+                success, file_path, error_msg = await self._download_video(
+                    url, platform, temp_dir, ctx.guild, cookies_file or None
+                )
 
                 if success and file_path:
                     file_size = os.path.getsize(file_path)
@@ -587,6 +607,7 @@ class VideoDownloader(commands.Cog):
         disabled_users = guild_config["disabled_users"]
         catbox_userhash = guild_config.get("catbox_userhash", "")
         too_large_emoji = guild_config.get("too_large_emoji", "💥")
+        cookies_file = guild_config.get("cookies_file", "")
 
         # Get boost level and file size limit
         boost_level = ctx.guild.premium_tier
@@ -596,6 +617,7 @@ class VideoDownloader(commands.Cog):
         status_msg += f"Server-wide: {'✅ Enabled' if enabled else '❌ Disabled'}\n"
         status_msg += f"Boost Level: {boost_level} (File size limit: {file_size_limit / 1024 / 1024:.0f}MB)\n"
         status_msg += f"Catbox.moe: {'✅ Configured' if catbox_userhash else '❌ Not configured'}\n"
+        status_msg += f"Cookies file: {'✅ Configured' if cookies_file else '❌ Not configured'}\n"
         status_msg += f"Too large emoji: {too_large_emoji}\n\n"
 
         if disabled_channels:
@@ -648,3 +670,31 @@ class VideoDownloader(commands.Cog):
         await ctx.defer(ephemeral=True)
         await self.config.guild(ctx.guild).too_large_emoji.set(emoji)
         await ctx.send(f"✅ Too large emoji has been set to {emoji}", ephemeral=True)
+
+    @checks.is_owner()
+    @videodl.command(name="setcookies")
+    async def videodl_set_cookies(self, ctx, path: str = ""):
+        """Set the path to a Netscape cookies file for yt-dlp authentication.
+
+        Required for age-gated or login-only TikTok/Instagram content.
+        Export cookies from a logged-in browser using a cookies.txt extension.
+
+        Parameters
+        ----------
+        path : str, optional
+            Absolute path to the cookies file. Leave empty to clear.
+        """
+        await ctx.defer(ephemeral=True)
+
+        if path:
+            if not os.path.isfile(path):
+                await ctx.send(
+                    f"❌ File not found or not readable: `{path}`", ephemeral=True
+                )
+                return
+            await self.config.guild(ctx.guild).cookies_file.set(path)
+            await ctx.send("✅ Cookies file has been set.", ephemeral=True)
+            log.info(f"Cookies file set to {path} for guild {ctx.guild.id}")
+        else:
+            await self.config.guild(ctx.guild).cookies_file.set("")
+            await ctx.send("✅ Cookies file has been cleared.", ephemeral=True)
