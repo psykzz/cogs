@@ -1,0 +1,10 @@
+{
+    "name": "WordGame",
+    "short": "Multiplayer PvP word guessing game played in Discord threads.",
+    "description": "Start a Wordle-style multiplayer game in any channel. Players compete for points by guessing letters and words. Tracks scores globally — first to claim a correct letter position wins those points.",
+    "tags": ["game", "wordle", "multiplayer", "pvp", "fun"],
+    "requirements": [],
+    "install_msg": "Use `/wordgame start` to begin a game in any channel.",
+    "author": ["psykzz"],
+    "end_user_data_statement": "This cog stores user IDs and guess history for active word game sessions."
+}
