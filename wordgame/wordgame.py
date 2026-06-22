@@ -1,8 +1,10 @@
 import logging
 import secrets
 import string
+import time
 
 import discord
+from discord.ext import tasks
 from redbot.core import Config, checks, commands
 
 from .game import (
@@ -14,10 +16,12 @@ from .game import (
     get_random_word,
     is_valid_guess,
 )
-from .views import ScoreboardView
+from .views import BonusDMView, ScoreboardView
 
 log = logging.getLogger("red.cog.wordgame")
 
+INACTIVITY_TIMEOUT = 600  # 10 minutes without a guess → end game
+BONUS_GUESS_INTERVAL = 300  # 5 minutes → grant +1 guess to all done players
 IDENTIFIER = 7391028475916283
 
 
@@ -37,6 +41,9 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
     status_icon = "🟢 Active" if status == "active" else "🔴 Ended"
     header = f"🎮 **Word Game** — {length} letters | Game `#{game_id}`\n"
     header += f"Status: {status_icon}"
+    inactive_closes_at = game.get("inactive_closes_at")
+    if inactive_closes_at and status == "active":
+        header += f"\n⏳ Auto-closes <t:{int(inactive_closes_at)}:R> if no guesses"
     if reveal_word:
         header += f"\n🔑 The word was: **{word.upper()}**"
     header += "\n"
@@ -48,7 +55,11 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
         )
         leaderboard = "\n📊 **Leaderboard**\n"
         for rank, (uid, pdata) in enumerate(sorted_players, 1):
-            done_marker = " ✅" if pdata.get("done") else ""
+            if pdata.get("done"):
+                bonus_at = pdata.get("bonus_guess_at")
+                done_marker = f" ⏰ <t:{int(bonus_at)}:R>" if bonus_at else " ✅"
+            else:
+                done_marker = ""
             leaderboard += f"{rank}. <@{uid}> — **{pdata['score']} pts**{done_marker}\n"
     else:
         leaderboard = "\n📊 **Leaderboard**\n*No guesses yet — type a word in this thread!*\n"
@@ -85,10 +96,15 @@ class WordGame(commands.Cog):
         self.config.register_guild(**default_guild)
 
         self.bot.loop.create_task(self._register_persistent_views())
+        self._close_games_loop.start()
+
+    def cog_unload(self):
+        self._close_games_loop.cancel()
 
     async def _register_persistent_views(self):
         """Re-register ScoreboardView for all active games after a restart."""
         await self.bot.wait_until_ready()
+        has_active = False
         all_guilds = await self.config.all_guilds()
         for guild_data in all_guilds.values():
             for thread_id_str, game in guild_data.get("active_games", {}).items():
@@ -97,6 +113,75 @@ class WordGame(commands.Cog):
                     msg_id = game.get("scoreboard_message_id")
                     view = ScoreboardView(self, thread_id)
                     self.bot.add_view(view, message_id=msg_id)
+                    has_active = True
+        if has_active and not self._close_games_loop.is_running():
+            self._close_games_loop.start()
+
+    @tasks.loop(seconds=30)
+    async def _close_games_loop(self):
+        """End inactive games and grant per-player bonus guesses on schedule."""
+        now = time.time()
+        has_active = False
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            for thread_id_str, game in guild_data.get("active_games", {}).items():
+                if game.get("status") != "active":
+                    continue
+                has_active = True
+                thread_id = int(thread_id_str)
+
+                closes_at = game.get("inactive_closes_at")
+                if closes_at and now >= closes_at:
+                    await self.end_game(thread_id)
+                    has_active = False
+                    continue
+
+                for uid, player in game.get("players", {}).items():
+                    bonus_at = player.get("bonus_guess_at")
+                    if bonus_at and now >= bonus_at:
+                        await self._grant_bonus_guess(thread_id, game, uid, player)
+
+        if not has_active:
+            self._close_games_loop.stop()
+
+    @_close_games_loop.before_loop
+    async def _before_close_games_loop(self):
+        await self.bot.wait_until_ready()
+
+    async def _grant_bonus_guess(
+        self, thread_id: int, game: dict, user_id: str, player: dict
+    ):
+        """Grant +1 guess to a single player and DM them unless opted out."""
+        thread = self.bot.get_channel(thread_id)
+        if not thread:
+            return
+
+        player["max_guesses"] = player.get("max_guesses", MAX_GUESSES) + 1
+        player["done"] = False
+        player["bonus_guess_at"] = None
+
+        async with self.config.guild(thread.guild).active_games() as games:
+            games[str(thread_id)] = game
+
+        await self._update_scoreboard(thread, game)
+
+        if player.get("ignore_dms"):
+            return
+
+        user = self.bot.get_user(int(user_id))
+        if not user:
+            return
+        try:
+            view = BonusDMView(self, thread_id, int(user_id))
+            self.bot.add_view(view)
+            await user.send(
+                f"⏰ **Bonus guess!** You have an extra guess waiting in "
+                f"**Word Game** (Game `#{game['game_id']}`) — head back to "
+                f"{thread.mention} and use it!",
+                view=view,
+            )
+        except discord.HTTPException:
+            pass
 
     # ------------------------------------------------------------------ #
     #  Commands                                                            #
@@ -169,6 +254,7 @@ class WordGame(commands.Cog):
             "announce_message_id": announce_msg.id,
             "scoreboard_message_id": None,
             "claimed_positions": [],
+            "inactive_closes_at": time.time() + INACTIVITY_TIMEOUT,
             "players": {},
         }
 
@@ -183,6 +269,10 @@ class WordGame(commands.Cog):
 
         # Register the persistent view now that we have the message id
         self.bot.add_view(view, message_id=scoreboard_msg.id)
+
+        # Ensure the inactivity watcher is running
+        if not self._close_games_loop.is_running():
+            self._close_games_loop.start()
 
         await ctx.send(
             f"✅ Game started! Head to {thread.mention} to play.", ephemeral=True
@@ -285,7 +375,16 @@ class WordGame(commands.Cog):
         players = game.setdefault("players", {})
         player = players.setdefault(
             user_id,
-            {"guesses": [], "feedbacks": [], "points_per_guess": [], "score": 0, "done": False},
+            {
+                "guesses": [],
+                "feedbacks": [],
+                "points_per_guess": [],
+                "score": 0,
+                "done": False,
+                "max_guesses": MAX_GUESSES,
+                "bonus_guess_at": None,
+                "ignore_dms": False,
+            },
         )
 
         if player["done"]:
@@ -323,15 +422,19 @@ class WordGame(commands.Cog):
         game["claimed_positions"].extend(new_claims)
 
         guesses_used = len(player["guesses"])
-        if guesses_used >= MAX_GUESSES or guess == word:
+        if guesses_used >= player["max_guesses"] or guess == word:
             player["done"] = True
+            player["bonus_guess_at"] = time.time() + BONUS_GUESS_INTERVAL
+
+        # Reset the inactivity timer on every valid guess
+        game["inactive_closes_at"] = time.time() + INACTIVITY_TIMEOUT
 
         # Persist
         async with self.config.guild(guild).active_games() as games:
             games[str(thread.id)] = game
 
         # Reply with feedback
-        guesses_left = MAX_GUESSES - guesses_used
+        guesses_left = player["max_guesses"] - guesses_used
         feedback_display = " ".join(f"`{c}`" for c in feedback)
         reply = (
             f"{feedback_display}\n"
@@ -343,12 +446,7 @@ class WordGame(commands.Cog):
         except discord.HTTPException:
             pass
 
-        # Check if all players are done — end_game will update scoreboard with reveal
-        all_done = game["players"] and all(p["done"] for p in game["players"].values())
-        if all_done:
-            await self.end_game(thread.id)
-        else:
-            await self._update_scoreboard(thread, game)
+        await self._update_scoreboard(thread, game)
 
     # ------------------------------------------------------------------ #
     #  Event listener                                                      #
