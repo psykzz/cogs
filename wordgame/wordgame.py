@@ -1,8 +1,10 @@
 import logging
 import secrets
 import string
+import time
 
 import discord
+from discord.ext import tasks
 from redbot.core import Config, checks, commands
 
 from .game import (
@@ -18,6 +20,7 @@ from .views import ScoreboardView
 
 log = logging.getLogger("red.cog.wordgame")
 
+INACTIVITY_TIMEOUT = 600  # 10 minutes without a guess → end game
 IDENTIFIER = 7391028475916283
 
 
@@ -37,6 +40,9 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
     status_icon = "🟢 Active" if status == "active" else "🔴 Ended"
     header = f"🎮 **Word Game** — {length} letters | Game `#{game_id}`\n"
     header += f"Status: {status_icon}"
+    inactive_closes_at = game.get("inactive_closes_at")
+    if inactive_closes_at and status == "active":
+        header += f"\n⏳ Auto-closes <t:{int(inactive_closes_at)}:R> if no guesses"
     if reveal_word:
         header += f"\n🔑 The word was: **{word.upper()}**"
     header += "\n"
@@ -85,10 +91,15 @@ class WordGame(commands.Cog):
         self.config.register_guild(**default_guild)
 
         self.bot.loop.create_task(self._register_persistent_views())
+        self._close_games_loop.start()
+
+    def cog_unload(self):
+        self._close_games_loop.cancel()
 
     async def _register_persistent_views(self):
         """Re-register ScoreboardView for all active games after a restart."""
         await self.bot.wait_until_ready()
+        has_active = False
         all_guilds = await self.config.all_guilds()
         for guild_data in all_guilds.values():
             for thread_id_str, game in guild_data.get("active_games", {}).items():
@@ -97,6 +108,31 @@ class WordGame(commands.Cog):
                     msg_id = game.get("scoreboard_message_id")
                     view = ScoreboardView(self, thread_id)
                     self.bot.add_view(view, message_id=msg_id)
+                    has_active = True
+        if has_active and not self._close_games_loop.is_running():
+            self._close_games_loop.start()
+
+    @tasks.loop(seconds=30)
+    async def _close_games_loop(self):
+        """End games that have been inactive for 10 minutes."""
+        now = time.time()
+        has_active = False
+        all_guilds = await self.config.all_guilds()
+        for guild_id, guild_data in all_guilds.items():
+            for thread_id_str, game in guild_data.get("active_games", {}).items():
+                if game.get("status") != "active":
+                    continue
+                has_active = True
+                closes_at = game.get("inactive_closes_at")
+                if closes_at and now >= closes_at:
+                    await self.end_game(int(thread_id_str))
+                    has_active = False
+        if not has_active:
+            self._close_games_loop.stop()
+
+    @_close_games_loop.before_loop
+    async def _before_close_games_loop(self):
+        await self.bot.wait_until_ready()
 
     # ------------------------------------------------------------------ #
     #  Commands                                                            #
@@ -169,6 +205,7 @@ class WordGame(commands.Cog):
             "announce_message_id": announce_msg.id,
             "scoreboard_message_id": None,
             "claimed_positions": [],
+            "inactive_closes_at": time.time() + INACTIVITY_TIMEOUT,
             "players": {},
         }
 
@@ -183,6 +220,10 @@ class WordGame(commands.Cog):
 
         # Register the persistent view now that we have the message id
         self.bot.add_view(view, message_id=scoreboard_msg.id)
+
+        # Ensure the inactivity watcher is running
+        if not self._close_games_loop.is_running():
+            self._close_games_loop.start()
 
         await ctx.send(
             f"✅ Game started! Head to {thread.mention} to play.", ephemeral=True
@@ -326,6 +367,9 @@ class WordGame(commands.Cog):
         if guesses_used >= MAX_GUESSES or guess == word:
             player["done"] = True
 
+        # Reset the inactivity timer on every valid guess
+        game["inactive_closes_at"] = time.time() + INACTIVITY_TIMEOUT
+
         # Persist
         async with self.config.guild(guild).active_games() as games:
             games[str(thread.id)] = game
@@ -343,12 +387,7 @@ class WordGame(commands.Cog):
         except discord.HTTPException:
             pass
 
-        # Check if all players are done — end_game will update scoreboard with reveal
-        all_done = game["players"] and all(p["done"] for p in game["players"].values())
-        if all_done:
-            await self.end_game(thread.id)
-        else:
-            await self._update_scoreboard(thread, game)
+        await self._update_scoreboard(thread, game)
 
     # ------------------------------------------------------------------ #
     #  Event listener                                                      #
