@@ -16,7 +16,7 @@ from .game import (
     get_random_word,
     is_valid_guess,
 )
-from .views import ScoreboardView
+from .views import BonusDMView, ScoreboardView
 
 log = logging.getLogger("red.cog.wordgame")
 
@@ -44,9 +44,6 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
     inactive_closes_at = game.get("inactive_closes_at")
     if inactive_closes_at and status == "active":
         header += f"\n⏳ Auto-closes <t:{int(inactive_closes_at)}:R> if no guesses"
-    next_bonus_at = game.get("next_bonus_at")
-    if next_bonus_at and status == "active":
-        header += f"\n⏰ Next bonus guess <t:{int(next_bonus_at)}:R>"
     if reveal_word:
         header += f"\n🔑 The word was: **{word.upper()}**"
     header += "\n"
@@ -58,7 +55,11 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
         )
         leaderboard = "\n📊 **Leaderboard**\n"
         for rank, (uid, pdata) in enumerate(sorted_players, 1):
-            done_marker = " ✅" if pdata.get("done") else ""
+            if pdata.get("done"):
+                bonus_at = pdata.get("bonus_guess_at")
+                done_marker = f" ⏰ <t:{int(bonus_at)}:R>" if bonus_at else " ✅"
+            else:
+                done_marker = ""
             leaderboard += f"{rank}. <@{uid}> — **{pdata['score']} pts**{done_marker}\n"
     else:
         leaderboard = "\n📊 **Leaderboard**\n*No guesses yet — type a word in this thread!*\n"
@@ -118,7 +119,7 @@ class WordGame(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def _close_games_loop(self):
-        """End inactive games and grant bonus guesses on schedule."""
+        """End inactive games and grant per-player bonus guesses on schedule."""
         now = time.time()
         has_active = False
         all_guilds = await self.config.all_guilds()
@@ -135,9 +136,10 @@ class WordGame(commands.Cog):
                     has_active = False
                     continue
 
-                next_bonus_at = game.get("next_bonus_at")
-                if next_bonus_at and now >= next_bonus_at:
-                    await self._grant_bonus_guesses(thread_id, game)
+                for uid, player in game.get("players", {}).items():
+                    bonus_at = player.get("bonus_guess_at")
+                    if bonus_at and now >= bonus_at:
+                        await self._grant_bonus_guess(thread_id, game, uid, player)
 
         if not has_active:
             self._close_games_loop.stop()
@@ -146,35 +148,40 @@ class WordGame(commands.Cog):
     async def _before_close_games_loop(self):
         await self.bot.wait_until_ready()
 
-    async def _grant_bonus_guesses(self, thread_id: int, game: dict):
-        """Grant +1 guess to every done player and post a thread notification."""
+    async def _grant_bonus_guess(
+        self, thread_id: int, game: dict, user_id: str, player: dict
+    ):
+        """Grant +1 guess to a single player and DM them unless opted out."""
         thread = self.bot.get_channel(thread_id)
         if not thread:
             return
 
-        granted_to = []
-        for uid, player in game.get("players", {}).items():
-            if player.get("done"):
-                player["max_guesses"] = player.get("max_guesses", MAX_GUESSES) + 1
-                player["done"] = False
-                granted_to.append(uid)
-
-        # Advance the next bonus time regardless of whether anyone was granted
-        game["next_bonus_at"] = game["next_bonus_at"] + BONUS_GUESS_INTERVAL
+        player["max_guesses"] = player.get("max_guesses", MAX_GUESSES) + 1
+        player["done"] = False
+        player["bonus_guess_at"] = None
 
         async with self.config.guild(thread.guild).active_games() as games:
             games[str(thread_id)] = game
 
-        if granted_to:
-            mentions = " ".join(f"<@{uid}>" for uid in granted_to)
-            try:
-                await thread.send(
-                    f"⏰ **Bonus guess!** {mentions} — you each have 1 more guess."
-                )
-            except discord.HTTPException:
-                pass
-
         await self._update_scoreboard(thread, game)
+
+        if player.get("ignore_dms"):
+            return
+
+        user = self.bot.get_user(int(user_id))
+        if not user:
+            return
+        try:
+            view = BonusDMView(self, thread_id, int(user_id))
+            self.bot.add_view(view)
+            await user.send(
+                f"⏰ **Bonus guess!** You have an extra guess waiting in "
+                f"**Word Game** (Game `#{game['game_id']}`) — head back to "
+                f"{thread.mention} and use it!",
+                view=view,
+            )
+        except discord.HTTPException:
+            pass
 
     # ------------------------------------------------------------------ #
     #  Commands                                                            #
@@ -248,7 +255,6 @@ class WordGame(commands.Cog):
             "scoreboard_message_id": None,
             "claimed_positions": [],
             "inactive_closes_at": time.time() + INACTIVITY_TIMEOUT,
-            "next_bonus_at": time.time() + BONUS_GUESS_INTERVAL,
             "players": {},
         }
 
@@ -376,6 +382,8 @@ class WordGame(commands.Cog):
                 "score": 0,
                 "done": False,
                 "max_guesses": MAX_GUESSES,
+                "bonus_guess_at": None,
+                "ignore_dms": False,
             },
         )
 
@@ -416,6 +424,7 @@ class WordGame(commands.Cog):
         guesses_used = len(player["guesses"])
         if guesses_used >= player["max_guesses"] or guess == word:
             player["done"] = True
+            player["bonus_guess_at"] = time.time() + BONUS_GUESS_INTERVAL
 
         # Reset the inactivity timer on every valid guess
         game["inactive_closes_at"] = time.time() + INACTIVITY_TIMEOUT
