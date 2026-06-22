@@ -21,6 +21,7 @@ from .views import ScoreboardView
 log = logging.getLogger("red.cog.wordgame")
 
 INACTIVITY_TIMEOUT = 600  # 10 minutes without a guess → end game
+BONUS_GUESS_INTERVAL = 300  # 5 minutes → grant +1 guess to all done players
 IDENTIFIER = 7391028475916283
 
 
@@ -43,6 +44,9 @@ def _build_scoreboard_text(game: dict, reveal_word: bool = False) -> str:
     inactive_closes_at = game.get("inactive_closes_at")
     if inactive_closes_at and status == "active":
         header += f"\n⏳ Auto-closes <t:{int(inactive_closes_at)}:R> if no guesses"
+    next_bonus_at = game.get("next_bonus_at")
+    if next_bonus_at and status == "active":
+        header += f"\n⏰ Next bonus guess <t:{int(next_bonus_at)}:R>"
     if reveal_word:
         header += f"\n🔑 The word was: **{word.upper()}**"
     header += "\n"
@@ -114,7 +118,7 @@ class WordGame(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def _close_games_loop(self):
-        """End games that have been inactive for 10 minutes."""
+        """End inactive games and grant bonus guesses on schedule."""
         now = time.time()
         has_active = False
         all_guilds = await self.config.all_guilds()
@@ -123,16 +127,54 @@ class WordGame(commands.Cog):
                 if game.get("status") != "active":
                     continue
                 has_active = True
+                thread_id = int(thread_id_str)
+
                 closes_at = game.get("inactive_closes_at")
                 if closes_at and now >= closes_at:
-                    await self.end_game(int(thread_id_str))
+                    await self.end_game(thread_id)
                     has_active = False
+                    continue
+
+                next_bonus_at = game.get("next_bonus_at")
+                if next_bonus_at and now >= next_bonus_at:
+                    await self._grant_bonus_guesses(thread_id, game)
+
         if not has_active:
             self._close_games_loop.stop()
 
     @_close_games_loop.before_loop
     async def _before_close_games_loop(self):
         await self.bot.wait_until_ready()
+
+    async def _grant_bonus_guesses(self, thread_id: int, game: dict):
+        """Grant +1 guess to every done player and post a thread notification."""
+        thread = self.bot.get_channel(thread_id)
+        if not thread:
+            return
+
+        granted_to = []
+        for uid, player in game.get("players", {}).items():
+            if player.get("done"):
+                player["max_guesses"] = player.get("max_guesses", MAX_GUESSES) + 1
+                player["done"] = False
+                granted_to.append(uid)
+
+        # Advance the next bonus time regardless of whether anyone was granted
+        game["next_bonus_at"] = game["next_bonus_at"] + BONUS_GUESS_INTERVAL
+
+        async with self.config.guild(thread.guild).active_games() as games:
+            games[str(thread_id)] = game
+
+        if granted_to:
+            mentions = " ".join(f"<@{uid}>" for uid in granted_to)
+            try:
+                await thread.send(
+                    f"⏰ **Bonus guess!** {mentions} — you each have 1 more guess."
+                )
+            except discord.HTTPException:
+                pass
+
+        await self._update_scoreboard(thread, game)
 
     # ------------------------------------------------------------------ #
     #  Commands                                                            #
@@ -206,6 +248,7 @@ class WordGame(commands.Cog):
             "scoreboard_message_id": None,
             "claimed_positions": [],
             "inactive_closes_at": time.time() + INACTIVITY_TIMEOUT,
+            "next_bonus_at": time.time() + BONUS_GUESS_INTERVAL,
             "players": {},
         }
 
@@ -326,7 +369,14 @@ class WordGame(commands.Cog):
         players = game.setdefault("players", {})
         player = players.setdefault(
             user_id,
-            {"guesses": [], "feedbacks": [], "points_per_guess": [], "score": 0, "done": False},
+            {
+                "guesses": [],
+                "feedbacks": [],
+                "points_per_guess": [],
+                "score": 0,
+                "done": False,
+                "max_guesses": MAX_GUESSES,
+            },
         )
 
         if player["done"]:
@@ -364,7 +414,7 @@ class WordGame(commands.Cog):
         game["claimed_positions"].extend(new_claims)
 
         guesses_used = len(player["guesses"])
-        if guesses_used >= MAX_GUESSES or guess == word:
+        if guesses_used >= player["max_guesses"] or guess == word:
             player["done"] = True
 
         # Reset the inactivity timer on every valid guess
@@ -375,7 +425,7 @@ class WordGame(commands.Cog):
             games[str(thread.id)] = game
 
         # Reply with feedback
-        guesses_left = MAX_GUESSES - guesses_used
+        guesses_left = player["max_guesses"] - guesses_used
         feedback_display = " ".join(f"`{c}`" for c in feedback)
         reply = (
             f"{feedback_display}\n"
