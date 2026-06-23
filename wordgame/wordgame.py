@@ -264,6 +264,7 @@ class WordGame(commands.Cog):
             "announce_message_id": announce_msg.id,
             "scoreboard_message_id": None,
             "claimed_positions": [],
+            "claimed_letters": [],
             "inactive_closes_at": time.time() + INACTIVITY_TIMEOUT,
             "players": {},
         }
@@ -428,8 +429,8 @@ class WordGame(commands.Cog):
 
         # Score the guess
         feedback = compute_feedback(guess, word)
-        points, new_claims = compute_score(
-            guess, word, feedback, game["claimed_positions"]
+        points, new_pos_claims, new_letter_claims = compute_score(
+            guess, word, feedback, game["claimed_positions"], game.get("claimed_letters", [])
         )
 
         # Update state
@@ -437,7 +438,8 @@ class WordGame(commands.Cog):
         player["feedbacks"].append(feedback)
         player["points_per_guess"].append(points)
         player["score"] += points
-        game["claimed_positions"].extend(new_claims)
+        game["claimed_positions"].extend(new_pos_claims)
+        game.setdefault("claimed_letters", []).extend(new_letter_claims)
 
         guesses_used = len(player["guesses"])
         word_found = guess == word
