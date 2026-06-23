@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 import string
@@ -95,11 +96,20 @@ class WordGame(commands.Cog):
         }
         self.config.register_guild(**default_guild)
 
+        # Per-thread locks prevent concurrent guesses from racing on claimed_positions
+        self._guess_locks: dict = {}
+
         self.bot.loop.create_task(self._register_persistent_views())
         self._close_games_loop.start()
 
     def cog_unload(self):
         self._close_games_loop.cancel()
+
+    def _get_thread_lock(self, thread_id: int):
+        """Return (creating if necessary) a per-thread asyncio.Lock."""
+        if thread_id not in self._guess_locks:
+            self._guess_locks[thread_id] = asyncio.Lock()
+        return self._guess_locks[thread_id]
 
     async def _register_persistent_views(self):
         """Re-register ScoreboardView for all active games after a restart."""
@@ -364,12 +374,20 @@ class WordGame(commands.Cog):
         except discord.HTTPException as e:
             log.error("Failed to update scoreboard: %s", e)
 
-    async def _process_guess(self, message: discord.Message, game: dict, guild):
+    async def _process_guess(self, message: discord.Message, guild):
         """Validate and score a guess, then update state and scoreboard."""
         guess = message.content.strip().lower()
-        word = game["word"]
-        user_id = str(message.author.id)
         thread = message.channel
+        user_id = str(message.author.id)
+
+        # Re-read fresh state here — the caller holds a per-thread lock so this
+        # read is guaranteed to reflect all previously committed guesses.
+        active_games = await self.config.guild(guild).active_games()
+        game = active_games.get(str(thread.id))
+        if not game or game.get("status") != "active":
+            return
+
+        word = game["word"]
 
         # Guard: player already done
         players = game.setdefault("players", {})
@@ -422,9 +440,12 @@ class WordGame(commands.Cog):
         game["claimed_positions"].extend(new_claims)
 
         guesses_used = len(player["guesses"])
-        if guesses_used >= player["max_guesses"] or guess == word:
+        word_found = guess == word
+        if word_found or guesses_used >= player["max_guesses"]:
             player["done"] = True
-            player["bonus_guess_at"] = time.time() + BONUS_GUESS_INTERVAL
+            # Only offer a bonus guess if the player ran out without finding the word
+            if not word_found:
+                player["bonus_guess_at"] = time.time() + BONUS_GUESS_INTERVAL
 
         # Reset the inactivity timer on every valid guess
         game["inactive_closes_at"] = time.time() + INACTIVITY_TIMEOUT
@@ -439,7 +460,7 @@ class WordGame(commands.Cog):
         reply = (
             f"{feedback_display}\n"
             f"**+{points} pts** | "
-            f"{'🎉 Correct!' if guess == word else f'{guesses_left} guess(es) left'}"
+            f"{'🎉 Correct!' if word_found else f'{guesses_left} guess(es) left'}"
         )
         try:
             await message.reply(reply)
@@ -478,4 +499,5 @@ class WordGame(commands.Cog):
         if not guess.isalpha() or len(guess) != game["length"]:
             return
 
-        await self._process_guess(message, game, message.guild)
+        async with self._get_thread_lock(int(thread_id)):
+            await self._process_guess(message, message.guild)

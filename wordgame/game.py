@@ -89,15 +89,14 @@ def compute_score(
     seen_letters = set()  # deduplicate within this guess
 
     for i, (g, fb) in enumerate(zip(guess.lower(), feedback)):
-        if g in seen_letters:
-            continue
-
-        if fb in ("?", "!"):
-            points += 1  # letter appears in word
+        # Letter bonus: once per unique letter per guess
+        if fb in ("?", "!") and g not in seen_letters:
+            points += 1
             seen_letters.add(g)
 
+        # Position bonus: per (letter, position) globally — not skipped by seen_letters
         if fb == "!" and (g, i) not in claimed_set:
-            points += 1  # position bonus (globally unclaimed)
+            points += 1
             new_claims.append([g, i])
             claimed_set.add((g, i))
 
