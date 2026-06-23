@@ -72,35 +72,42 @@ def compute_score(
     word: str,
     feedback: str,
     claimed_positions: list,
+    claimed_letters: list,
 ) -> tuple:
     """
-    Calculate points earned for a guess and return new position claims.
+    Calculate points earned for a guess and return new position/letter claims.
 
     Scoring:
-    - +1 for each unique letter in the guess that appears in the target word
+    - +1 for each unique letter in the guess that appears in the target word,
+      only if no player has already claimed that letter globally
     - +1 for correct position, only if (letter, pos) not already globally claimed
     - +2 bonus if the guess is the full correct word
 
-    Returns (points_earned: int, new_claims: list of [letter, pos]).
+    Returns (points_earned, new_pos_claims: list of [letter, pos], new_letter_claims: list of str).
     """
-    claimed_set = {(c[0], c[1]) for c in claimed_positions}
+    claimed_pos_set = {(c[0], c[1]) for c in claimed_positions}
+    claimed_letter_set = set(claimed_letters)
     points = 0
-    new_claims = []
+    new_pos_claims = []
+    new_letter_claims = []
     seen_letters = set()  # deduplicate within this guess
 
     for i, (g, fb) in enumerate(zip(guess.lower(), feedback)):
-        # Letter bonus: once per unique letter per guess
+        # Letter bonus: first player globally to find each letter wins it
         if fb in ("?", "!") and g not in seen_letters:
-            points += 1
             seen_letters.add(g)
+            if g not in claimed_letter_set:
+                points += 1
+                new_letter_claims.append(g)
+                claimed_letter_set.add(g)
 
-        # Position bonus: per (letter, position) globally — not skipped by seen_letters
-        if fb == "!" and (g, i) not in claimed_set:
+        # Position bonus: per (letter, position) globally
+        if fb == "!" and (g, i) not in claimed_pos_set:
             points += 1
-            new_claims.append([g, i])
-            claimed_set.add((g, i))
+            new_pos_claims.append([g, i])
+            claimed_pos_set.add((g, i))
 
     if guess.lower() == word.lower():
-        points += 2  # word bonus
+        points += 2
 
-    return points, new_claims
+    return points, new_pos_claims, new_letter_claims
