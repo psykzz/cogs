@@ -107,8 +107,6 @@ class WordGame(commands.Cog):
 
     def _get_thread_lock(self, thread_id: int):
         """Return (creating if necessary) a per-thread asyncio.Lock."""
-        import asyncio
-
         if thread_id not in self._guess_locks:
             self._guess_locks[thread_id] = asyncio.Lock()
         return self._guess_locks[thread_id]
