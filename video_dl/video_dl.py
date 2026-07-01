@@ -45,10 +45,6 @@ class VideoDownloader(commands.Cog):
             r'(?:https?://)?(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
         ),
     }
-    VIDEO_EXTENSIONS = {
-        '.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.wmv',
-    }
-
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(
@@ -366,41 +362,34 @@ class VideoDownloader(commands.Cog):
                     file_size = os.path.getsize(file_path)
                     file_size_limit = self._get_file_size_limit(message.guild)
 
-                    if Path(file_path).suffix.lower() not in self.VIDEO_EXTENSIONS:
+                    video_extensions = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.wmv'}
+                    if Path(file_path).suffix.lower() not in video_extensions:
                         log.warning(f"Downloaded file does not appear to be a video: {file_path}")
                     # Try to send directly if within limit
                     elif file_size <= file_size_limit:
-                        delivered = False
                         try:
                             await message.reply(
                                 content=f"Downloaded from {platform.title()}:",
                                 file=discord.File(file_path)
                             )
-                            delivered = True
+                            await self._remove_embed(message)
                         except Exception:
                             # Suppress errors for automatic downloads
                             pass
-
-                        if delivered:
-                            await self._remove_embed(message)
                     # Try catbox.moe if file is too large for Discord but within catbox limit
                     elif file_size <= self.CATBOX_SIZE_LIMIT:
                         userhash = guild_config.get("catbox_userhash", "")
                         upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                         if upload_success and catbox_url:
-                            delivered = False
                             try:
                                 content_msg = (
                                     f"Downloaded from {platform.title()} "
                                     f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
                                 )
                                 await message.reply(content=content_msg)
-                                delivered = True
+                                await self._remove_embed(message)
                             except Exception:
                                 pass
-
-                            if delivered:
-                                await self._remove_embed(message)
                         else:
                             # Catbox failed, react with emoji (guild only)
                             if message.guild:
