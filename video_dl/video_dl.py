@@ -347,6 +347,7 @@ class VideoDownloader(commands.Cog):
             temp_dir = tempfile.mkdtemp(prefix='video_dl_')
 
             # Fetch cookies_file config for guild downloads
+            guild_config = {}
             cookies_file = ""
             if message.guild:
                 guild_config = await self.config.guild(message.guild).all()
@@ -362,26 +363,25 @@ class VideoDownloader(commands.Cog):
                     file_size = os.path.getsize(file_path)
                     file_size_limit = self._get_file_size_limit(message.guild)
 
+                    video_extensions = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.wmv'}
+                    if Path(file_path).suffix.lower() not in video_extensions:
+                        log.warning(f"Downloaded file does not appear to be a video: {file_path}")
                     # Try to send directly if within limit
-                    if file_size <= file_size_limit:
+                    elif file_size <= file_size_limit:
                         try:
                             await message.reply(
                                 content=f"Downloaded from {platform.title()}:",
                                 file=discord.File(file_path)
                             )
                             await self._remove_embed(message)
-                        except discord.HTTPException:
+                        except Exception:
                             # Suppress errors for automatic downloads
                             pass
                     # Try catbox.moe if file is too large for Discord but within catbox limit
                     elif file_size <= self.CATBOX_SIZE_LIMIT:
-                        userhash = ""
-                        if message.guild:
-                            guild_config = await self.config.guild(message.guild).all()
-                            userhash = guild_config.get("catbox_userhash", "")
-
-                        success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
-                        if success and catbox_url:
+                        userhash = guild_config.get("catbox_userhash", "")
+                        upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
+                        if upload_success and catbox_url:
                             try:
                                 content_msg = (
                                     f"Downloaded from {platform.title()} "
@@ -389,7 +389,7 @@ class VideoDownloader(commands.Cog):
                                 )
                                 await message.reply(content=content_msg)
                                 await self._remove_embed(message)
-                            except discord.HTTPException:
+                            except Exception:
                                 pass
                         else:
                             # Catbox failed, react with emoji (guild only)
@@ -403,7 +403,6 @@ class VideoDownloader(commands.Cog):
                         # File is too large even for catbox — react with emoji (guild only)
                         if message.guild:
                             try:
-                                guild_config = await self.config.guild(message.guild).all()
                                 emoji = guild_config.get("too_large_emoji", "💥")
                                 await message.add_reaction(emoji)
                             except discord.HTTPException:
