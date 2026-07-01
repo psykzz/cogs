@@ -45,6 +45,7 @@ class VideoDownloader(commands.Cog):
             r'(?:https?://)?(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
         ),
     }
+
     def __init__(self, bot):
         self.bot = bot
         self.config = Config.get_conf(
