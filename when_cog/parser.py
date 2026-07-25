@@ -21,13 +21,18 @@ RELATIVE_PATTERN = re.compile(
     rf"(?:\s+at\s+(?P<time>{TIME_PATTERN}))?\b",
     re.IGNORECASE,
 )
+PAST_PATTERN = re.compile(
+    r"\b(?P<amount>an?|one|\d+)\s+"
+    r"(?P<unit>seconds?|minutes?|hours?|days?|weeks?)\s+ago\b",
+    re.IGNORECASE,
+)
 DAY_PATTERN = re.compile(
     rf"\b(?:on\s+)?(?:(?P<next>next)\s+)?"
     rf"(?P<weekday>{'|'.join(WEEKDAYS)})\s+at\s+(?P<time>{TIME_PATTERN})\b",
     re.IGNORECASE,
 )
 TODAY_TOMORROW_PATTERN = re.compile(
-    rf"\b(?P<day>today|tomorrow)(?:\s+at\s+(?P<time>{TIME_PATTERN}))?\b",
+    rf"\b(?P<day>today|tomorrow)\s+at\s+(?P<time>{TIME_PATTERN})\b",
     re.IGNORECASE,
 )
 CLOCK_PATTERN = re.compile(
@@ -66,7 +71,7 @@ def _with_clock(value: datetime, clock: str) -> Optional[datetime]:
 
 
 def find_time(content: str, now: datetime) -> Optional[datetime]:
-    """Return the first supported future time expression in UTC."""
+    """Return the first supported time expression in UTC."""
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
 
@@ -81,6 +86,14 @@ def find_time(content: str, now: datetime) -> Optional[datetime]:
             target = _with_clock(target, clock)
             if target is None:
                 return None
+        return target.astimezone(timezone.utc)
+
+    past_match = PAST_PATTERN.search(content)
+    if past_match:
+        amount_text = past_match.group("amount").lower()
+        amount = 1 if amount_text in {"a", "an", "one"} else int(amount_text)
+        unit = past_match.group("unit").lower().rstrip("s")
+        target = now - timedelta(**{unit + "s": amount})
         return target.astimezone(timezone.utc)
 
     local_now = now
@@ -100,12 +113,9 @@ def find_time(content: str, now: datetime) -> Optional[datetime]:
     day_match = TODAY_TOMORROW_PATTERN.search(content)
     if day_match:
         days = 1 if day_match.group("day").lower() == "tomorrow" else 0
-        target = local_now + timedelta(days=days)
-        clock = day_match.group("time")
-        if clock:
-            target = _with_clock(target, clock)
-            if target is None or target <= local_now:
-                return None
+        target = _with_clock(local_now + timedelta(days=days), day_match.group("time"))
+        if target is None or target <= local_now:
+            return None
         return target.astimezone(timezone.utc)
 
     return None
