@@ -16,6 +16,8 @@ def now():
     [
         ("See you in an hour.", datetime(2026, 7, 25, 13, 0, tzinfo=timezone.utc)),
         ("Meet in 3 days.", datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)),
+        ("It was 5 minutes ago.", datetime(2026, 7, 25, 11, 55, tzinfo=timezone.utc)),
+        ("An hour ago", datetime(2026, 7, 25, 11, 0, tzinfo=timezone.utc)),
         ("Tomorrow at 7:30 pm", datetime(2026, 7, 26, 19, 30, tzinfo=timezone.utc)),
         ("On Tuesday at 7", datetime(2026, 7, 28, 7, 0, tzinfo=timezone.utc)),
     ],
