@@ -1,0 +1,10 @@
+{
+    "author": ["psykzz"],
+    "name": "When",
+    "short": "Reply to time expressions with Discord timestamps",
+    "description": "Detects common relative and weekday time expressions in enabled channels and replies with a relative Discord timestamp.",
+    "permissions": ["Send Messages", "Read Message History"],
+    "requirements": [],
+    "tags": ["time", "timestamp", "utility"],
+    "end_user_data_statement": "This cog stores guild settings for enabled channels and timezones. It does not persistently store personal user data."
+}
