@@ -37,3 +37,8 @@ def test_uses_configured_timezone_for_weekdays():
 
 def test_does_not_return_a_past_time_today(now):
     assert find_time("today at 7am", now) is None
+
+
+@pytest.mark.parametrize("content", ["today", "tomorrow"])
+def test_does_not_return_a_timestamp_for_a_bare_day(content, now):
+    assert find_time(content, now) is None

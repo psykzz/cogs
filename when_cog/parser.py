@@ -32,7 +32,7 @@ DAY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 TODAY_TOMORROW_PATTERN = re.compile(
-    rf"\b(?P<day>today|tomorrow)(?:\s+at\s+(?P<time>{TIME_PATTERN}))?\b",
+    rf"\b(?P<day>today|tomorrow)\s+at\s+(?P<time>{TIME_PATTERN})\b",
     re.IGNORECASE,
 )
 CLOCK_PATTERN = re.compile(
@@ -113,12 +113,9 @@ def find_time(content: str, now: datetime) -> Optional[datetime]:
     day_match = TODAY_TOMORROW_PATTERN.search(content)
     if day_match:
         days = 1 if day_match.group("day").lower() == "tomorrow" else 0
-        target = local_now + timedelta(days=days)
-        clock = day_match.group("time")
-        if clock:
-            target = _with_clock(target, clock)
-            if target is None or target <= local_now:
-                return None
+        target = _with_clock(local_now + timedelta(days=days), day_match.group("time"))
+        if target is None or target <= local_now:
+            return None
         return target.astimezone(timezone.utc)
 
     return None
