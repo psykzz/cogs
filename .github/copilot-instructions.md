@@ -240,6 +240,7 @@ async def mycommand(self, ctx):
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
 - **video_dl/**: Download videos from YouTube, TikTok, and Instagram via DM for bot owner only (requires: yt-dlp>=2023.1.1)
+- **when_cog/**: Detect common time expressions and reply with Discord timestamps (no external deps)
 
 ## Dependencies and Installation
 
