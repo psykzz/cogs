@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from when_cog.parser import find_time
+from whentime.parser import find_time
 
 
 @pytest.fixture

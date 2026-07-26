@@ -6,6 +6,6 @@ __red_end_user_data_statement__ = (
 
 
 async def setup(bot):
-    from .when_cog import WhenCog
+    from .cog import WhenCog
 
     await bot.add_cog(WhenCog(bot))

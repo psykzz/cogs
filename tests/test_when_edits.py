@@ -8,7 +8,9 @@ import pytest
 
 def _load_when_cog():
     try:
-        from when_cog.when_cog import WhenCog
+        from whentime.cog import WhenCog
+
+        return WhenCog
     except ModuleNotFoundError:
         redbot = ModuleType("redbot")
         core = ModuleType("redbot.core")
@@ -38,9 +40,9 @@ def _load_when_cog():
         sys.modules["redbot.core"] = core
         sys.modules["redbot.core.commands"] = commands
         sys.modules["redbot.core.checks"] = checks
-        from when_cog.when_cog import WhenCog
+        from whentime.cog import WhenCog
 
-    return WhenCog
+        return WhenCog
 
 
 WhenCog = _load_when_cog()
