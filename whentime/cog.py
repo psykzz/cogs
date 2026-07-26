@@ -1,3 +1,4 @@
+import logging
 from datetime import timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -8,6 +9,7 @@ from redbot.core import Config, checks, commands
 from .parser import find_time
 
 IDENTIFIER = 724689030408665012
+log = logging.getLogger("red.cog.when")
 
 
 class WhenCog(commands.Cog):
@@ -21,11 +23,43 @@ class WhenCog(commands.Cog):
         self.config.register_guild(
             enabled=False,
             enabled_channels=[],
+            timestamp_replies={},
             timezone="UTC",
         )
 
     async def red_delete_data_for_user(self, *, requester: str, user_id: int):
         """This cog does not store user data."""
+
+    async def _track_reply(
+        self, guild: discord.Guild, message_id: int, reply_id: int
+    ):
+        async with self.config.guild(guild).timestamp_replies() as replies:
+            replies[str(message_id)] = reply_id
+
+    async def _get_tracked_reply_id(
+        self, guild: discord.Guild, message_id: int
+    ) -> Optional[int]:
+        replies = await self.config.guild(guild).timestamp_replies()
+        return replies.get(str(message_id))
+
+    async def _untrack_reply(self, guild: discord.Guild, message_id: int):
+        async with self.config.guild(guild).timestamp_replies() as replies:
+            replies.pop(str(message_id), None)
+
+    async def _fetch_tracked_reply(
+        self, message: discord.Message, reply_id: int
+    ) -> Optional[discord.Message]:
+        try:
+            return await message.channel.fetch_message(reply_id)
+        except discord.NotFound:
+            await self._untrack_reply(message.guild, message.id)
+        except (discord.Forbidden, discord.HTTPException):
+            log.warning(
+                "Unable to fetch timestamp reply %s for message %s",
+                reply_id,
+                message.id,
+            )
+        return None
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -50,9 +84,62 @@ class WhenCog(commands.Cog):
             message.created_at.astimezone(guild_timezone),
         )
         if timestamp is not None:
-            await message.reply(
+            reply = await message.reply(
                 f"<t:{int(timestamp.timestamp())}:R>",
                 allowed_mentions=discord.AllowedMentions.none(),
+            )
+            await self._track_reply(message.guild, message.id, reply.id)
+
+    @commands.Cog.listener()
+    async def on_message_edit(
+        self, before: discord.Message, after: discord.Message
+    ):
+        """Keep a tracked timestamp reply in sync with an edited message."""
+        if after.guild is None or after.author.bot:
+            return
+
+        reply_id = await self._get_tracked_reply_id(after.guild, after.id)
+        if reply_id is None:
+            return
+
+        reply = await self._fetch_tracked_reply(after, reply_id)
+        if reply is None:
+            return
+
+        timezone_name = await self.config.guild(after.guild).timezone()
+        try:
+            guild_timezone = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            guild_timezone = timezone.utc
+
+        timestamp = find_time(
+            after.content,
+            (after.edited_at or after.created_at).astimezone(guild_timezone),
+        )
+        if timestamp is None:
+            try:
+                await reply.delete()
+            except discord.NotFound:
+                pass
+            except (discord.Forbidden, discord.HTTPException):
+                log.warning(
+                    "Unable to delete timestamp reply %s for message %s",
+                    reply_id,
+                    after.id,
+                )
+                return
+            await self._untrack_reply(after.guild, after.id)
+            return
+
+        try:
+            await reply.edit(content=f"<t:{int(timestamp.timestamp())}:R>")
+        except discord.NotFound:
+            await self._untrack_reply(after.guild, after.id)
+        except (discord.Forbidden, discord.HTTPException):
+            log.warning(
+                "Unable to update timestamp reply %s for message %s",
+                reply_id,
+                after.id,
             )
 
     @commands.hybrid_group(name="when")

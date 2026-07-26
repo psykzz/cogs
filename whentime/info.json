@@ -6,5 +6,5 @@
     "permissions": ["Send Messages", "Read Message History"],
     "requirements": [],
     "tags": ["time", "timestamp", "utility"],
-    "end_user_data_statement": "This cog stores guild settings for enabled channels and timezones. It does not persistently store personal user data."
+    "end_user_data_statement": "This cog stores guild settings, message IDs, and bot reply IDs to keep timestamp replies synchronized after edits. It does not persistently store personal user data."
 }
