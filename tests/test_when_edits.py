@@ -4,6 +4,7 @@ from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
+import discord
 import pytest
 
 
@@ -190,6 +191,20 @@ async def test_removing_timestamp_reply_untracks_it(cog_and_message):
 
     assert guild_config.reply_mappings == {}
     reply.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_timestamp_removal_keeps_reply_tracked(cog_and_message):
+    cog, message, reply, guild_config = cog_and_message
+    guild_config.reply_mappings[str(message.id)] = reply.id
+    reply.delete.side_effect = discord.Forbidden(
+        MagicMock(status=403, reason="Forbidden"), "Forbidden"
+    )
+
+    deleted = await cog._delete_timestamp_reply(message.guild, message.id, reply)
+
+    assert deleted is False
+    assert guild_config.reply_mappings == {"100": 200}
 
 
 def test_specific_timestamp_must_be_future_and_uses_guild_timezone(cog_and_message):

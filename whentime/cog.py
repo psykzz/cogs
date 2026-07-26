@@ -210,7 +210,6 @@ class WhenCog(commands.Cog):
                 reply.id,
                 message_id,
             )
-            await self._untrack_reply(guild, message_id)
             return False
         await self._untrack_reply(guild, message_id)
         return True
