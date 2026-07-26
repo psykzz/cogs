@@ -88,10 +88,15 @@ class TimestampActionsView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         await interaction.response.defer(ephemeral=True)
-        await self.cog._delete_timestamp_reply(
+        deleted = await self.cog._delete_timestamp_reply(
             self.guild, self.message_id, self.reply
         )
-        await interaction.followup.send("Timestamp reply removed.", ephemeral=True)
+        message = (
+            "Timestamp reply removed."
+            if deleted
+            else "I could not remove that timestamp reply."
+        )
+        await interaction.followup.send(message, ephemeral=True)
 
     @discord.ui.button(label="Set timestamp", style=discord.ButtonStyle.primary)
     async def set_timestamp(
@@ -194,7 +199,7 @@ class WhenCog(commands.Cog):
 
     async def _delete_timestamp_reply(
         self, guild: discord.Guild, message_id: int, reply: discord.Message
-    ):
+    ) -> bool:
         try:
             await reply.delete()
         except discord.NotFound:
@@ -205,8 +210,10 @@ class WhenCog(commands.Cog):
                 reply.id,
                 message_id,
             )
-            return
+            await self._untrack_reply(guild, message_id)
+            return False
         await self._untrack_reply(guild, message_id)
+        return True
 
     async def _should_reply_to_user(
         self, guild: discord.Guild, user_id: int

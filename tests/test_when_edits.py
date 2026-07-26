@@ -2,6 +2,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -196,6 +197,8 @@ def test_specific_timestamp_must_be_future_and_uses_guild_timezone(cog_and_messa
 
     timestamp = cog._parse_timestamp("2099-01-02 03:04", "Europe/London")
 
-    assert timestamp == datetime(2099, 1, 2, 3, 4, tzinfo=timezone.utc)
+    assert timestamp == datetime(2099, 1, 2, 3, 4, tzinfo=ZoneInfo("Europe/London")).astimezone(
+        timezone.utc
+    )
     assert cog._parse_timestamp("not a date", "UTC") is None
     assert cog._parse_timestamp("2000-01-02 03:04", "UTC") is None
