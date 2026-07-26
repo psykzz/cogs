@@ -11,7 +11,7 @@ from .parser import find_time
 
 IDENTIFIER = 724689030408665012
 log = logging.getLogger("red.cog.when")
-DISCORD_TIMESTAMP_PATTERN = re.compile(r"<t:-?\d+(?::[tTdDfFR])?>")
+DISCORD_TIMESTAMP_PATTERN = re.compile(r"<t:\d+(?::[tTdDfFR])?>")
 
 
 class WhenCog(commands.Cog):
