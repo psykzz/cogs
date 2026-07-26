@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -10,6 +11,7 @@ from .parser import find_time
 
 IDENTIFIER = 724689030408665012
 log = logging.getLogger("red.cog.when")
+DISCORD_TIMESTAMP_PATTERN = re.compile(r"<t:-?\d+(?::[tTdDfFR])?>")
 
 
 class WhenCog(commands.Cog):
@@ -64,7 +66,12 @@ class WhenCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Reply when an enabled channel contains a supported time expression."""
-        if message.guild is None or message.author.bot or not message.content:
+        if (
+            message.guild is None
+            or message.author.bot
+            or not message.content
+            or DISCORD_TIMESTAMP_PATTERN.search(message.content)
+        ):
             return
 
         guild_config = self.config.guild(message.guild)
@@ -112,10 +119,12 @@ class WhenCog(commands.Cog):
         except ZoneInfoNotFoundError:
             guild_timezone = timezone.utc
 
-        timestamp = find_time(
-            after.content,
-            (after.edited_at or after.created_at).astimezone(guild_timezone),
-        )
+        timestamp = None
+        if not DISCORD_TIMESTAMP_PATTERN.search(after.content):
+            timestamp = find_time(
+                after.content,
+                (after.edited_at or after.created_at).astimezone(guild_timezone),
+            )
         if timestamp is None:
             try:
                 await reply.delete()
