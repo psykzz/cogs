@@ -2,7 +2,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
+from zoneinfo import ZoneInfo
 
+import discord
 import pytest
 
 
@@ -68,6 +70,7 @@ class ReplyMappings:
 class GuildConfig:
     def __init__(self):
         self.reply_mappings = {}
+        self.preferences = {}
 
     async def enabled(self):
         return True
@@ -81,6 +84,9 @@ class GuildConfig:
     def timestamp_replies(self):
         return ReplyMappings(self.reply_mappings)
 
+    def user_preferences(self):
+        return ReplyMappings(self.preferences)
+
 
 class Config:
     def __init__(self, guild_config):
@@ -92,6 +98,7 @@ class Config:
 
 class Author:
     bot = False
+    id = 1
 
 
 class Channel:
@@ -150,3 +157,63 @@ async def test_edit_without_a_time_deletes_the_tracked_reply(cog_and_message):
 
     assert guild_config.reply_mappings == {}
     reply.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_timestamp_reply_includes_private_controls(cog_and_message):
+    cog, message, reply, _ = cog_and_message
+
+    await cog.on_message(message)
+
+    view = message.reply.await_args.kwargs["view"]
+    assert type(view).__name__ == "TimestampControlsView"
+    assert view.author_id == message.author.id
+
+
+@pytest.mark.asyncio
+async def test_never_reply_preference_prevents_future_replies(cog_and_message):
+    cog, message, reply, guild_config = cog_and_message
+
+    await cog._set_never_reply(message.guild, message.author.id)
+    await cog.on_message(message)
+
+    assert guild_config.preferences == {"1": {"never_reply": True}}
+    reply.edit.assert_not_awaited()
+    message.reply.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_removing_timestamp_reply_untracks_it(cog_and_message):
+    cog, message, reply, guild_config = cog_and_message
+    guild_config.reply_mappings[str(message.id)] = reply.id
+
+    await cog._delete_timestamp_reply(message.guild, message.id, reply)
+
+    assert guild_config.reply_mappings == {}
+    reply.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_timestamp_removal_keeps_reply_tracked(cog_and_message):
+    cog, message, reply, guild_config = cog_and_message
+    guild_config.reply_mappings[str(message.id)] = reply.id
+    reply.delete.side_effect = discord.Forbidden(
+        MagicMock(status=403, reason="Forbidden"), "Forbidden"
+    )
+
+    deleted = await cog._delete_timestamp_reply(message.guild, message.id, reply)
+
+    assert deleted is False
+    assert guild_config.reply_mappings == {"100": 200}
+
+
+def test_specific_timestamp_must_be_future_and_uses_guild_timezone(cog_and_message):
+    cog, _, _, _ = cog_and_message
+
+    timestamp = cog._parse_timestamp("2099-01-02 03:04", "Europe/London")
+
+    assert timestamp == datetime(2099, 1, 2, 3, 4, tzinfo=ZoneInfo("Europe/London")).astimezone(
+        timezone.utc
+    )
+    assert cog._parse_timestamp("not a date", "UTC") is None
+    assert cog._parse_timestamp("2000-01-02 03:04", "UTC") is None
