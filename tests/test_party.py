@@ -40,3 +40,43 @@ def test_party_settings_rejects_non_positive_user_signup_limit(value):
     *_, error = _HELPERS.parse_settings_text(f"max_signups_per_user={value}")
 
     assert error == "❌ 'max_signups_per_user' must be a positive whole number."
+
+
+def test_single_user_signup_limit_replaces_existing_role():
+    """The default retains the existing one-role replacement behavior."""
+    signups = {"Tank": ["1"], "Healer": ["2"]}
+
+    error = _HELPERS.add_user_signup(signups, "1", "Healer", 1)
+
+    assert error is None
+    assert signups == {"Tank": [], "Healer": ["2", "1"]}
+
+
+def test_multiple_user_signup_limit_adds_distinct_roles():
+    """A higher limit preserves existing roles and adds another distinct role."""
+    signups = {"Tank": ["1"], "Healer": []}
+
+    error = _HELPERS.add_user_signup(signups, "1", "Healer", 2)
+
+    assert error is None
+    assert signups == {"Tank": ["1"], "Healer": ["1"]}
+
+
+def test_multiple_user_signup_limit_rejects_duplicate_role():
+    """A user may not consume multiple slots for the same role."""
+    signups = {"Tank": ["1"], "Healer": []}
+
+    error = _HELPERS.add_user_signup(signups, "1", "Tank", 2)
+
+    assert error == "duplicate_role"
+    assert signups == {"Tank": ["1"], "Healer": []}
+
+
+def test_multiple_user_signup_limit_rejects_role_beyond_limit():
+    """A user cannot add a distinct role after reaching the configured limit."""
+    signups = {"Tank": ["1"], "Healer": ["1"], "DPS": []}
+
+    error = _HELPERS.add_user_signup(signups, "1", "DPS", 2)
+
+    assert error == "limit_reached"
+    assert signups == {"Tank": ["1"], "Healer": ["1"], "DPS": []}

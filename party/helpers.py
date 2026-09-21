@@ -96,6 +96,30 @@ def parse_settings_text(
     return allow_multiple, compact, max_signups_per_user, None
 
 
+def add_user_signup(
+    signups: dict[str, list[str]],
+    user_id: str,
+    role: str,
+    max_signups_per_user: int,
+) -> Optional[str]:
+    """Add a signup while enforcing the per-user role limit.
+
+    Returns an error code when the signup cannot be added.
+    """
+    user_roles = [role_name for role_name, users in signups.items() if user_id in users]
+
+    if max_signups_per_user == 1:
+        for role_name in user_roles:
+            signups[role_name].remove(user_id)
+    elif role in user_roles:
+        return "duplicate_role"
+    elif len(user_roles) >= max_signups_per_user:
+        return "limit_reached"
+
+    signups.setdefault(role, []).append(user_id)
+    return None
+
+
 def parse_roles_from_text(roles_text: str) -> list[str]:
     """Parse roles from multiline text, removing duplicates while preserving order."""
     roles_list = [line.strip() for line in roles_text.split('\n') if line.strip()]

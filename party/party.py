@@ -10,6 +10,7 @@ from .helpers import (
     IDENTIFIER,
     EMBED_FIELD_MAX_LENGTH,
     _parse_roles_from_args,
+    add_user_signup,
     format_timestamp,
     has_party_permission,
     parse_scheduled_time,
@@ -290,11 +291,13 @@ class Party(commands.Cog):
                 )
                 return
 
-            user_roles = [role_name for role_name, users in signups.items() if user_id in users]
-            if max_signups_per_user == 1:
-                for role_name in user_roles:
-                    signups[role_name].remove(user_id)
-            elif role in user_roles:
+            signup_error = add_user_signup(
+                signups,
+                user_id,
+                role,
+                max_signups_per_user,
+            )
+            if signup_error == "duplicate_role":
                 await self._reply(
                     interaction,
                     f"❌ You're already signed up as **{role}**.",
@@ -302,7 +305,7 @@ class Party(commands.Cog):
                     deferred=deferred,
                 )
                 return
-            elif len(user_roles) >= max_signups_per_user:
+            if signup_error == "limit_reached":
                 await self._reply(
                     interaction,
                     f"❌ You can only sign up for {max_signups_per_user} role(s) in this party.",
@@ -310,8 +313,6 @@ class Party(commands.Cog):
                     deferred=deferred,
                 )
                 return
-
-            role_signups.append(user_id)
 
         await self._reply(
             interaction,
