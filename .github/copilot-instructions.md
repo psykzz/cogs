@@ -239,7 +239,7 @@ async def mycommand(self, ctx):
 - **secret_santa/**: Secret Santa event management with participant matching, anonymous messaging, and gift tracking (no external deps)
 - **tgmc/**: API interface for TGMC game (requires: httpx, but not specified in info.json)
 - **user/**: Bot user management with nickname and avatar commands (no external deps)
-- **video_dl/**: Download videos from YouTube, TikTok, and Instagram via DM for bot owner only (requires: yt-dlp>=2023.1.1)
+- **video_dl/**: Download videos from YouTube, TikTok, Instagram, and Reddit via DM for bot owner only (requires: yt-dlp>=2023.1.1)
 - **whentime/**: Detect common time expressions, reply with Discord timestamps, and synchronize replies after edits (no external deps)
 
 ## Dependencies and Installation

@@ -14,7 +14,7 @@ log = logging.getLogger("red.cogs.video_dl")
 class VideoDownloader(commands.Cog):
     """Download videos from URLs in DMs and guilds
 
-    Supports YouTube, TikTok, and Instagram videos/shorts/reels.
+    Supports YouTube, TikTok, Instagram, and Reddit videos/shorts/reels.
     """
 
     # Discord file size limits by boost level (in bytes)
@@ -43,6 +43,11 @@ class VideoDownloader(commands.Cog):
         ),
         'instagram': re.compile(
             r'(?:https?://)?(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
+        ),
+        'reddit': re.compile(
+            r'(?:https?://)?(?:www\.|old\.|new\.|np\.|amp\.|m\.)?'
+            r'reddit\.com/r/\w+/comments/\w+(?:/[\w%-]*)?/?'
+            r'|(?:https?://)?redd\.it/\w+'
         ),
     }
 
@@ -193,7 +198,7 @@ class VideoDownloader(commands.Cog):
         Returns
         -------
         str or None
-            Platform name ('youtube', 'tiktok', 'instagram') or None if not recognized
+            Platform name ('youtube', 'tiktok', 'instagram', 'reddit') or None if not recognized
         """
         for platform, pattern in self.URL_PATTERNS.items():
             if pattern.search(url):
@@ -211,7 +216,7 @@ class VideoDownloader(commands.Cog):
         url : str
             Video URL to download
         platform : str
-            Platform name (youtube, tiktok, instagram)
+            Platform name (youtube, tiktok, instagram, reddit)
         temp_dir : str
             Temporary directory to download to
         guild : discord.Guild, optional
@@ -243,7 +248,7 @@ class VideoDownloader(commands.Cog):
             ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
             ydl_opts['format_sort'] = ['proto', 'ext:mp4:m4a', 'res', 'br']
         else:
-            # TikTok & Instagram: best available with sorting
+            # TikTok, Instagram & Reddit: best available with sorting
             ydl_opts['format_sort'] = ['proto', 'ext:mp4:m4a', 'res', 'br']
 
         def _run_download():
@@ -433,7 +438,10 @@ class VideoDownloader(commands.Cog):
         # Detect platform
         platform = self._detect_platform(url)
         if not platform:
-            await ctx.send("❌ URL not recognized. Supported platforms: YouTube, TikTok, Instagram", ephemeral=True)
+            await ctx.send(
+                "❌ URL not recognized. Supported platforms: YouTube, TikTok, Instagram, Reddit",
+                ephemeral=True,
+            )
             return
 
         # Send typing indicator
