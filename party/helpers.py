@@ -35,12 +35,17 @@ def parse_settings_text(
     settings_text: str,
     default_allow_multiple: bool = True,
     default_compact: bool = False,
-) -> tuple[bool, bool, Optional[str]]:
-    """Parse the combined settings field (allow_multiple + compact)."""
+    default_max_signups_per_user: int = 1,
+) -> tuple[bool, bool, int, Optional[str]]:
+    """Parse the combined settings field."""
     allow_multiple = default_allow_multiple
     compact = default_compact
+    max_signups_per_user = default_max_signups_per_user
 
-    valid_keys = {"allow_multiple", "compact"}
+    if not isinstance(max_signups_per_user, int) or max_signups_per_user < 1:
+        max_signups_per_user = 1
+
+    valid_keys = {"allow_multiple", "compact", "max_signups_per_user"}
     valid_values = {"yes", "no", "true", "false", "y", "n", "1", "0"}
 
     for line in settings_text.splitlines():
@@ -52,21 +57,33 @@ def parse_settings_text(
         elif ":" in line:
             key, _, raw_val = line.partition(":")
         else:
-            return allow_multiple, compact, (
+            return allow_multiple, compact, max_signups_per_user, (
                 f"❌ Invalid settings format in '{line}'. "
-                "Use 'allow_multiple=yes' or 'compact=no'."
+                "Use 'allow_multiple=yes', 'compact=no', or 'max_signups_per_user=1'."
             )
 
         key = key.strip().lower()
         raw_val = raw_val.strip().lower()
 
         if key not in valid_keys:
-            return allow_multiple, compact, (
+            return allow_multiple, compact, max_signups_per_user, (
                 f"❌ Unknown setting '{key}'. "
-                "Supported settings: allow_multiple, compact."
+                "Supported settings: allow_multiple, compact, max_signups_per_user."
             )
+        if key == "max_signups_per_user":
+            try:
+                max_signups_per_user = int(raw_val)
+            except ValueError:
+                return allow_multiple, compact, max_signups_per_user, (
+                    "❌ 'max_signups_per_user' must be a positive whole number."
+                )
+            if max_signups_per_user < 1:
+                return allow_multiple, compact, max_signups_per_user, (
+                    "❌ 'max_signups_per_user' must be a positive whole number."
+                )
+            continue
         if raw_val not in valid_values:
-            return allow_multiple, compact, (
+            return allow_multiple, compact, max_signups_per_user, (
                 f"❌ Invalid value '{raw_val}' for '{key}'. Use 'yes' or 'no'."
             )
 
@@ -76,7 +93,31 @@ def parse_settings_text(
         elif key == "compact":
             compact = parsed if parsed is not None else default_compact
 
-    return allow_multiple, compact, None
+    return allow_multiple, compact, max_signups_per_user, None
+
+
+def add_user_signup(
+    signups: dict[str, list[str]],
+    user_id: str,
+    role: str,
+    max_signups_per_user: int,
+) -> Optional[str]:
+    """Add a signup while enforcing the per-user role limit.
+
+    Returns an error code when the signup cannot be added.
+    """
+    user_roles = [role_name for role_name, users in signups.items() if user_id in users]
+
+    if max_signups_per_user == 1:
+        for role_name in user_roles:
+            signups[role_name].remove(user_id)
+    elif role in user_roles:
+        return "duplicate_role"
+    elif len(user_roles) >= max_signups_per_user:
+        return "limit_reached"
+
+    signups.setdefault(role, []).append(user_id)
+    return None
 
 
 def parse_roles_from_text(roles_text: str) -> list[str]:
