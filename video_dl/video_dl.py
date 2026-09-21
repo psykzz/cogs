@@ -17,10 +17,11 @@ class VideoDownloader(commands.Cog):
     Supports YouTube, TikTok, Instagram, and Reddit videos/shorts/reels.
     """
 
-    # Discord file size limits by boost level (in bytes)
+    # Discord file size limits by boost level (in bytes).
+    # Note: DMs have no boost level and use the tier 0 (non-boosted) limit.
     FILE_SIZE_LIMITS = {
-        0: 25 * 1024 * 1024,   # 25MB for non-boosted
-        1: 25 * 1024 * 1024,   # 25MB for level 1
+        0: 10 * 1024 * 1024,   # 10MB for non-boosted / DMs
+        1: 10 * 1024 * 1024,   # 10MB for level 1 (boosting doesn't raise this tier)
         2: 50 * 1024 * 1024,   # 50MB for level 2
         3: 100 * 1024 * 1024,  # 100MB for level 3
     }
@@ -371,47 +372,58 @@ class VideoDownloader(commands.Cog):
                     video_extensions = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.wmv'}
                     if Path(file_path).suffix.lower() not in video_extensions:
                         log.warning(f"Downloaded file does not appear to be a video: {file_path}")
-                    # Try to send directly if within limit
-                    elif file_size <= file_size_limit:
-                        try:
-                            await message.reply(
-                                content=f"Downloaded from {platform.title()}:",
-                                file=discord.File(file_path)
-                            )
-                            await self._remove_embed(message)
-                        except Exception:
-                            # Suppress errors for automatic downloads
-                            pass
-                    # Try catbox.moe if file is too large for Discord but within catbox limit
-                    elif file_size <= self.CATBOX_SIZE_LIMIT:
-                        userhash = guild_config.get("catbox_userhash", "")
-                        upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
-                        if upload_success and catbox_url:
+                    else:
+                        # Try to send directly if within limit
+                        sent_directly = False
+                        if file_size <= file_size_limit:
                             try:
-                                content_msg = (
-                                    f"Downloaded from {platform.title()} "
-                                    f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                                await message.reply(
+                                    content=f"Downloaded from {platform.title()}:",
+                                    file=discord.File(file_path)
                                 )
-                                await message.reply(content=content_msg)
                                 await self._remove_embed(message)
+                                sent_directly = True
+                            except discord.HTTPException as e:
+                                # Discord rejected the upload (e.g. 413 Payload Too Large)
+                                # even though it looked like it fit our estimated limit.
+                                # Fall back to catbox.moe below instead of giving up.
+                                log.warning(
+                                    f"Direct Discord upload rejected, falling back to catbox: {e}"
+                                )
                             except Exception:
+                                # Suppress unexpected errors for automatic downloads
                                 pass
-                        else:
-                            # Catbox failed, react with emoji (guild only)
+
+                        # Try catbox.moe if direct send failed/was skipped and file fits catbox's limit
+                        if not sent_directly and file_size <= self.CATBOX_SIZE_LIMIT:
+                            userhash = guild_config.get("catbox_userhash", "")
+                            upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
+                            if upload_success and catbox_url:
+                                try:
+                                    content_msg = (
+                                        f"Downloaded from {platform.title()} "
+                                        f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                                    )
+                                    await message.reply(content=content_msg)
+                                    await self._remove_embed(message)
+                                except Exception:
+                                    pass
+                            else:
+                                # Catbox failed, react with emoji (guild only)
+                                if message.guild:
+                                    try:
+                                        emoji = guild_config.get("too_large_emoji", "💥")
+                                        await message.add_reaction(emoji)
+                                    except discord.HTTPException:
+                                        pass
+                        elif not sent_directly:
+                            # File is too large even for catbox — react with emoji (guild only)
                             if message.guild:
                                 try:
                                     emoji = guild_config.get("too_large_emoji", "💥")
                                     await message.add_reaction(emoji)
                                 except discord.HTTPException:
                                     pass
-                    else:
-                        # File is too large even for catbox — react with emoji (guild only)
-                        if message.guild:
-                            try:
-                                emoji = guild_config.get("too_large_emoji", "💥")
-                                await message.add_reaction(emoji)
-                            except discord.HTTPException:
-                                pass
                 # React on auth failure; suppress all other download errors
                 elif self._is_auth_error(error_msg):
                     await self._react_auth_error(message)
@@ -466,6 +478,7 @@ class VideoDownloader(commands.Cog):
                     file_size_limit = self._get_file_size_limit(ctx.guild)
 
                     # Try to send directly if within limit
+                    sent_directly = False
                     if file_size <= file_size_limit:
                         try:
                             await ctx.send(
@@ -473,10 +486,17 @@ class VideoDownloader(commands.Cog):
                                 file=discord.File(file_path),
                                 ephemeral=True
                             )
+                            sent_directly = True
                         except discord.HTTPException as e:
-                            await ctx.send(f"❌ Failed to upload file: {e}", ephemeral=True)
-                    # Try catbox.moe if file is too large for Discord but within catbox limit
-                    elif file_size <= self.CATBOX_SIZE_LIMIT:
+                            # Discord rejected the upload (e.g. 413 Payload Too Large)
+                            # even though it looked like it fit our estimated limit.
+                            # Fall back to catbox.moe below instead of giving up.
+                            log.warning(
+                                f"Direct Discord upload rejected, falling back to catbox: {e}"
+                            )
+
+                    # Try catbox.moe if direct send failed/was skipped and file fits catbox's limit
+                    if not sent_directly and file_size <= self.CATBOX_SIZE_LIMIT:
                         if ctx.guild:
                             guild_config = await self.config.guild(ctx.guild).all()
                             userhash = guild_config.get("catbox_userhash", "")
@@ -499,7 +519,7 @@ class VideoDownloader(commands.Cog):
                                 f"catbox.moe upload failed: {error}"
                             )
                             await ctx.send(error_msg, ephemeral=True)
-                    else:
+                    elif not sent_directly:
                         # File is too large even for catbox
                         error_msg = (
                             f"❌ File is too large ({file_size / 1024 / 1024:.1f}MB). "
