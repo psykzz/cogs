@@ -438,7 +438,10 @@ class VideoDownloader(commands.Cog):
         # Detect platform
         platform = self._detect_platform(url)
         if not platform:
-            await ctx.send("❌ URL not recognized. Supported platforms: YouTube, TikTok, Instagram, Reddit", ephemeral=True)
+            await ctx.send(
+                "❌ URL not recognized. Supported platforms: YouTube, TikTok, Instagram, Reddit",
+                ephemeral=True,
+            )
             return
 
         # Send typing indicator
