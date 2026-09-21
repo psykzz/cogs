@@ -8,7 +8,7 @@ A Discord bot cog for creating and managing party signups with role-based compos
 - **Interactive Signups**: Users sign up via Discord buttons and modals
 - **Role Management**: Support for both predefined and custom roles
 - **Scheduled Times**: Set dates/times for parties (displayed with Discord's native timestamps)
-- **Update Signups**: Users can change their role selection at any time
+- **Multiple Role Signups**: Users can sign up for multiple distinct roles when enabled
 - **Leave Party**: Users can leave parties with a single button click
 - **Configuration**: Guild-wide settings for multiple signups per role
 - **Permissions**: Only party creators or server admins can manage parties
@@ -32,6 +32,7 @@ You can use this command in two ways:
    - Description (optional)
    - Roles (one per line, max 25)
    - Whether to allow multiple signups per role
+   - The maximum number of roles each user can sign up for
 
 2. **Traditional Command**: Provide title and roles as arguments
    ```
@@ -157,7 +158,11 @@ The cog uses modern Discord UI components:
 - **allow_freeform**: Always `True` - users can enter custom roles
 - **roles**: List of predefined roles for the party
 - **signups**: Dictionary mapping roles to list of user IDs
+- **max_signups_per_user**: Maximum distinct roles a user may select (default: `1`)
 - **scheduled_time**: Optional Unix timestamp (float) for party start time in UTC
+
+Set `max_signups_per_user` in the create or edit modal's Settings field to any
+positive whole number, for example `max_signups_per_user=2`.
 
 ## Data Storage
 

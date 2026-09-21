@@ -106,14 +106,14 @@ class CreatePartyModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Combined settings field (allow_multiple + compact)
+        # Combined settings field
         self.settings_input = discord.ui.TextInput(
             label="Settings (Optional)",
-            placeholder="allow_multiple=yes\ncompact=no",
+            placeholder="allow_multiple=yes\ncompact=no\nmax_signups_per_user=1",
             required=False,
             style=discord.TextStyle.paragraph,
             max_length=100,
-            default="allow_multiple=yes\ncompact=no",
+            default="allow_multiple=yes\ncompact=no\nmax_signups_per_user=1",
         )
         self.add_item(self.settings_input)
 
@@ -151,8 +151,8 @@ class CreatePartyModal(discord.ui.Modal):
             )
             return
 
-        # Parse and validate settings (allow_multiple + compact)
-        allow_multiple, compact, error = parse_settings_text(settings_text)
+        # Parse and validate settings
+        allow_multiple, compact, max_signups_per_user, error = parse_settings_text(settings_text)
         if error:
             await interaction.followup.send(error, ephemeral=True)
             return
@@ -183,6 +183,7 @@ class CreatePartyModal(discord.ui.Modal):
             description=description,
             allow_multiple=allow_multiple,
             compact=compact,
+            max_signups_per_user=max_signups_per_user,
             scheduled_time=scheduled_time,
         )
         await self.cog._post_party(interaction.guild, interaction.channel, party, party_id)
@@ -243,13 +244,17 @@ class EditPartyFullModal(discord.ui.Modal):
         )
         self.add_item(self.roles_input)
 
-        # Combined settings field (allow_multiple + compact)
+        # Combined settings field
         allow_multiple_val = "yes" if party.get("allow_multiple_per_role", True) else "no"
         compact_val = "yes" if party.get("compact", False) else "no"
-        settings_default = f"allow_multiple={allow_multiple_val}\ncompact={compact_val}"
+        max_signups_per_user = party.get("max_signups_per_user", 1)
+        settings_default = (
+            f"allow_multiple={allow_multiple_val}\ncompact={compact_val}\n"
+            f"max_signups_per_user={max_signups_per_user}"
+        )
         self.settings_input = discord.ui.TextInput(
             label="Settings (Optional)",
-            placeholder="allow_multiple=yes\ncompact=no",
+            placeholder="allow_multiple=yes\ncompact=no\nmax_signups_per_user=1",
             default=settings_default,
             required=False,
             style=discord.TextStyle.paragraph,
@@ -291,12 +296,14 @@ class EditPartyFullModal(discord.ui.Modal):
             _current = _parties.get(self.party_id, {})
             _default_allow_multiple = _current.get("allow_multiple_per_role", True)
             _default_compact = _current.get("compact", False)
+            _default_max_signups_per_user = _current.get("max_signups_per_user", 1)
 
-        # Parse and validate settings (allow_multiple + compact)
-        allow_multiple, compact, error = parse_settings_text(
+        # Parse and validate settings
+        allow_multiple, compact, max_signups_per_user, error = parse_settings_text(
             settings_text,
             default_allow_multiple=_default_allow_multiple,
             default_compact=_default_compact,
+            default_max_signups_per_user=_default_max_signups_per_user,
         )
         if error:
             await interaction.followup.send(error, ephemeral=True)
@@ -328,6 +335,7 @@ class EditPartyFullModal(discord.ui.Modal):
             old_roles = parties[self.party_id].get('roles', [])
             old_allow_multiple = parties[self.party_id].get('allow_multiple_per_role', True)
             old_compact = parties[self.party_id].get('compact', False)
+            old_max_signups_per_user = parties[self.party_id].get('max_signups_per_user', 1)
             old_scheduled_time = parties[self.party_id].get('scheduled_time')
 
             parties[self.party_id]['name'] = new_title
@@ -335,6 +343,7 @@ class EditPartyFullModal(discord.ui.Modal):
             parties[self.party_id]['roles'] = unique_roles
             parties[self.party_id]['allow_multiple_per_role'] = allow_multiple
             parties[self.party_id]['compact'] = compact
+            parties[self.party_id]['max_signups_per_user'] = max_signups_per_user
             parties[self.party_id]['scheduled_time'] = scheduled_time
 
             # Handle role changes: preserve signups for roles that still exist
@@ -391,6 +400,10 @@ class EditPartyFullModal(discord.ui.Modal):
             changes.append(f"Allow Multiple: {old_allow_multiple} → {allow_multiple}")
         if old_compact != compact:
             changes.append(f"Compact: {old_compact} → {compact}")
+        if old_max_signups_per_user != max_signups_per_user:
+            changes.append(
+                f"Max Signups Per User: {old_max_signups_per_user} → {max_signups_per_user}"
+            )
         if old_scheduled_time != scheduled_time:
             changes.append(
                 f"Scheduled Time: {format_timestamp(old_scheduled_time)} → {format_timestamp(scheduled_time)}"
@@ -500,13 +513,14 @@ class PartyView(discord.ui.View):
             await interaction.followup.send("❌ Party not found.", ephemeral=True)
             return
 
-        # Check if user is already signed up
+        # Check the user's existing signups
         user_id = str(interaction.user.id)
-        current_role = None
-        for role_name, users in party["signups"].items():
-            if user_id in users:
-                current_role = role_name
-                break
+        current_roles = [
+            role_name for role_name, users in party["signups"].items() if user_id in users
+        ]
+        max_signups_per_user = party.get("max_signups_per_user", 1)
+        if not isinstance(max_signups_per_user, int) or max_signups_per_user < 1:
+            max_signups_per_user = 1
 
         roles = party["roles"]
 
@@ -520,11 +534,23 @@ class PartyView(discord.ui.View):
             )
             return
 
-        if current_role:
-            # User is already signed up
+        if max_signups_per_user == 1 and current_roles:
             message = (
-                f"You're already signed up as **{current_role}**. "
+                f"You're already signed up as **{current_roles[0]}**. "
                 f"Select a new role to update or use the Leave button to leave the party."
+            )
+        elif len(current_roles) >= max_signups_per_user:
+            await interaction.response.defer(ephemeral=True)
+            await interaction.followup.send(
+                f"❌ You've reached the limit of {max_signups_per_user} role(s) for this party. "
+                "Use the Leave button to leave the party.",
+                ephemeral=True,
+            )
+            return
+        elif current_roles:
+            message = (
+                f"You're signed up as **{', '.join(current_roles)}**. "
+                "Select another role to add."
             )
         else:
             message = "Select your role:"

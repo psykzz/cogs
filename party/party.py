@@ -190,6 +190,7 @@ class Party(commands.Cog):
         description=None,
         allow_multiple: bool = True,
         compact: bool = False,
+        max_signups_per_user: int = 1,
         scheduled_time=None,
     ) -> dict:
         """Build a new party data dict with all required fields."""
@@ -201,6 +202,7 @@ class Party(commands.Cog):
             "roles": roles,
             "signups": {role: [] for role in roles},
             "allow_multiple_per_role": allow_multiple,
+            "max_signups_per_user": max_signups_per_user,
             "allow_freeform": False,
             "channel_id": None,
             "message_id": None,
@@ -274,16 +276,36 @@ class Party(commands.Cog):
             party = parties[party_id]
             allow_multiple = party.get("allow_multiple_per_role", True)
             signups = party.setdefault("signups", {})
-
-            for role_name, users in signups.items():
-                if user_id in users:
-                    users.remove(user_id)
+            max_signups_per_user = party.get("max_signups_per_user", 1)
+            if not isinstance(max_signups_per_user, int) or max_signups_per_user < 1:
+                max_signups_per_user = 1
 
             role_signups = signups.setdefault(role, [])
             if not allow_multiple and role_signups:
                 await self._reply(
                     interaction,
                     f"❌ The role **{role}** is already full (multiple signups not allowed).",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
+                return
+
+            user_roles = [role_name for role_name, users in signups.items() if user_id in users]
+            if max_signups_per_user == 1:
+                for role_name in user_roles:
+                    signups[role_name].remove(user_id)
+            elif role in user_roles:
+                await self._reply(
+                    interaction,
+                    f"❌ You're already signed up as **{role}**.",
+                    disabled_view=disabled_view,
+                    deferred=deferred,
+                )
+                return
+            elif len(user_roles) >= max_signups_per_user:
+                await self._reply(
+                    interaction,
+                    f"❌ You can only sign up for {max_signups_per_user} role(s) in this party.",
                     disabled_view=disabled_view,
                     deferred=deferred,
                 )
@@ -314,7 +336,6 @@ class Party(commands.Cog):
                 if user_id_str in users:
                     party["signups"][role_name].remove(user_id_str)
                     removed = True
-                    break
 
             return removed
 
