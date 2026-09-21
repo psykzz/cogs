@@ -167,6 +167,8 @@ def mock_bot():
     bot = MagicMock()
     bot.user = MockUser(id=999, is_bot=True)
     bot.is_owner = AsyncMock(return_value=False)
+    # Default: message is not a recognized command invocation
+    bot.get_context = AsyncMock(return_value=MagicMock(valid=False))
     return bot
 
 
