@@ -330,6 +330,13 @@ class VideoDownloader(commands.Cog):
         if message.author.id == self.bot.user.id:
             return
 
+        # Ignore messages that invoke a bot command (e.g. `.download <url>`)
+        # to avoid double-processing the same URL via both the command and
+        # this automatic-download listener.
+        ctx = await self.bot.get_context(message)
+        if ctx.valid:
+            return
+
         # Check if downloading is allowed for this message
         if not await self._can_download_in_guild(message):
             return
