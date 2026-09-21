@@ -253,27 +253,26 @@ class VideoDownloader(commands.Cog):
             ydl_opts['format_sort'] = ['proto', 'ext:mp4:m4a', 'res', 'br']
 
         def _run_download():
-            # Pre-check file size before downloading
-            probe_opts = {'quiet': True, 'no_warnings': True}
-            try:
-                with yt_dlp.YoutubeDL(probe_opts) as ydl:
-                    probe_info = ydl.extract_info(url, download=False)
-                    file_size_estimate = (
-                        probe_info.get('filesize')
-                        or probe_info.get('filesize_approx')
-                    )
-                    if file_size_estimate is not None and file_size_estimate > self.MAX_DOWNLOAD_SIZE:
-                        size_mb = file_size_estimate / 1024 / 1024
-                        max_mb = self.MAX_DOWNLOAD_SIZE / 1024 / 1024
-                        return False, None, (
-                            f"Video is too large ({size_mb:.1f}MB). "
-                            f"Maximum allowed size is {max_mb:.0f}MB."
-                        )
-            except Exception as e:
-                log.warning(f"Could not probe video size for {url}: {e}")
-
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+                # Extract metadata first (no download) to check the estimated
+                # file size, then reuse that same info dict to perform the
+                # actual download. This avoids a second extraction pass for
+                # the same URL, which previously caused duplicate network
+                # requests and duplicate yt-dlp log lines.
+                info = ydl.extract_info(url, download=False)
+                file_size_estimate = (
+                    info.get('filesize')
+                    or info.get('filesize_approx')
+                )
+                if file_size_estimate is not None and file_size_estimate > self.MAX_DOWNLOAD_SIZE:
+                    size_mb = file_size_estimate / 1024 / 1024
+                    max_mb = self.MAX_DOWNLOAD_SIZE / 1024 / 1024
+                    return False, None, (
+                        f"Video is too large ({size_mb:.1f}MB). "
+                        f"Maximum allowed size is {max_mb:.0f}MB."
+                    )
+
+                info = ydl.process_ie_result(info, download=True)
 
                 # Find the downloaded file
                 if 'requested_downloads' in info and info['requested_downloads']:
