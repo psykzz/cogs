@@ -263,23 +263,50 @@ class TestURLPatternDetection:
 class TestUploadCaptions:
     """Test captions attached to uploaded videos."""
 
-    def test_caption_includes_video_title(self, cog):
-        """Test that a direct upload caption includes the downloaded title."""
-        caption = cog._upload_caption("youtube", "/tmp/A video title.mp4")
-
-        assert caption == "Downloaded from Youtube: A video title"
-
-    def test_catbox_caption_includes_video_title(self, cog):
-        """Test that a Catbox upload caption includes the downloaded title."""
+    def test_youtube_caption_includes_source_metadata(self, cog):
+        """Test that a YouTube caption includes source metadata."""
         caption = cog._upload_caption(
-            "reddit", "/tmp/A video title.mp4", "https://files.catbox.moe/example.mp4"
+            "youtube",
+            "/tmp/A video title.mp4",
+            {
+                "title": "Video title",
+                "uploader": "Creator",
+                "view_count": 18600,
+                "like_count": 700,
+            },
+        )
+
+        assert caption == "Video title\nCreator - 18,600 views, 700 likes"
+
+    def test_reddit_catbox_caption_includes_source_metadata(self, cog):
+        """Test that a Reddit Catbox caption includes source metadata."""
+        caption = cog._upload_caption(
+            "reddit",
+            "/tmp/A video title.mp4",
+            {"title": "Video title", "subreddit": "videos", "uploader": "poster"},
+            "https://files.catbox.moe/example.mp4",
         )
 
         assert caption == (
-            "Downloaded from Reddit: A video title\n"
+            "r/videos Video title\nposter\n"
             "(too large for Discord, uploaded to catbox.moe):\n"
             "https://files.catbox.moe/example.mp4"
         )
+
+    def test_tiktok_caption_includes_source_metadata(self, cog):
+        """Test that a TikTok caption includes source metadata."""
+        caption = cog._upload_caption(
+            "tiktok",
+            "/tmp/A video title.mp4",
+            {
+                "title": "Video title",
+                "uploader": "Creator",
+                "view_count": 1200,
+                "like_count": 45,
+            },
+        )
+
+        assert caption == "Video title\nCreator - 1,200 views, 45 likes"
 
 
 # ============================================================================
@@ -314,16 +341,14 @@ class TestMessageFiltering:
         )
 
         with patch.object(cog, '_download_video', new=AsyncMock(
-            return_value=(True, '/tmp/video.mp4', None)
+            return_value=(True, '/tmp/video.mp4', None, {"title": "Video title"})
         )):
             with patch('os.path.getsize', return_value=1024 * 1024):  # 1MB
                 with patch('discord.File'):
                     with patch.object(message, 'reply', new=AsyncMock()) as mock_reply:
                         await cog.on_message(message)
                         cog._download_video.assert_called_once()
-                        assert mock_reply.call_args.kwargs["content"] == (
-                            "Downloaded from Youtube: video"
-                        )
+                        assert mock_reply.call_args.kwargs["content"] == "Video title"
 
     async def test_ignore_guild_message_in_disabled_channel(self, cog, mock_bot, mock_guild):
         """Test that messages in disabled channels are ignored even when guild is enabled."""
@@ -386,7 +411,9 @@ class TestMessageFiltering:
         # Mock is_owner to return True
         mock_bot.is_owner.return_value = True
 
-        with patch.object(cog, '_download_video', new=AsyncMock(return_value=(True, '/tmp/video.mp4', None))):
+        with patch.object(cog, '_download_video', new=AsyncMock(
+            return_value=(True, '/tmp/video.mp4', None, {"title": "Video title"})
+        )):
             with patch('os.path.getsize', return_value=1024 * 1024):  # 1MB
                 with patch('discord.File'):
                     with patch.object(message, 'reply', new=AsyncMock()):
