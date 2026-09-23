@@ -257,6 +257,32 @@ class TestURLPatternDetection:
 
 
 # ============================================================================
+# Test Upload Captions
+# ============================================================================
+
+class TestUploadCaptions:
+    """Test captions attached to uploaded videos."""
+
+    def test_caption_includes_video_title(self, cog):
+        """Test that a direct upload caption includes the downloaded title."""
+        caption = cog._upload_caption("youtube", "/tmp/A video title.mp4")
+
+        assert caption == "Downloaded from Youtube: A video title"
+
+    def test_catbox_caption_includes_video_title(self, cog):
+        """Test that a Catbox upload caption includes the downloaded title."""
+        caption = cog._upload_caption(
+            "reddit", "/tmp/A video title.mp4", "https://files.catbox.moe/example.mp4"
+        )
+
+        assert caption == (
+            "Downloaded from Reddit: A video title\n"
+            "(too large for Discord, uploaded to catbox.moe):\n"
+            "https://files.catbox.moe/example.mp4"
+        )
+
+
+# ============================================================================
 # Test Message Filtering
 # ============================================================================
 
@@ -292,9 +318,12 @@ class TestMessageFiltering:
         )):
             with patch('os.path.getsize', return_value=1024 * 1024):  # 1MB
                 with patch('discord.File'):
-                    with patch.object(message, 'reply', new=AsyncMock()):
+                    with patch.object(message, 'reply', new=AsyncMock()) as mock_reply:
                         await cog.on_message(message)
                         cog._download_video.assert_called_once()
+                        assert mock_reply.call_args.kwargs["content"] == (
+                            "Downloaded from Youtube: video"
+                        )
 
     async def test_ignore_guild_message_in_disabled_channel(self, cog, mock_bot, mock_guild):
         """Test that messages in disabled channels are ignored even when guild is enabled."""

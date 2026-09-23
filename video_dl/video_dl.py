@@ -206,6 +206,17 @@ class VideoDownloader(commands.Cog):
                 return platform
         return None
 
+    @staticmethod
+    def _upload_caption(platform: str, file_path: str, catbox_url: str = None):
+        """Build the caption displayed with a downloaded video."""
+        caption = f"Downloaded from {platform.title()}: {Path(file_path).stem}"
+        if catbox_url:
+            caption += (
+                "\n(too large for Discord, uploaded to catbox.moe):\n"
+                f"{catbox_url}"
+            )
+        return caption
+
     async def _download_video(
         self, url: str, platform: str, temp_dir: str,
         guild: discord.Guild = None, cookies_file: str = None
@@ -384,8 +395,9 @@ class VideoDownloader(commands.Cog):
                         if file_size <= file_size_limit:
                             try:
                                 await message.reply(
-                                    content=f"Downloaded from {platform.title()}:",
-                                    file=discord.File(file_path)
+                                    content=self._upload_caption(platform, file_path),
+                                    file=discord.File(file_path),
+                                    allowed_mentions=discord.AllowedMentions.none(),
                                 )
                                 await self._remove_embed(message)
                                 sent_directly = True
@@ -406,11 +418,13 @@ class VideoDownloader(commands.Cog):
                             upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                             if upload_success and catbox_url:
                                 try:
-                                    content_msg = (
-                                        f"Downloaded from {platform.title()} "
-                                        f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                                    content_msg = self._upload_caption(
+                                        platform, file_path, catbox_url
                                     )
-                                    await message.reply(content=content_msg)
+                                    await message.reply(
+                                        content=content_msg,
+                                        allowed_mentions=discord.AllowedMentions.none(),
+                                    )
                                     await self._remove_embed(message)
                                 except Exception:
                                     pass
@@ -488,9 +502,10 @@ class VideoDownloader(commands.Cog):
                     if file_size <= file_size_limit:
                         try:
                             await ctx.send(
-                                content=f"Downloaded from {platform.title()}:",
+                                content=self._upload_caption(platform, file_path),
                                 file=discord.File(file_path),
-                                ephemeral=True
+                                ephemeral=True,
+                                allowed_mentions=discord.AllowedMentions.none(),
                             )
                             sent_directly = True
                         except discord.HTTPException as e:
@@ -511,13 +526,13 @@ class VideoDownloader(commands.Cog):
 
                         success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                         if success and catbox_url:
-                            content_msg = (
-                                f"Downloaded from {platform.title()} "
-                                f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                            content_msg = self._upload_caption(
+                                platform, file_path, catbox_url
                             )
                             await ctx.send(
                                 content=content_msg,
-                                ephemeral=True
+                                ephemeral=True,
+                                allowed_mentions=discord.AllowedMentions.none(),
                             )
                         else:
                             error_msg = (
