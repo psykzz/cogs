@@ -206,6 +206,45 @@ class VideoDownloader(commands.Cog):
                 return platform
         return None
 
+    @staticmethod
+    def _upload_caption(
+        platform: str, file_path: str, metadata: dict = None, catbox_url: str = None
+    ):
+        """Build the caption displayed with a downloaded video."""
+        metadata = metadata or {}
+        title = metadata.get("title") or Path(file_path).stem
+        author = (
+            metadata.get("uploader")
+            or metadata.get("channel")
+            or metadata.get("uploader_id")
+        )
+        engagement = [
+            f"{count:,} {label}"
+            for count, label in (
+                (metadata.get("view_count"), "views"),
+                (metadata.get("like_count"), "likes"),
+            )
+            if isinstance(count, int) and not isinstance(count, bool)
+        ]
+
+        if platform == "reddit" and metadata.get("subreddit"):
+            caption = f"r/{metadata['subreddit']} {title}"
+        else:
+            caption = title
+
+        if author or engagement:
+            details = " - ".join(
+                item for item in (author, ", ".join(engagement)) if item
+            )
+            caption += f"\n{details}"
+
+        if catbox_url:
+            caption += (
+                "\n(too large for Discord, uploaded to catbox.moe):\n"
+                f"{catbox_url}"
+            )
+        return caption
+
     async def _download_video(
         self, url: str, platform: str, temp_dir: str,
         guild: discord.Guild = None, cookies_file: str = None
@@ -226,12 +265,17 @@ class VideoDownloader(commands.Cog):
         Returns
         -------
         tuple
-            (success: bool, file_path: str or None, error_message: str or None)
+            (success: bool, file_path: str or None, error_message: str or None,
+             metadata: dict or None)
         """
         try:
             import yt_dlp
         except ImportError:
-            return False, None, "yt-dlp is not installed. Please install it with: pip install yt-dlp"
+            return (
+                False, None,
+                "yt-dlp is not installed. Please install it with: pip install yt-dlp",
+                None,
+            )
 
         # Configure yt-dlp options based on platform
         ydl_opts = {
@@ -267,9 +311,11 @@ class VideoDownloader(commands.Cog):
                 if file_size_estimate is not None and file_size_estimate > self.MAX_DOWNLOAD_SIZE:
                     size_mb = file_size_estimate / 1024 / 1024
                     max_mb = self.MAX_DOWNLOAD_SIZE / 1024 / 1024
-                    return False, None, (
-                        f"Video is too large ({size_mb:.1f}MB). "
-                        f"Maximum allowed size is {max_mb:.0f}MB."
+                    return (
+                        False, None, (
+                            f"Video is too large ({size_mb:.1f}MB). "
+                            f"Maximum allowed size is {max_mb:.0f}MB."
+                        ), None,
                     )
 
                 info = ydl.process_ie_result(info, download=True)
@@ -283,20 +329,23 @@ class VideoDownloader(commands.Cog):
                     if files:
                         file_path = str(files[0])
                     else:
-                        return False, None, "Download succeeded but could not find the file"
+                        return (
+                            False, None,
+                            "Download succeeded but could not find the file", None,
+                        )
 
                 file_size = os.path.getsize(file_path)
                 log.info(f"Downloaded video: {file_size / 1024 / 1024:.1f}MB")
-                return True, file_path, None
+                return True, file_path, None, info
 
         try:
             return await asyncio.to_thread(_run_download)
         except yt_dlp.utils.DownloadError as e:
             log.error(f"yt-dlp download error: {e}")
-            return False, None, f"Download failed: {str(e)}"
+            return False, None, f"Download failed: {str(e)}", None
         except Exception as e:
             log.exception(f"Unexpected error downloading video: {e}")
-            return False, None, f"Unexpected error: {str(e)}"
+            return False, None, f"Unexpected error: {str(e)}", None
 
     def _is_auth_error(self, error_msg: str) -> bool:
         """Return True if the error looks like a cookie/auth failure."""
@@ -367,7 +416,7 @@ class VideoDownloader(commands.Cog):
 
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(
+                success, file_path, error_msg, metadata = await self._download_video(
                     url, platform, temp_dir, message.guild, cookies_file or None
                 )
 
@@ -384,8 +433,11 @@ class VideoDownloader(commands.Cog):
                         if file_size <= file_size_limit:
                             try:
                                 await message.reply(
-                                    content=f"Downloaded from {platform.title()}:",
-                                    file=discord.File(file_path)
+                                    content=self._upload_caption(
+                                        platform, file_path, metadata
+                                    ),
+                                    file=discord.File(file_path),
+                                    allowed_mentions=discord.AllowedMentions.none(),
                                 )
                                 await self._remove_embed(message)
                                 sent_directly = True
@@ -406,11 +458,13 @@ class VideoDownloader(commands.Cog):
                             upload_success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                             if upload_success and catbox_url:
                                 try:
-                                    content_msg = (
-                                        f"Downloaded from {platform.title()} "
-                                        f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                                    content_msg = self._upload_caption(
+                                        platform, file_path, metadata, catbox_url
                                     )
-                                    await message.reply(content=content_msg)
+                                    await message.reply(
+                                        content=content_msg,
+                                        allowed_mentions=discord.AllowedMentions.none(),
+                                    )
                                     await self._remove_embed(message)
                                 except Exception:
                                     pass
@@ -475,7 +529,7 @@ class VideoDownloader(commands.Cog):
 
             try:
                 # Download the video
-                success, file_path, error_msg = await self._download_video(
+                success, file_path, error_msg, metadata = await self._download_video(
                     url, platform, temp_dir, ctx.guild, cookies_file or None
                 )
 
@@ -488,9 +542,10 @@ class VideoDownloader(commands.Cog):
                     if file_size <= file_size_limit:
                         try:
                             await ctx.send(
-                                content=f"Downloaded from {platform.title()}:",
+                                content=self._upload_caption(platform, file_path, metadata),
                                 file=discord.File(file_path),
-                                ephemeral=True
+                                ephemeral=True,
+                                allowed_mentions=discord.AllowedMentions.none(),
                             )
                             sent_directly = True
                         except discord.HTTPException as e:
@@ -511,13 +566,13 @@ class VideoDownloader(commands.Cog):
 
                         success, catbox_url, error = await self._upload_to_catbox(file_path, userhash)
                         if success and catbox_url:
-                            content_msg = (
-                                f"Downloaded from {platform.title()} "
-                                f"(too large for Discord, uploaded to catbox.moe):\n{catbox_url}"
+                            content_msg = self._upload_caption(
+                                platform, file_path, metadata, catbox_url
                             )
                             await ctx.send(
                                 content=content_msg,
-                                ephemeral=True
+                                ephemeral=True,
+                                allowed_mentions=discord.AllowedMentions.none(),
                             )
                         else:
                             error_msg = (
