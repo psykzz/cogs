@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import os
 import re
@@ -188,6 +189,18 @@ class VideoDownloader(commands.Cog):
 
         return True
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Clean up a URL so yt-dlp can handle it.
+
+        Unescapes HTML entities (e.g. ``&amp;``) and rewrites TikTok
+        ``/photo/`` post links to the ``/video/`` form yt-dlp recognises.
+        """
+        url = html.unescape(url.strip())
+        return re.sub(
+            r'(tiktok\.com/@[^/?#]+)/photo/', r'\1/video/', url, flags=re.IGNORECASE
+        )
+
     def _detect_platform(self, url: str):
         """Detect which platform a URL belongs to.
 
@@ -268,6 +281,7 @@ class VideoDownloader(commands.Cog):
             (success: bool, file_path: str or None, error_message: str or None,
              metadata: dict or None)
         """
+        url = self._normalize_url(url)
         try:
             import yt_dlp
         except ImportError:
