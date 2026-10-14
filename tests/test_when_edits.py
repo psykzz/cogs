@@ -150,3 +150,27 @@ async def test_edit_without_a_time_deletes_the_tracked_reply(cog_and_message):
 
     assert guild_config.reply_mappings == {}
     reply.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_message_with_a_discord_timestamp_is_ignored(cog_and_message):
+    cog, message, reply, guild_config = cog_and_message
+    message.content = "in an hour <t:1784980800:R>"
+
+    await cog.on_message(message)
+
+    assert guild_config.reply_mappings == {}
+    reply.edit.assert_not_awaited()
+    reply.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_edit_with_a_discord_timestamp_deletes_the_tracked_reply(cog_and_message):
+    cog, before, reply, guild_config = cog_and_message
+    await cog.on_message(before)
+    after = Message("in 2 hours <t:1784980800:R>", reply, before.channel)
+
+    await cog.on_message_edit(before, after)
+
+    assert guild_config.reply_mappings == {}
+    reply.delete.assert_awaited_once()
