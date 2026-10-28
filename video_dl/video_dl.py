@@ -14,7 +14,8 @@ log = logging.getLogger("red.cogs.video_dl")
 class VideoDownloader(commands.Cog):
     """Download videos from URLs in DMs and guilds
 
-    Supports YouTube, TikTok, Instagram, and Reddit videos/shorts/reels.
+    Supports YouTube, TikTok, Instagram, and Reddit videos/shorts/reels,
+    including Arazu post links.
     """
 
     # Discord file size limits by boost level (in bytes).
@@ -49,6 +50,7 @@ class VideoDownloader(commands.Cog):
             r'(?:https?://)?(?:www\.|old\.|new\.|np\.|amp\.|m\.)?'
             r'reddit\.com/r/\w+/comments/\w+(?:/[\w%-]*)?/?'
             r'|(?:https?://)?redd\.it/\w+'
+            r'|(?:https?://)?(?:www\.)?arazu\.io/t3_[\w-]+/?'
         ),
     }
 
@@ -207,6 +209,18 @@ class VideoDownloader(commands.Cog):
         return None
 
     @staticmethod
+    def _normalize_reddit_url(url: str) -> str:
+        """Convert Arazu post links to the Reddit URL yt-dlp recognizes."""
+        match = re.fullmatch(
+            r'(?:https?://)?(?:www\.)?arazu\.io/t3_([\w-]+)/?(?:\?[^#]*)?(?:#.*)?',
+            url.strip(),
+            flags=re.IGNORECASE,
+        )
+        if match:
+            return f"https://www.reddit.com/comments/{match.group(1)}"
+        return url
+
+    @staticmethod
     def _upload_caption(
         platform: str, file_path: str, metadata: dict = None, catbox_url: str = None
     ):
@@ -287,6 +301,9 @@ class VideoDownloader(commands.Cog):
 
         if cookies_file:
             ydl_opts['cookiefile'] = cookies_file
+
+        if platform == 'reddit':
+            url = self._normalize_reddit_url(url)
 
         if platform == 'youtube':
             # YouTube: best video up to 1080p + best audio
