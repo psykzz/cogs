@@ -2,7 +2,7 @@
 Unit tests for the VideoDownloader cog.
 
 Tests cover:
-- URL pattern detection (YouTube, TikTok, Instagram)
+- URL pattern detection (YouTube, TikTok, Instagram, Arazu/Reddit)
 - Owner-only DM filtering
 - Message type filtering (DM vs Guild)
 - Guild enable/disable logic
@@ -243,6 +243,15 @@ class TestURLPatternDetection:
         platform = cog._detect_platform(url)
         assert platform == "instagram"
 
+    async def test_detect_arazu_post(self, cog):
+        """Test detection and extraction of Arazu Reddit post URLs."""
+        url = "https://arazu.io/t3_1xgb677/?timeframe=all&category=hot"
+
+        assert cog._detect_platform(url) == "reddit"
+        assert cog.URL_PATTERNS["reddit"].findall(url) == [
+            "https://arazu.io/t3_1xgb677/"
+        ]
+
     async def test_detect_no_platform_for_invalid_url(self, cog):
         """Test that invalid URLs return None."""
         url = "https://www.example.com/video"
@@ -307,6 +316,40 @@ class TestUploadCaptions:
         )
 
         assert caption == "Video title\nCreator - 1,200 views, 45 likes"
+
+
+@pytest.mark.asyncio
+async def test_download_arazu_post_with_reddit_url(cog, tmp_path):
+    """Test that Arazu post IDs are sent to yt-dlp as Reddit URLs."""
+    yt_dlp_mock = MagicMock()
+    yt_dlp_mock.utils.DownloadError = type("DownloadError", (Exception,), {})
+    download = MagicMock()
+    download.__enter__.return_value = download
+    video_path = tmp_path / "video.mp4"
+    video_path.write_bytes(b"video")
+    download.extract_info.return_value = {
+        "filesize": 5,
+        "requested_downloads": [{"filepath": str(video_path)}],
+    }
+    download.process_ie_result.return_value = {
+        "requested_downloads": [{"filepath": str(video_path)}],
+    }
+    yt_dlp_mock.YoutubeDL.return_value = download
+
+    with patch.dict(sys.modules, {"yt_dlp": yt_dlp_mock}):
+        success, file_path, error, _ = await cog._download_video(
+            "https://arazu.io/t3_1xgb677/?timeframe=all&category=hot",
+            "reddit",
+            str(tmp_path),
+        )
+
+    assert success
+    assert file_path == str(video_path)
+    assert error is None
+    download.extract_info.assert_called_once_with(
+        "https://www.reddit.com/comments/1xgb677",
+        download=False,
+    )
 
 
 # ============================================================================
