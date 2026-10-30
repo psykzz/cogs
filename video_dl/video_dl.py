@@ -127,6 +127,54 @@ class VideoDownloader(commands.Cog):
         boost_level = min(guild.premium_tier, 3)
         return self.FILE_SIZE_LIMITS[boost_level]
 
+    async def _compress_for_catbox(self, file_path: str, metadata: dict = None):
+        """Re-encode a video with ffmpeg so it fits catbox.moe's size limit.
+
+        Returns the new file path, or the original path if compression is
+        not possible (no ffmpeg, unknown duration, or still too large).
+        """
+        import shutil
+
+        duration = (metadata or {}).get("duration")
+        if not duration or not shutil.which("ffmpeg"):
+            return file_path
+
+        target_bytes = int(self.CATBOX_SIZE_LIMIT * 0.93)
+        audio_bps = 96_000
+        video_bps = int(target_bytes * 8 / duration) - audio_bps
+        if video_bps < 100_000:
+            return file_path
+
+        out_path = str(Path(file_path).with_name(Path(file_path).stem + ".compressed.mp4"))
+        cmd = [
+            "ffmpeg", "-y", "-i", file_path,
+            "-c:v", "libx264", "-preset", "veryfast",
+            "-b:v", str(video_bps), "-maxrate", str(int(video_bps * 1.2)),
+            "-bufsize", str(video_bps * 2),
+            "-vf", "scale='min(1280,iw)':-2",
+            "-c:a", "aac", "-b:a", str(audio_bps),
+            "-movflags", "+faststart", out_path,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=900)
+        except Exception as e:
+            log.warning(f"ffmpeg compression failed: {e}")
+            return file_path
+
+        if (
+            proc.returncode == 0
+            and os.path.exists(out_path)
+            and os.path.getsize(out_path) <= self.CATBOX_SIZE_LIMIT
+        ):
+            log.info(f"Compressed video to {os.path.getsize(out_path) / 1024 / 1024:.1f}MB")
+            return out_path
+        return file_path
+
     async def _upload_to_catbox(self, file_path: str, userhash: str = None):
         """Upload a file to catbox.moe.
 
@@ -440,6 +488,9 @@ class VideoDownloader(commands.Cog):
                 if success and file_path:
                     file_size = os.path.getsize(file_path)
                     file_size_limit = self._get_file_size_limit(message.guild)
+                    if file_size > max(file_size_limit, self.CATBOX_SIZE_LIMIT):
+                        file_path = await self._compress_for_catbox(file_path, metadata)
+                        file_size = os.path.getsize(file_path)
 
                     video_extensions = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.wmv'}
                     if Path(file_path).suffix.lower() not in video_extensions:
@@ -553,6 +604,10 @@ class VideoDownloader(commands.Cog):
                 if success and file_path:
                     file_size = os.path.getsize(file_path)
                     file_size_limit = self._get_file_size_limit(ctx.guild)
+                    if file_size > max(file_size_limit, self.CATBOX_SIZE_LIMIT):
+                        await ctx.send("⏳ File is large, compressing...", ephemeral=True)
+                        file_path = await self._compress_for_catbox(file_path, metadata)
+                        file_size = os.path.getsize(file_path)
 
                     # Try to send directly if within limit
                     sent_directly = False
