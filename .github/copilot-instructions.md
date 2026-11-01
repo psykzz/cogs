@@ -302,7 +302,7 @@ When making changes to cogs, validate functionality by:
 
 2. **For movie_search changes**: Run `pytest tests/test_movie_search.py` to verify matching links and failure handling without making live IMDb requests.
 
-3. **For timer cogs**: Test datetime parsing and timer calculations  
+3. **For timer cogs**: Test datetime parsing and timer calculations
    ```bash
    # Test timer logic without redbot dependencies
    python3 -c "
