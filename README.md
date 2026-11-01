@@ -345,7 +345,7 @@ Miscellaneous utility commands for your server.
 
 Search IMDb for a movie title and get the first matching IMDb link.
 
-**Requirements:** `cinemagoer==2026.8.20`
+**Requirements:** None
 
 **Installation:**
 ```

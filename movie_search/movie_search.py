@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
-from imdb import Cinemagoer
 from redbot.core import commands
 
 log = logging.getLogger("red.cog.movie_search")
@@ -12,7 +14,29 @@ class MovieSearch(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.imdb_client = Cinemagoer()
+
+    @staticmethod
+    def _search_movies(title):
+        encoded_title = quote(title.lower(), safe="")
+        first_character = quote(title[0].lower(), safe="")
+        request = Request(
+            f"https://v3.sg.media-imdb.com/suggestion/{first_character}/{encoded_title}.json",
+            headers={"Accept": "application/json"},
+        )
+        with urlopen(request, timeout=10) as response:
+            results = json.load(response).get("d", [])
+        return [
+            {
+                "movieID": item["id"][2:],
+                "title": item.get("l", title),
+                "year": item.get("y"),
+            }
+            for item in results
+            if isinstance(item, dict)
+            and isinstance(item.get("id"), str)
+            and item["id"].startswith("tt")
+            and item["id"][2:].isdigit()
+        ]
 
     @commands.hybrid_command(name="imdb")
     async def imdb(self, ctx, *, title: str):
@@ -30,7 +54,7 @@ class MovieSearch(commands.Cog):
 
         await ctx.defer(ephemeral=True)
         try:
-            matches = await asyncio.to_thread(self.imdb_client.search_movie, title)
+            matches = await asyncio.to_thread(self._search_movies, title)
         except Exception:
             log.exception("IMDb search failed for %r", title)
             await ctx.send("IMDb search failed. Please try again later.", ephemeral=True)
@@ -41,7 +65,7 @@ class MovieSearch(commands.Cog):
             return
 
         movie = matches[0]
-        imdb_id = getattr(movie, "movieID", None)
+        imdb_id = movie.get("movieID")
         if not imdb_id or not str(imdb_id).isdigit():
             await ctx.send("IMDb returned a result without a valid title link.", ephemeral=True)
             return
