@@ -229,6 +229,7 @@ async def mycommand(self, ctx):
 - **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **ideas/**: Suggest ideas by creating GitHub issues in the repository (requires: httpx>=0.14.1)
 - **misc/**: Miscellaneous utilities (no external deps)
+- **movie_search/**: Search IMDb for movie titles and return a matching link (requires: cinemagoer==2022.12.27)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
@@ -257,7 +258,7 @@ pip3 install dependency_name==version
 
 ### Common Dependencies
 ```bash
-# For movie_vote cog
+# For movie_search and movie_vote cogs
 pip3 install cinemagoer==2022.12.27
 
 # For albion_auth, albion_ava, albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
@@ -299,7 +300,9 @@ When making changes to cogs, validate functionality by:
    print(f'IMDB regex test: {match.group(1) if match else \"Failed\"}')"
    ```
 
-2. **For timer cogs**: Test datetime parsing and timer calculations  
+2. **For movie_search changes**: Run `pytest tests/test_movie_search.py` to verify matching links and failure handling without making live IMDb requests.
+
+3. **For timer cogs**: Test datetime parsing and timer calculations  
    ```bash
    # Test timer logic without redbot dependencies
    python3 -c "
@@ -311,7 +314,7 @@ When making changes to cogs, validate functionality by:
    print(f'Timer calculation test: {delta}')"
    ```
 
-3. **For API cogs**: Test HTTP request patterns (without actual requests)
+4. **For API cogs**: Test HTTP request patterns (without actual requests)
    ```bash
    # Test HTTP client setup patterns
    python3 -c "
@@ -321,7 +324,7 @@ When making changes to cogs, validate functionality by:
    print('httpx version:', httpx.__version__)"
    ```
 
-4. **For role cogs**: Test permission validation and role assignment logic
+5. **For role cogs**: Test permission validation and role assignment logic
    ```bash
    # Test Discord object patterns  
    python3 -c "
@@ -330,7 +333,7 @@ When making changes to cogs, validate functionality by:
    print('discord.py version:', discord.__version__)"
    ```
 
-5. **For game_embed changes**: Test A2S protocol and server query patterns
+6. **For game_embed changes**: Test A2S protocol and server query patterns
    ```bash
    # Test python-a2s module import and basic functionality
    python3 -c "
@@ -339,7 +342,7 @@ When making changes to cogs, validate functionality by:
    print('Available functions:', [f for f in dir(a2s) if not f.startswith('_')])"
    ```
 
-6. **For hat changes**: Test Pillow image manipulation
+7. **For hat changes**: Test Pillow image manipulation
    ```bash
    # Test Pillow module import and basic functionality
    python3 -c "
@@ -353,7 +356,7 @@ When making changes to cogs, validate functionality by:
    print('Image creation test: OK')"
    ```
 
-7. **For video_dl changes**: Test yt-dlp module import and URL pattern matching
+8. **For video_dl changes**: Test yt-dlp module import and URL pattern matching
    ```bash
    # Test yt-dlp module import
    python3 -c "

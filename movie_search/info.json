@@ -1,0 +1,9 @@
+{
+  "name": "MovieSearch",
+  "author": ["psykzz"],
+  "short": "Search IMDb for movies",
+  "description": "Search for a movie title and return its IMDb link.",
+  "tags": ["movie", "imdb", "search"],
+  "requirements": ["cinemagoer==2022.12.27"],
+  "end_user_data_statement": "This cog does not persistently store data or metadata about users."
+}
