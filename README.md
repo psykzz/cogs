@@ -341,6 +341,26 @@ Miscellaneous utility commands for your server.
 
 ---
 
+### Movie Search
+
+Search IMDb for a movie title and get the first matching IMDb link.
+
+**Requirements:** `cinemagoer==2026.8.20`
+
+**Installation:**
+```
+[p]cog install psykzz-cogs movie_search
+[p]load movie_search
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/imdb <title>` | Search IMDb for a movie title |
+
+---
+
 ### Movie Vote
 
 Manage a channel for collecting votes for what movies to watch next.
