@@ -229,7 +229,7 @@ async def mycommand(self, ctx):
 - **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **ideas/**: Suggest ideas by creating GitHub issues in the repository (requires: httpx>=0.14.1)
 - **misc/**: Miscellaneous utilities (no external deps)
-- **movie_search/**: Search IMDb for movie titles and return a matching link (requires: cinemagoer==2026.8.20)
+- **movie_search/**: Search IMDb for movie titles and return a matching link (no external deps)
 - **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2026.8.20)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
@@ -258,7 +258,7 @@ pip3 install dependency_name==version
 
 ### Common Dependencies
 ```bash
-# For movie_search and movie_vote cogs
+# For movie_vote cog
 pip3 install cinemagoer==2026.8.20
 
 # For albion_auth, albion_ava, albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
