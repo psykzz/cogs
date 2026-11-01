@@ -549,10 +549,10 @@ See these cogs for reference implementations:
 ## Maintaining Documentation
 
 ### Documentation Update Requirements
-**CRITICAL**: The `.github/copilot-instructions.md` file MUST be updated whenever changes are made to the repository structure or cog functionality. This ensures AI assistants have accurate context for future work.
+**CRITICAL**: The `AGENTS.md` file MUST be updated whenever changes are made to the repository structure or cog functionality. This ensures AI assistants have accurate context for future work.
 
-### When to Update Copilot Instructions
-Update `.github/copilot-instructions.md` in the following scenarios:
+### When to Update Repository Instructions
+Update `AGENTS.md` in the following scenarios:
 
 1. **Adding a New Cog**:
    - Add the cog to the "Key Cogs" section (alphabetically ordered)
@@ -591,14 +591,14 @@ Update `.github/copilot-instructions.md` in the following scenarios:
 - Include version numbers for dependencies when specified in info.json
 
 ### Validation After Documentation Updates
-After updating copilot instructions, verify:
+After updating `AGENTS.md`, verify:
 ```bash
 # Ensure the markdown is valid (no broken formatting)
-head -50 .github/copilot-instructions.md
+head -50 AGENTS.md
 
 # Verify all cogs are documented (excludes .github directory)
 ls -d */ | grep -v '.github/' | sed 's|/||' | sort > /tmp/cogs_actual.txt
-grep -E "^\- \*\*[^/]+/\*\*:" .github/copilot-instructions.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
+grep -E "^\- \*\*[^/]+/\*\*:" AGENTS.md | awk -F'**' '{print $2}' | sed 's|/.*||' | sort > /tmp/cogs_documented.txt
 diff /tmp/cogs_actual.txt /tmp/cogs_documented.txt
 ```
 
@@ -636,6 +636,7 @@ Remember: Accurate documentation prevents confusion and reduces errors in future
 /home/runner/work/cogs/cogs/
 ├── .github/workflows/lint.yml    # CI configuration
 ├── .gitignore                    # Standard Python gitignore
+├── AGENTS.md                     # Repository development instructions
 ├── README.md                     # Basic installation instructions
 ├── LICENSE                       # AGPL-3.0 license
 └── [cog_directories]/            # Individual cog implementations
