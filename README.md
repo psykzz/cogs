@@ -345,7 +345,7 @@ Miscellaneous utility commands for your server.
 
 Manage a channel for collecting votes for what movies to watch next.
 
-**Requirements:** `cinemagoer==2022.12.27`
+**Requirements:** `cinemagoer==2026.8.20`
 
 **Installation:**
 ```
@@ -647,7 +647,7 @@ This repository includes automated testing to ensure all cogs are compatible wit
 ```bash
 # Install Red-DiscordBot and dependencies
 pip install Red-DiscordBot
-pip install cinemagoer==2022.12.27 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
+pip install cinemagoer==2026.8.20 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
 
 # Run the test suite
 python test_redbot_setup.py
