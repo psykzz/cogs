@@ -17,7 +17,7 @@ pip3 install Red-DiscordBot
 pip3 install flake8
 
 # Install common cog dependencies (install as needed based on info.json files)
-pip3 install cinemagoer==2022.12.27 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
+pip3 install cinemagoer==2026.8.20 httpx discord.py python-a2s>=1.3.0 Pillow>=10.2.0
 
 # Validate Python syntax for all cogs (immediate, ~1 second)
 python3 -m py_compile */*.py
@@ -229,8 +229,8 @@ async def mycommand(self, ctx):
 - **hat/**: Add festive Christmas hats to user avatars with customizable scale, rotation, and position (requires: Pillow>=10.2.0)
 - **ideas/**: Suggest ideas by creating GitHub issues in the repository (requires: httpx>=0.14.1)
 - **misc/**: Miscellaneous utilities (no external deps)
-- **movie_search/**: Search IMDb for movie titles and return a matching link (requires: cinemagoer==2022.12.27)
-- **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2022.12.27)
+- **movie_search/**: Search IMDb for movie titles and return a matching link (requires: cinemagoer==2026.8.20)
+- **movie_vote/**: Movie voting system with IMDB integration (requires: cinemagoer==2026.8.20)
 - **nw_server_status/**: New World server monitoring (requires: httpx>=0.14.1)
 - **nw_timers/**: New World war timers (no external deps)
 - **party/**: Party signup system with configurable per-role and per-user signup limits, managed through Discord buttons and modals; split across `party.py`, `helpers.py`, and `views.py` (no external deps)
@@ -259,7 +259,7 @@ pip3 install dependency_name==version
 ### Common Dependencies
 ```bash
 # For movie_search and movie_vote cogs
-pip3 install cinemagoer==2022.12.27
+pip3 install cinemagoer==2026.8.20
 
 # For albion_auth, albion_ava, albion_regear, ideas, and nw_server_status cogs (tgmc also needs httpx but doesn't specify in info.json)
 pip3 install httpx>=0.14.1
