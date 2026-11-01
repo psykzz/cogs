@@ -43,13 +43,15 @@ async def test_imdb_search_returns_first_match_link(movie_search_module, monkeyp
     ]))
     monkeypatch.setattr(movie_search_module, "Cinemagoer", lambda: client)
     cog = movie_search_module.MovieSearch(bot=None)
-    ctx = SimpleNamespace(send=AsyncMock(), defer=AsyncMock())
+    channel = SimpleNamespace(send=AsyncMock())
+    ctx = SimpleNamespace(send=AsyncMock(), defer=AsyncMock(), channel=channel)
 
     await cog.imdb(ctx, title="  The Matrix  ")
 
     client.search_movie.assert_called_once_with("The Matrix")
-    ctx.defer.assert_awaited_once_with()
-    ctx.send.assert_awaited_once_with(
+    ctx.defer.assert_awaited_once_with(ephemeral=True)
+    ctx.send.assert_not_awaited()
+    channel.send.assert_awaited_once_with(
         "The Matrix (1999): https://www.imdb.com/title/tt0133093/",
     )
 
@@ -63,9 +65,10 @@ async def test_imdb_search_reports_no_matches(movie_search_module, monkeypatch):
 
     await cog.imdb(ctx, title="Unknown title")
 
-    ctx.defer.assert_awaited_once_with()
+    ctx.defer.assert_awaited_once_with(ephemeral=True)
     ctx.send.assert_awaited_once_with(
         "No IMDb results found for 'Unknown title'.",
+        ephemeral=True,
     )
 
 
@@ -78,9 +81,10 @@ async def test_imdb_search_reports_lookup_failure(movie_search_module, monkeypat
 
     await cog.imdb(ctx, title="The Matrix")
 
-    ctx.defer.assert_awaited_once_with()
+    ctx.defer.assert_awaited_once_with(ephemeral=True)
     ctx.send.assert_awaited_once_with(
         "IMDb search failed. Please try again later.",
+        ephemeral=True,
     )
 
 
@@ -95,4 +99,4 @@ async def test_imdb_search_rejects_blank_title(movie_search_module, monkeypatch)
 
     client.search_movie.assert_not_called()
     ctx.defer.assert_not_awaited()
-    ctx.send.assert_awaited_once_with("Please provide a movie title.")
+    ctx.send.assert_awaited_once_with("Please provide a movie title.", ephemeral=True)

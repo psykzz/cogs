@@ -25,29 +25,29 @@ class MovieSearch(commands.Cog):
         """
         title = title.strip()
         if not title:
-            await ctx.send("Please provide a movie title.")
+            await ctx.send("Please provide a movie title.", ephemeral=True)
             return
 
-        await ctx.defer()
+        await ctx.defer(ephemeral=True)
         try:
             matches = await asyncio.to_thread(self.imdb_client.search_movie, title)
         except Exception:
             log.exception("IMDb search failed for %r", title)
-            await ctx.send("IMDb search failed. Please try again later.")
+            await ctx.send("IMDb search failed. Please try again later.", ephemeral=True)
             return
 
         if not matches:
-            await ctx.send(f"No IMDb results found for {title!r}.")
+            await ctx.send(f"No IMDb results found for {title!r}.", ephemeral=True)
             return
 
         movie = matches[0]
         imdb_id = getattr(movie, "movieID", None)
         if not imdb_id or not str(imdb_id).isdigit():
-            await ctx.send("IMDb returned a result without a valid title link.")
+            await ctx.send("IMDb returned a result without a valid title link.", ephemeral=True)
             return
 
         movie_title = movie.get("title", title)
         year = movie.get("year")
         display_title = f"{movie_title} ({year})" if year else movie_title
         link = f"https://www.imdb.com/title/tt{imdb_id}/"
-        await ctx.send(f"{display_title}: {link}")
+        await ctx.channel.send(f"{display_title}: {link}")
