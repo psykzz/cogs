@@ -4,6 +4,6 @@
   "short": "Search IMDb for movies",
   "description": "Search for a movie title and return its IMDb link.",
   "tags": ["movie", "imdb", "search"],
-  "requirements": ["cinemagoer==2026.8.20"],
+  "requirements": [],
   "end_user_data_statement": "This cog does not persistently store data or metadata about users."
 }
