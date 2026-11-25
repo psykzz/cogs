@@ -1,5 +1,5 @@
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -10,6 +10,183 @@ from .parser import find_time
 
 IDENTIFIER = 724689030408665012
 log = logging.getLogger("red.cog.when")
+
+
+class SetTimestampModal(discord.ui.Modal):
+    """Set a timestamp reply to a specific date and time."""
+
+    def __init__(self, actions_view: "TimestampActionsView", timezone_name: str):
+        super().__init__(title="Set timestamp")
+        self.actions_view = actions_view
+        self.timezone_name = timezone_name
+        self.value = discord.ui.TextInput(
+            label="Date and time",
+            placeholder=f"YYYY-MM-DD HH:MM ({timezone_name})",
+            required=True,
+            max_length=16,
+        )
+        self.add_item(self.value)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        timestamp = self.actions_view.cog._parse_timestamp(
+            self.value.value, self.timezone_name
+        )
+        if timestamp is None:
+            message = "Enter a future date and time as `YYYY-MM-DD HH:MM`."
+        else:
+            try:
+                await self.actions_view.reply.edit(
+                    content=f"<t:{int(timestamp.timestamp())}:R>"
+                )
+            except discord.NotFound:
+                await self.actions_view.cog._untrack_reply(
+                    self.actions_view.guild, self.actions_view.message_id
+                )
+                message = "That timestamp reply no longer exists."
+            except (discord.Forbidden, discord.HTTPException):
+                log.warning(
+                    "Unable to update timestamp reply %s for message %s",
+                    self.actions_view.reply.id,
+                    self.actions_view.message_id,
+                )
+                message = "I could not update that timestamp reply."
+            else:
+                await self.actions_view.cog._set_manual_timestamp(
+                    self.actions_view.guild,
+                    self.actions_view.message_id,
+                    int(timestamp.timestamp()),
+                )
+                message = "Timestamp reply updated."
+
+        await interaction.followup.send(message, ephemeral=True)
+
+
+class TimestampActionsView(discord.ui.View):
+    """Ephemeral actions for a timestamp reply."""
+
+    def __init__(
+        self,
+        cog: "WhenCog",
+        guild: discord.Guild,
+        message_id: int,
+        reply: discord.Message,
+        author_id: int,
+    ):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.guild = guild
+        self.message_id = message_id
+        self.reply = reply
+        self.author_id = author_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message(
+                "Only the original poster can manage this timestamp.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Remove reply", style=discord.ButtonStyle.danger)
+    async def remove_reply(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        deleted = await self.cog._delete_timestamp_reply(
+            self.guild, self.message_id, self.reply
+        )
+        message = (
+            "Timestamp reply removed."
+            if deleted
+            else "I could not remove that timestamp reply."
+        )
+        await interaction.followup.send(message, ephemeral=True)
+
+    @discord.ui.button(label="Set timestamp", style=discord.ButtonStyle.primary)
+    async def set_timestamp(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        timezone_name = await self.cog.config.guild(self.guild).timezone()
+        await interaction.response.send_modal(
+            SetTimestampModal(self, timezone_name)
+        )
+
+    @discord.ui.button(label="Never reply", style=discord.ButtonStyle.secondary)
+    async def never_reply(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await self.cog._set_never_reply(self.guild, self.author_id)
+        await interaction.followup.send(
+            "When will no longer reply to your messages in this server.",
+            ephemeral=True,
+        )
+
+
+class TimestampControlsView(discord.ui.View):
+    """Persistent button that opens private timestamp reply actions."""
+
+    def __init__(self, bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+
+    @discord.ui.button(
+        label="Manage timestamp",
+        style=discord.ButtonStyle.secondary,
+        custom_id="whentime:manage_timestamp",
+    )
+    async def manage_timestamp(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        reply = interaction.message
+        reference = reply.reference if reply is not None else None
+        if reference is None or reference.message_id is None:
+            await interaction.followup.send(
+                "I could not find the original message.", ephemeral=True
+            )
+            return
+
+        try:
+            source = await reply.channel.fetch_message(reference.message_id)
+        except discord.NotFound:
+            await interaction.followup.send(
+                "The original message could not be found.", ephemeral=True
+            )
+            return
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.followup.send(
+                "I could not access the original message.", ephemeral=True
+            )
+            return
+
+        if source.author.id != interaction.user.id:
+            await interaction.followup.send(
+                "Only the original poster can manage this timestamp.",
+                ephemeral=True,
+            )
+            return
+
+        cog = self.bot.get_cog("WhenCog")
+        if cog is None or source.guild is None:
+            await interaction.followup.send(
+                "When is currently unavailable.", ephemeral=True
+            )
+            return
+
+        await interaction.followup.send(
+            "Manage this timestamp reply:",
+            view=TimestampActionsView(
+                cog,
+                source.guild,
+                source.id,
+                reply,
+                source.author.id,
+            ),
+            ephemeral=True,
+        )
 
 
 class WhenCog(commands.Cog):
@@ -24,11 +201,20 @@ class WhenCog(commands.Cog):
             enabled=False,
             enabled_channels=[],
             timestamp_replies={},
+            manual_timestamps={},
             timezone="UTC",
+            user_preferences={},
         )
 
+    async def cog_load(self):
+        self.bot.add_view(TimestampControlsView(self.bot))
+
     async def red_delete_data_for_user(self, *, requester: str, user_id: int):
-        """This cog does not store user data."""
+        """Delete a user's guild-specific reply preferences."""
+        for guild_id in (await self.config.all_guilds()).keys():
+            guild_config = self.config.guild_from_id(guild_id)
+            async with guild_config.user_preferences() as preferences:
+                preferences.pop(str(user_id), None)
 
     async def _track_reply(
         self, guild: discord.Guild, message_id: int, reply_id: int
@@ -43,8 +229,69 @@ class WhenCog(commands.Cog):
         return replies.get(str(message_id))
 
     async def _untrack_reply(self, guild: discord.Guild, message_id: int):
-        async with self.config.guild(guild).timestamp_replies() as replies:
+        guild_config = self.config.guild(guild)
+        async with guild_config.timestamp_replies() as replies:
             replies.pop(str(message_id), None)
+        async with guild_config.manual_timestamps() as timestamps:
+            timestamps.pop(str(message_id), None)
+
+    async def _set_manual_timestamp(
+        self, guild: discord.Guild, message_id: int, timestamp: int
+    ):
+        async with self.config.guild(guild).manual_timestamps() as timestamps:
+            timestamps[str(message_id)] = timestamp
+
+    async def _get_manual_timestamp(
+        self, guild: discord.Guild, message_id: int
+    ) -> Optional[int]:
+        timestamps = await self.config.guild(guild).manual_timestamps()
+        return timestamps.get(str(message_id))
+
+    async def _delete_timestamp_reply(
+        self, guild: discord.Guild, message_id: int, reply: discord.Message
+    ) -> bool:
+        try:
+            await reply.delete()
+        except discord.NotFound:
+            pass
+        except (discord.Forbidden, discord.HTTPException):
+            log.warning(
+                "Unable to delete timestamp reply %s for message %s",
+                reply.id,
+                message_id,
+            )
+            return False
+        await self._untrack_reply(guild, message_id)
+        return True
+
+    async def _should_reply_to_user(
+        self, guild: discord.Guild, user_id: int
+    ) -> bool:
+        preferences = await self.config.guild(guild).user_preferences()
+        preference = preferences.get(str(user_id), {})
+        return not preference.get("never_reply", False)
+
+    async def _set_never_reply(self, guild: discord.Guild, user_id: int):
+        async with self.config.guild(guild).user_preferences() as preferences:
+            preferences[str(user_id)] = {"never_reply": True}
+
+    @staticmethod
+    def _parse_timestamp(value: str, timezone_name: str) -> Optional[datetime]:
+        try:
+            local_time = datetime.strptime(value.strip(), "%Y-%m-%d %H:%M")
+            local_timezone = ZoneInfo(timezone_name)
+        except (ValueError, ZoneInfoNotFoundError):
+            return None
+
+        timestamp = local_time.replace(tzinfo=local_timezone)
+        round_trip = (
+            timestamp.astimezone(timezone.utc)
+            .astimezone(local_timezone)
+            .replace(tzinfo=None)
+        )
+        if round_trip != local_time or timestamp <= datetime.now(timezone.utc):
+            return None
+        return timestamp.astimezone(timezone.utc)
 
     async def _fetch_tracked_reply(
         self, message: discord.Message, reply_id: int
@@ -73,6 +320,9 @@ class WhenCog(commands.Cog):
         if not enabled and message.channel.id not in enabled_channels:
             return
 
+        if not await self._should_reply_to_user(message.guild, message.author.id):
+            return
+
         timezone_name = await guild_config.timezone()
         try:
             guild_timezone = ZoneInfo(timezone_name)
@@ -87,6 +337,7 @@ class WhenCog(commands.Cog):
             reply = await message.reply(
                 f"<t:{int(timestamp.timestamp())}:R>",
                 allowed_mentions=discord.AllowedMentions.none(),
+                view=TimestampControlsView(self.bot),
             )
             await self._track_reply(message.guild, message.id, reply.id)
 
@@ -104,6 +355,9 @@ class WhenCog(commands.Cog):
 
         reply = await self._fetch_tracked_reply(after, reply_id)
         if reply is None:
+            return
+
+        if await self._get_manual_timestamp(after.guild, after.id) is not None:
             return
 
         timezone_name = await self.config.guild(after.guild).timezone()
